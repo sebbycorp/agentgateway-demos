@@ -15,7 +15,7 @@ set -euo pipefail
 
 CLUSTER_NAME="agw-series"
 NAMESPACE="agentgateway-system"
-AGW_VERSION="v1.0.1"
+AGW_VERSION="v1.1.0"
 GATEWAY_API_VERSION="v1.5.0"
 
 # ---------------------------------------------------------------------------
@@ -712,10 +712,10 @@ pause
 header "STEP 10 of 12" "Create OpenAI Backend & HTTPRoute" "$PURPLE"
 show_progress 10
 
-desc "Backend connects to OpenAI gpt-4o, route exposes /openai endpoint."
+desc "Backend connects to OpenAI gpt-5.4-mini, route exposes /openai endpoint."
 echo ""
 
-echo -e "  ${BG_PURPLE}${WHITE}${BOLD} /openai ${RESET}  ${ARROW}  ${WHITE}openai-backend${RESET}  ${ARROW}  ${GREEN}OpenAI gpt-4o${RESET}"
+echo -e "  ${BG_PURPLE}${WHITE}${BOLD} /openai ${RESET}  ${ARROW}  ${WHITE}openai-backend${RESET}  ${ARROW}  ${GREEN}OpenAI gpt-5.4-mini${RESET}"
 echo ""
 
 BACKEND_YAML="apiVersion: agentgateway.dev/v1alpha1
@@ -729,7 +729,7 @@ spec:
       - providers:
           - name: openai-gpt4
             openai:
-              model: gpt-4o
+              model: gpt-5.4-mini
             policies:
               auth:
                 secretRef:
@@ -852,7 +852,7 @@ ALICE_MODEL=$(curl -s "http://localhost:8080/openai" \
   -d '{"messages": [{"role": "user", "content": "Say hello in one sentence."}]}' \
   | jq -r '.model // "error"')
 
-echo -e "  ${ROCKET} Alice  ${ARROW}  ${GREEN}${BOLD}${ALICE_MODEL}${RESET}  ${DIM}(expected: gpt-4o)${RESET}"
+echo -e "  ${ROCKET} Alice  ${ARROW}  ${GREEN}${BOLD}${ALICE_MODEL}${RESET}  ${DIM}(expected: gpt-5.4-mini)${RESET}"
 echo ""
 
 pause
@@ -874,7 +874,7 @@ BOB_MODEL=$(curl -s "http://localhost:8080/openai" \
   -d '{"messages": [{"role": "user", "content": "Say hello in one sentence."}]}' \
   | jq -r '.model // "error"')
 
-echo -e "  ${ROCKET} Bob    ${ARROW}  ${GREEN}${BOLD}${BOB_MODEL}${RESET}  ${DIM}(expected: gpt-4o)${RESET}"
+echo -e "  ${ROCKET} Bob    ${ARROW}  ${GREEN}${BOLD}${BOB_MODEL}${RESET}  ${DIM}(expected: gpt-5.4-mini)${RESET}"
 echo ""
 
 pause
@@ -955,11 +955,11 @@ echo -e "    ${WHITE}-f https://...gateway-api/.../v1.5.0/standard-install.yaml$
 echo ""
 echo -e "  ${GREEN}${BOLD}# Step 3a: Install agentgateway CRDs${RESET}"
 echo -e "  ${YELLOW}\$ ${WHITE}helm upgrade -i agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds \\${RESET}"
-echo -e "    ${WHITE}--create-namespace --namespace agentgateway-system --version v1.0.1${RESET}"
+echo -e "    ${WHITE}--create-namespace --namespace agentgateway-system --version v1.1.0${RESET}"
 echo ""
 echo -e "  ${GREEN}${BOLD}# Step 3b: Install agentgateway control plane${RESET}"
 echo -e "  ${YELLOW}\$ ${WHITE}helm upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway \\${RESET}"
-echo -e "    ${WHITE}--namespace agentgateway-system --version v1.0.1 --wait${RESET}"
+echo -e "    ${WHITE}--namespace agentgateway-system --version v1.1.0 --wait${RESET}"
 echo ""
 echo -e "  ${ORANGE}${BOLD}# Step 4: Verify pods${RESET}"
 echo -e "  ${YELLOW}\$ ${WHITE}kubectl get pods -n agentgateway-system${RESET}"

@@ -16,7 +16,7 @@ set -euo pipefail
 
 CLUSTER_NAME="agw-series"
 NAMESPACE="agentgateway-system"
-AGW_VERSION="v1.0.1"
+AGW_VERSION="v1.1.0"
 GATEWAY_API_VERSION="v1.5.0"
 
 # ---------------------------------------------------------------------------
@@ -352,7 +352,7 @@ spec:
       - providers:
           - name: openai-gpt4
             openai:
-              model: gpt-4o
+              model: gpt-5.4-mini
             policies:
               auth:
                 secretRef:
@@ -392,7 +392,7 @@ echo "   Alice: sk-alice-abc123def456  (100K tokens/day)"
 echo "   Bob:   sk-bob-xyz789uvw012    (100K tokens/day)"
 echo ""
 echo " Endpoint:"
-echo "   /openai  — Authenticated via virtual API keys -> OpenAI gpt-4o"
+echo "   /openai  — Authenticated via virtual API keys -> OpenAI gpt-5.4-mini"
 echo ""
 echo " To port-forward the gateway:"
 echo "   kubectl port-forward -n ${NAMESPACE} svc/agentgateway-proxy 8080:80"

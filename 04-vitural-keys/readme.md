@@ -81,7 +81,7 @@ An `AgentgatewayPolicy` that enforces a daily token budget of 100,000 tokens per
 
 ### 8. OpenAI Backend & HTTPRoute
 
-An `AgentgatewayBackend` pointing to OpenAI `gpt-4o`, with an HTTPRoute on `/openai`.
+An `AgentgatewayBackend` pointing to OpenAI `gpt-5.4-mini`, with an HTTPRoute on `/openai`.
 
 ## Manual Step-by-Step
 
@@ -104,13 +104,13 @@ kubectl apply --server-side --force-conflicts \
 # CRDs
 helm upgrade -i agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds \
   --create-namespace --namespace agentgateway-system \
-  --version v1.0.1 \
+  --version v1.1.0 \
   --set controller.image.pullPolicy=Always
 
 # Control plane + data plane
 helm upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
   --namespace agentgateway-system \
-  --version v1.0.1 \
+  --version v1.1.0 \
   --set controller.image.pullPolicy=Always \
   --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true \
   --wait
@@ -350,7 +350,7 @@ spec:
       - providers:
           - name: openai-gpt4
             openai:
-              model: gpt-4o
+              model: gpt-5.4-mini
             policies:
               auth:
                 secretRef:
