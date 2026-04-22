@@ -274,7 +274,8 @@ spec:
           value: debug
         volumeMounts:
         - name: config
-          mountPath: /data/ratelimit/config
+          mountPath: /data/ratelimit/config/config.yaml
+          subPath: config.yaml
       volumes:
       - name: config
         configMap:
@@ -335,10 +336,10 @@ spec:
 EOF
 
 # ---------------------------------------------------------------------------
-# Step 10: Create OpenAI backend & HTTPRoute
+# Step 10: Create OpenAI backend
 # ---------------------------------------------------------------------------
 echo ""
-echo "==> Step 10: Creating OpenAI backend and HTTPRoute for /openai..."
+echo "==> Step 10: Creating OpenAI backend (gpt-5.4-mini)..."
 
 kubectl apply -f- <<EOF
 apiVersion: agentgateway.dev/v1alpha1
@@ -357,7 +358,15 @@ spec:
               auth:
                 secretRef:
                   name: openai-secret
----
+EOF
+
+# ---------------------------------------------------------------------------
+# Step 11: Create HTTPRoute for /openai
+# ---------------------------------------------------------------------------
+echo ""
+echo "==> Step 11: Creating HTTPRoute for /openai..."
+
+kubectl apply -f- <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

@@ -287,7 +287,8 @@ spec:
           value: debug
         volumeMounts:
         - name: config
-          mountPath: /data/ratelimit/config
+          mountPath: /data/ratelimit/config/config.yaml
+          subPath: config.yaml
       volumes:
       - name: config
         configMap:
@@ -336,7 +337,7 @@ spec:
           unit: Tokens
 ```
 
-### Step 10: Create OpenAI backend & HTTPRoute
+### Step 10: Create OpenAI backend
 
 ```yaml
 apiVersion: agentgateway.dev/v1alpha1
@@ -355,7 +356,11 @@ spec:
               auth:
                 secretRef:
                   name: openai-secret
----
+```
+
+### Step 11: Create HTTPRoute for /openai
+
+```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -377,7 +382,7 @@ spec:
           kind: AgentgatewayBackend
 ```
 
-### Step 11: Test
+### Step 12: Test
 
 ```bash
 # Test with Alice's API key (should succeed)
