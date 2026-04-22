@@ -21,28 +21,28 @@ GATEWAY_API_VERSION="v1.5.0"
 # ---------------------------------------------------------------------------
 # Colors & Symbols
 # ---------------------------------------------------------------------------
-BOLD=$'\033[1m'
-DIM=$'\033[2m'
-ITALIC=$'\033[3m'
-RESET=$'\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+ITALIC='\033[3m'
+RESET='\033[0m'
 
 # Brand colors — tuned for light terminals
-PURPLE=$'\033[38;2;100;30;160m'
-CYAN=$'\033[38;2;0;120;180m'
-GREEN=$'\033[38;2;0;130;80m'
-ORANGE=$'\033[38;2;180;90;20m'
-RED=$'\033[38;2;190;40;40m'
-YELLOW=$'\033[38;2;140;110;0m'
-BLUE=$'\033[38;2;40;80;180m'
-WHITE=$'\033[38;2;30;30;40m'
-GRAY=$'\033[38;2;120;120;135m'
+PURPLE='\033[38;2;100;30;160m'
+CYAN='\033[38;2;0;120;180m'
+GREEN='\033[38;2;0;130;80m'
+ORANGE='\033[38;2;180;90;20m'
+RED='\033[38;2;190;40;40m'
+YELLOW='\033[38;2;140;110;0m'
+BLUE='\033[38;2;40;80;180m'
+WHITE='\033[38;2;30;30;40m'
+GRAY='\033[38;2;120;120;135m'
 
 # Backgrounds — subtle tints on light terminals
-BG_PURPLE=$'\033[48;2;235;225;245m'
-BG_CYAN=$'\033[48;2;220;240;250m'
-BG_GREEN=$'\033[48;2;220;245;230m'
-BG_ORANGE=$'\033[48;2;250;235;220m'
-BG_RED=$'\033[48;2;250;225;225m'
+BG_PURPLE='\033[48;2;235;225;245m'
+BG_CYAN='\033[48;2;220;240;250m'
+BG_GREEN='\033[48;2;220;245;230m'
+BG_ORANGE='\033[48;2;250;235;220m'
+BG_RED='\033[48;2;250;225;225m'
 
 # Symbols
 CHECK="${GREEN}✓${RESET}"
@@ -173,342 +173,6 @@ show_progress() {
 }
 
 # ---------------------------------------------------------------------------
-# Split-screen architecture view
-# ---------------------------------------------------------------------------
-
-STEP_HEADER_LABELS=(
-  "STEP 1 of 12"   "STEP 2 of 12"   "STEP 3a of 12"  "STEP 3b of 12"
-  "STEP 4 of 12"   "STEP 5 of 12"   "STEP 6a of 12"  "STEP 6b of 12"
-  "STEP 7 of 12"   "STEP 8 of 12"   "STEP 9 of 12"   "STEP 10 of 12"
-  "STEP 11 of 12"  "STEP 12 of 12"
-)
-
-STEP_TITLE_LABELS=(
-  "Create the Kind Cluster"
-  "Install Gateway API CRDs"
-  "Install AgentGateway CRDs"
-  "Install AgentGateway Control Plane"
-  "Verify Pods Are Running"
-  "Create the Gateway Listener"
-  "Create Provider API Key Secret"
-  "Create User Virtual Key Secrets"
-  "Create API Key Auth Policy"
-  "Deploy Rate Limit Infrastructure"
-  "Create Token Budget Policy"
-  "Create OpenAI Backend"
-  "Create HTTPRoute for /openai"
-  "Verify All Resources"
-)
-
-CHECKLIST_LABELS=(
-  "Kind cluster"
-  "Gateway API CRDs"
-  "AgentGateway CRDs"
-  "AgentGateway control plane"
-  "Pods verified"
-  "Gateway listener :80"
-  "Provider secret"
-  "Virtual key secrets"
-  "API key auth policy"
-  "Rate limit infrastructure"
-  "Token budget policy"
-  "OpenAI backend"
-  "HTTPRoute /openai"
-  "Resources verified"
-)
-
-put() {
-  tput cup "$1" "$2"
-  printf '%b' "$3"
-}
-
-box_sides() {
-  local row=$1 col=$2 width=$3
-  put "$row" "$col" "${DIM}│${RESET}"
-  put "$row" "$((col + width))" "${DIM}│${RESET}"
-}
-
-draw_diagram() {
-  local step=$1
-  local col=$2
-  local bw=$3
-  local row=1
-  local ic=$((col + 3))
-  local star=""
-
-  put $row $col "${PURPLE}${BOLD}ARCHITECTURE${RESET}"
-  ((row += 2))
-
-  # Cluster box top
-  local dashes=$((bw - 16))
-  (( dashes < 1 )) && dashes=1
-  put $row $col "${DIM}┌── ${RESET}${WHITE}${BOLD}agw-series${RESET}${DIM} $(printf '─%.0s' $(seq 1 $dashes))┐${RESET}"
-  ((row++))
-
-  # Empty line
-  box_sides $row $col $bw; ((row++))
-
-  if ((step == 0)); then
-    box_sides $row $col $bw
-    put $row $ic "${GRAY}${ITALIC}(empty cluster)${RESET}"
-    ((row++))
-    box_sides $row $col $bw; ((row++))
-  fi
-
-  # Gateway API CRDs (step >= 1)
-  if ((step >= 1)); then
-    star=""; ((step == 1)) && star="  ${ORANGE}★${RESET}"
-    box_sides $row $col $bw
-    put $row $ic "${CYAN}Gateway API CRDs${RESET} ${GRAY}v1.5.0${RESET}${star}"
-    ((row++))
-    box_sides $row $col $bw; ((row++))
-  fi
-
-  # AgentGateway
-  if ((step >= 3)); then
-    star=""; ((step == 3 || step == 4)) && star="  ${ORANGE}★${RESET}"
-    box_sides $row $col $bw
-    put $row $ic "${GREEN}${BOLD}AgentGateway${RESET} ${GRAY}v1.1.0${RESET}${star}"
-    ((row++))
-    box_sides $row $col $bw
-    put $row $ic "${DIM}├─${RESET} ${WHITE}Controller${RESET}"
-    ((row++))
-    box_sides $row $col $bw
-    put $row $ic "${DIM}└─${RESET} ${WHITE}Proxy${RESET}"
-    ((row++))
-    box_sides $row $col $bw; ((row++))
-  elif ((step == 2)); then
-    box_sides $row $col $bw
-    put $row $ic "${GREEN}AgentGateway CRDs${RESET}  ${ORANGE}★${RESET}"
-    ((row++))
-    box_sides $row $col $bw; ((row++))
-  fi
-
-  # Gateway listener (step >= 5)
-  if ((step >= 5)); then
-    star=""; ((step == 5)) && star="  ${ORANGE}★${RESET}"
-    box_sides $row $col $bw
-    put $row $ic "${PURPLE}${BOLD}Gateway${RESET} ${GRAY}:80 HTTP${RESET}${star}"
-    ((row++))
-
-    # Auth policy (step >= 8)
-    if ((step >= 8)); then
-      star=""; ((step == 8)) && star="  ${ORANGE}★${RESET}"
-      box_sides $row $col $bw
-      put $row $ic "${DIM}├─${RESET} ${ORANGE}Auth Policy${RESET} ${GRAY}(Strict)${RESET}${star}"
-      ((row++))
-    fi
-
-    # Budget policy (step >= 10)
-    if ((step >= 10)); then
-      star=""; ((step == 10)) && star="  ${ORANGE}★${RESET}"
-      box_sides $row $col $bw
-      put $row $ic "${DIM}├─${RESET} ${ORANGE}Budget Policy${RESET} ${GRAY}(100K/day)${RESET}${star}"
-      ((row++))
-    fi
-
-    # Route + Backend
-    if ((step >= 12)); then
-      star=""; ((step == 12)) && star="  ${ORANGE}★${RESET}"
-      box_sides $row $col $bw
-      put $row $ic "${DIM}└─${RESET} ${CYAN}/openai${RESET} ${DIM}→${RESET} ${WHITE}openai-backend${RESET}${star}"
-      ((row++))
-      box_sides $row $col $bw
-      put $row $ic "            ${GRAY}(gpt-5.4-mini)${RESET}"
-      ((row++))
-    elif ((step == 11)); then
-      box_sides $row $col $bw
-      put $row $ic "${DIM}└─${RESET} ${WHITE}openai-backend${RESET} ${GRAY}(gpt-5.4-mini)${RESET}  ${ORANGE}★${RESET}"
-      ((row++))
-    fi
-
-    box_sides $row $col $bw; ((row++))
-  fi
-
-  # Secrets (step >= 6)
-  if ((step >= 6)); then
-    star=""; ((step == 6)) && star="  ${ORANGE}★${RESET}"
-    box_sides $row $col $bw
-    put $row $ic "${BLUE}${BOLD}Secrets${RESET}${star}"
-    ((row++))
-    box_sides $row $col $bw
-    put $row $ic "${DIM}├─${RESET} ${WHITE}openai-secret${RESET} ${GRAY}(provider)${RESET}"
-    ((row++))
-
-    if ((step >= 7)); then
-      star=""; ((step == 7)) && star="  ${ORANGE}★${RESET}"
-      box_sides $row $col $bw
-      put $row $ic "${DIM}├─${RESET} ${WHITE}user-alice-key${RESET} ${GRAY}(virtual)${RESET}${star}"
-      ((row++))
-      box_sides $row $col $bw
-      put $row $ic "${DIM}└─${RESET} ${WHITE}user-bob-key${RESET} ${GRAY}(virtual)${RESET}"
-      ((row++))
-    fi
-
-    box_sides $row $col $bw; ((row++))
-  fi
-
-  # Rate limit (step >= 9)
-  if ((step >= 9)); then
-    star=""; ((step == 9)) && star="  ${ORANGE}★${RESET}"
-    box_sides $row $col $bw
-    put $row $ic "${RED}${BOLD}Rate Limit${RESET}${star}"
-    ((row++))
-    box_sides $row $col $bw
-    put $row $ic "${DIM}├─${RESET} ${WHITE}Redis${RESET}"
-    ((row++))
-    box_sides $row $col $bw
-    put $row $ic "${DIM}└─${RESET} ${WHITE}Rate Limit Server${RESET}"
-    ((row++))
-    box_sides $row $col $bw; ((row++))
-  fi
-
-  # Cluster box bottom
-  put $row $col "${DIM}└$(printf '─%.0s' $(seq 1 $((bw - 1))))┘${RESET}"
-  ((row += 2))
-
-  # Request flow (final step only)
-  if ((step == 13)); then
-    put $row $col "${GREEN}${BOLD}REQUEST FLOW${RESET}"
-    ((row += 2))
-    put $row $col "  ${WHITE}Client${RESET}"
-    ((row++))
-    put $row $col "    ${DIM}│${RESET}"
-    ((row++))
-    put $row $col "    ${DIM}▼${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}┌────────────────────────────┐${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}│${RESET} ${ORANGE}API Key Auth${RESET}    ${GRAY}← Bearer${RESET}  ${DIM}│${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}├────────────────────────────┤${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}│${RESET} ${ORANGE}Token Budget${RESET}    ${GRAY}← 100K/d${RESET}  ${DIM}│${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}├────────────────────────────┤${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}│${RESET} ${CYAN}/openai${RESET} ${DIM}→${RESET} ${GREEN}gpt-5.4-mini${RESET}   ${DIM}│${RESET}"
-    ((row++))
-    put $row $col "  ${DIM}└────────────────────────────┘${RESET}"
-  fi
-}
-
-STEP_CMD=""
-STEP_DESC=""
-STEP_OUTPUT=""
-
-# draw_split: renders the split-screen view
-#   $1 = step index (for diagram, uses previous step's diagram state for "cmd" phase)
-#   $2 = phase: "cmd" (before execution) or "result" (after execution)
-draw_split() {
-  local step_idx=$1
-  local phase=$2
-
-  clear
-
-  local cols
-  cols=$(tput cols)
-  local rows
-  rows=$(tput lines)
-  local mid=$((cols / 2))
-  local right_col=$((mid + 2))
-  local box_w=$((cols - right_col - 3))
-  local left_w=$((mid - 5))
-
-  # Vertical separator
-  for ((r=0; r<rows; r++)); do
-    put $r $mid "${DIM}│${RESET}"
-  done
-
-  # === LEFT PANEL ===
-  local row=1
-
-  # Step header
-  put $row 3 "${PURPLE}${BOLD}${STEP_HEADER_LABELS[$step_idx]}${RESET}"
-  ((row++))
-  put $row 3 "${WHITE}${BOLD}${STEP_TITLE_LABELS[$step_idx]}${RESET}"
-  ((row += 2))
-
-  # Progress bar
-  local prog_step=$step_idx
-  [[ "$phase" == "result" ]] && prog_step=$((step_idx + 1))
-  local filled=$(( prog_step * 30 / 14))
-  local empty=$((30 - filled))
-  local pct=$(( prog_step * 100 / 14 ))
-  local bar="${PURPLE}"
-  [[ $filled -gt 0 ]] && bar+=$(printf '█%.0s' $(seq 1 $filled))
-  bar+="${GRAY}"
-  [[ $empty -gt 0 ]] && bar+=$(printf '░%.0s' $(seq 1 $empty))
-  bar+=" ${WHITE}${BOLD}${pct}%${RESET}"
-  put $row 3 "$bar"
-  ((row += 2))
-
-  # Description
-  if [[ -n "$STEP_DESC" ]]; then
-    put $row 3 "${GRAY}${ITALIC}${STEP_DESC}${RESET}"
-    ((row += 2))
-  fi
-
-  # Separator
-  put $row 3 "${DIM}$(printf '─%.0s' $(seq 1 $left_w))${RESET}"
-  ((row += 2))
-
-  if [[ "$phase" == "cmd" ]]; then
-    # Show command about to run
-    put $row 3 "${DIM}Command:${RESET}"
-    ((row++))
-    # Split STEP_CMD on \n for multi-line commands
-    while IFS= read -r cline; do
-      put $row 5 "${YELLOW}\$ ${WHITE}${cline}${RESET}"
-      ((row++))
-    done <<< "$STEP_CMD"
-    ((row++))
-    put $row 3 "${DIM}${ITALIC}Press ENTER to execute...${RESET}"
-  else
-    # Show command + output
-    put $row 3 "${DIM}Command:${RESET}"
-    ((row++))
-    while IFS= read -r cline; do
-      put $row 5 "${YELLOW}\$ ${WHITE}${cline}${RESET}"
-      ((row++))
-    done <<< "$STEP_CMD"
-    ((row++))
-
-    put $row 3 "${DIM}Output:${RESET}"
-    ((row++))
-    if [[ -n "$STEP_OUTPUT" ]]; then
-      local max_lines=$(( rows - row - 6 ))
-      (( max_lines < 3 )) && max_lines=3
-      local line_num=0
-      while IFS= read -r oline; do
-        if (( line_num >= max_lines )); then
-          put $row 5 "${DIM}...${RESET}"
-          ((row++))
-          break
-        fi
-        local trimmed="${oline:0:$((left_w - 2))}"
-        put $row 5 "${GREEN}${trimmed}${RESET}"
-        ((row++))
-        ((line_num++))
-      done <<< "$STEP_OUTPUT"
-    fi
-    ((row++))
-    put $row 3 "${CHECK} ${WHITE}${BOLD}Done${RESET}"
-  fi
-
-  # === RIGHT PANEL: diagram shows previous state for "cmd", current for "result" ===
-  local diagram_step=$step_idx
-  [[ "$phase" == "cmd" ]] && diagram_step=$((step_idx - 1))
-  (( diagram_step < 0 )) && diagram_step=0
-  draw_diagram "$diagram_step" "$right_col" "$box_w"
-
-  # Prompt
-  put $((rows - 1)) 3 "${GRAY}Press ${WHITE}${BOLD}ENTER${RESET}${GRAY} to continue...${RESET}"
-
-  read -r _
-}
-
-# ---------------------------------------------------------------------------
 # Banner
 # ---------------------------------------------------------------------------
 clear 2>/dev/null || true
@@ -574,89 +238,133 @@ pause
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 1 — Create the Kind cluster
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kind create cluster --name ${CLUSTER_NAME}"
-STEP_DESC="Creates a local Kubernetes cluster for the demo."
-draw_split 0 "cmd"
+header "STEP 1 of 12" "Create the Kind Cluster" "$PURPLE"
+show_progress 1
+
+desc "Creates a local Kubernetes cluster for the demo."
+echo ""
+
+show_cmd "kind create cluster --name ${CLUSTER_NAME}"
+echo ""
 
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
-  STEP_OUTPUT="Cluster '${CLUSTER_NAME}' already exists — skipping creation."
+  warn "Cluster '${CLUSTER_NAME}' already exists — skipping creation."
 else
-  STEP_OUTPUT=$(kind create cluster --name "${CLUSTER_NAME}" 2>&1)
+  kind create cluster --name "${CLUSTER_NAME}"
 fi
-draw_split 0 "result"
+
+echo ""
+success "Cluster '${CLUSTER_NAME}' is ready."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 2 — Install Gateway API CRDs
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply --server-side --force-conflicts \\
-  -f gateway-api/.../standard-install.yaml"
-STEP_DESC="Gateway API CRDs define resources like Gateway and HTTPRoute."
-draw_split 1 "cmd"
+header "STEP 2 of 12" "Install Gateway API CRDs" "$CYAN"
+show_progress 2
 
-STEP_OUTPUT=$(kubectl apply --server-side --force-conflicts \
-  -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml" 2>&1)
-draw_split 1 "result"
+desc "The Gateway API CRDs define resources like Gateway and HTTPRoute."
+desc "agentgateway implements the Gateway API spec."
+echo ""
+
+show_cmd "kubectl apply --server-side --force-conflicts \\"
+echo -e "    ${WHITE}-f https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml${RESET}"
+echo ""
+
+kubectl apply --server-side --force-conflicts \
+  -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+
+echo ""
+success "Gateway API CRDs (${GATEWAY_API_VERSION}) installed."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 3a — Install agentgateway CRDs
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="helm upgrade -i agentgateway-crds \\
-  oci://cr.agentgateway.dev/charts/agentgateway-crds \\
-  --namespace ${NAMESPACE} --version ${AGW_VERSION}"
-STEP_DESC="Custom Resource Definitions for AgentgatewayBackend, AgentgatewayPolicy, etc."
-draw_split 2 "cmd"
+header "STEP 3a of 12" "Install agentgateway CRDs" "$GREEN"
+show_progress 3
 
-STEP_OUTPUT=$(helm upgrade -i agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds \
+desc "Custom Resource Definitions for AgentgatewayBackend, AgentgatewayPolicy, etc."
+echo ""
+
+show_cmd "helm upgrade -i agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds \\"
+echo -e "    ${WHITE}--create-namespace --namespace ${NAMESPACE} \\${RESET}"
+echo -e "    ${WHITE}--version ${AGW_VERSION} \\${RESET}"
+echo -e "    ${WHITE}--set controller.image.pullPolicy=Always${RESET}"
+echo ""
+
+helm upgrade -i agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds \
   --create-namespace --namespace "${NAMESPACE}" \
   --version "${AGW_VERSION}" \
-  --set controller.image.pullPolicy=Always 2>&1)
-draw_split 2 "result"
+  --set controller.image.pullPolicy=Always
+
+echo ""
+success "agentgateway CRDs installed."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 3b — Install agentgateway control plane + proxy
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="helm upgrade -i agentgateway \\
-  oci://cr.agentgateway.dev/charts/agentgateway \\
-  --namespace ${NAMESPACE} --version ${AGW_VERSION} --wait"
-STEP_DESC="The controller and data plane proxy that handles LLM routing."
-draw_split 3 "cmd"
+header "STEP 3b of 12" "Install agentgateway Control Plane + Proxy" "$GREEN"
+show_progress 3
 
-STEP_OUTPUT=$(helm upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
+desc "The controller and data plane proxy that handles LLM routing."
+echo ""
+
+show_cmd "helm upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway \\"
+echo -e "    ${WHITE}--namespace ${NAMESPACE} \\${RESET}"
+echo -e "    ${WHITE}--version ${AGW_VERSION} \\${RESET}"
+echo -e "    ${WHITE}--set controller.image.pullPolicy=Always \\${RESET}"
+echo -e "    ${WHITE}--set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true \\${RESET}"
+echo -e "    ${WHITE}--wait${RESET}"
+echo ""
+
+helm upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
   --namespace "${NAMESPACE}" \
   --version "${AGW_VERSION}" \
   --set controller.image.pullPolicy=Always \
   --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true \
-  --wait 2>&1)
-draw_split 3 "result"
+  --wait
+
+echo ""
+success "agentgateway ${AGW_VERSION} control plane installed."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 4 — Verify pods are running
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl get pods -n ${NAMESPACE}"
-STEP_DESC="Verify all AgentGateway pods are Ready."
-draw_split 4 "cmd"
+header "STEP 4 of 12" "Verify Pods Are Running" "$ORANGE"
+show_progress 4
 
-kubectl wait --for=condition=Ready pods --all -n "${NAMESPACE}" --timeout=120s >/dev/null 2>&1
-STEP_OUTPUT=$(kubectl get pods -n "${NAMESPACE}" 2>&1)
-draw_split 4 "result"
+desc "Waiting for all pods to be Ready..."
+echo ""
+
+show_cmd "kubectl wait --for=condition=Ready pods --all -n ${NAMESPACE} --timeout=120s"
+echo ""
+kubectl wait --for=condition=Ready pods --all -n "${NAMESPACE}" --timeout=120s
+
+echo ""
+show_cmd "kubectl get pods -n ${NAMESPACE}"
+echo ""
+kubectl get pods -n "${NAMESPACE}"
+
+echo ""
+success "All pods are running."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 5 — Create the Gateway listener
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: agentgateway-proxy
-spec:
-  gatewayClassName: agentgateway
-  listeners:
-  - protocol: HTTP
-    port: 80
-    name: http
-EOF"
-STEP_DESC="Creates a listener on port 80, accepting routes from all namespaces."
-draw_split 5 "cmd"
+header "STEP 5 of 12" "Create the Gateway Listener" "$PURPLE"
+show_progress 5
+
+desc "Creates a listener on port 80, accepting routes from all namespaces."
+echo ""
 
 GATEWAY_YAML="apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -672,25 +380,48 @@ spec:
     allowedRoutes:
       namespaces:
         from: All"
-STEP_OUTPUT=$(echo "$GATEWAY_YAML" | kubectl apply -f- 2>&1)
-draw_split 5 "result"
+
+show_yaml "$GATEWAY_YAML"
+echo ""
+echo "$GATEWAY_YAML" | kubectl apply -f-
+
+echo ""
+success "Gateway created on port 80."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  STEP 6a — Create provider API key secret
+#  STEP 6 — Create API key secrets
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: v1
+header "STEP 6 of 12" "Create API Key Secrets" "$CYAN"
+show_progress 6
+
+desc "Creating three secrets:"
+desc "  1. Provider key — OpenAI API key for outbound LLM requests"
+desc "  2. Alice's virtual key — API key for user Alice"
+desc "  3. Bob's virtual key — API key for user Bob"
+echo ""
+
+info "${WHITE}openai-secret${RESET}     ${ARROW} Provider API key (OpenAI)"
+info "${WHITE}user-alice-key${RESET}    ${ARROW} Virtual key for Alice  ${DIM}(sk-alice-abc123def456)${RESET}"
+info "${WHITE}user-bob-key${RESET}      ${ARROW} Virtual key for Bob    ${DIM}(sk-bob-xyz789uvw012)${RESET}"
+echo ""
+
+# Provider secret (display)
+PROVIDER_SECRET_DISPLAY="apiVersion: v1
 kind: Secret
 metadata:
   name: openai-secret
+  namespace: ${NAMESPACE}
 type: Opaque
 stringData:
-  Authorization: \"\${OPENAI_API_KEY}\"
-EOF"
-STEP_DESC="Provider secret stores the real OpenAI API key for outbound requests."
-draw_split 6 "cmd"
+  Authorization: \"\${OPENAI_API_KEY}\""
 
-STEP_OUTPUT=$(kubectl apply -f- <<EOF
+show_yaml "$PROVIDER_SECRET_DISPLAY"
+echo ""
+
+# Provider secret (apply)
+kubectl apply -f- <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -700,26 +431,10 @@ type: Opaque
 stringData:
   Authorization: "${OPENAI_API_KEY}"
 EOF
-2>&1)
-draw_split 6 "result"
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  STEP 6b — Create user virtual key secrets
-# ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: v1
-kind: Secret  # x2
-metadata:
-  name: user-alice-key / user-bob-key
-  labels:
-    api-key-group: llm-users
-type: extauth.solo.io/apikey
-stringData:
-  api-key: sk-alice-... / sk-bob-...
-EOF"
-STEP_DESC="Virtual keys are user-facing API keys. Each user gets their own."
-draw_split 7 "cmd"
+echo ""
 
+# User virtual keys
 USER_KEYS_YAML="apiVersion: v1
 kind: Secret
 metadata:
@@ -741,27 +456,33 @@ metadata:
 type: extauth.solo.io/apikey
 stringData:
   api-key: sk-bob-xyz789uvw012"
-STEP_OUTPUT=$(echo "$USER_KEYS_YAML" | kubectl apply -f- 2>&1)
-draw_split 7 "result"
+
+show_yaml "$USER_KEYS_YAML"
+echo ""
+echo "$USER_KEYS_YAML" | kubectl apply -f-
+
+echo ""
+echo -e "  ${BULLET} ${WHITE}api-key-group: llm-users${RESET} label groups both keys for policy selection"
+echo -e "  ${BULLET} ${WHITE}type: extauth.solo.io/apikey${RESET} marks these as API key secrets"
+echo ""
+success "All secrets created."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 7 — Create API key authentication policy
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayPolicy
-metadata:
-  name: api-key-auth
-spec:
-  traffic:
-    apiKeyAuthentication:
-      mode: Strict
-      secretSelector:
-        matchLabels:
-          api-key-group: llm-users
-EOF"
-STEP_DESC="Strict mode = every request must include a valid Bearer token."
-draw_split 8 "cmd"
+header "STEP 7 of 12" "Create API Key Authentication Policy" "$ORANGE"
+show_progress 7
+
+desc "AgentgatewayPolicy enforces API key auth on the Gateway."
+desc "Strict mode = every request must include a valid Bearer token."
+echo ""
+
+echo -e "  ${BG_RED}${WHITE}${BOLD} NO KEY ${RESET}   ${ARROW}  ${RED}401 Unauthorized${RESET}"
+echo -e "  ${BG_ORANGE}${WHITE}${BOLD} BAD KEY ${RESET}  ${ARROW}  ${RED}401 Unauthorized${RESET}"
+echo -e "  ${BG_GREEN}${WHITE}${BOLD} VALID KEY ${RESET} ${ARROW}  ${GREEN}Request proceeds${RESET}"
+echo ""
 
 AUTH_POLICY_YAML="apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
@@ -779,18 +500,32 @@ spec:
       secretSelector:
         matchLabels:
           api-key-group: llm-users"
-STEP_OUTPUT=$(echo "$AUTH_POLICY_YAML" | kubectl apply -f- 2>&1)
-draw_split 8 "result"
+
+show_yaml "$AUTH_POLICY_YAML"
+echo ""
+echo "$AUTH_POLICY_YAML" | kubectl apply -f-
+
+echo ""
+success "API key authentication policy created."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 8 — Deploy rate limit infrastructure
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f rate-limit-config.yaml \\
-kubectl apply -f redis.yaml \\
-kubectl apply -f rate-limit-server.yaml"
-STEP_DESC="Redis + Envoy rate limit server for per-user token budgets."
-draw_split 9 "cmd"
+header "STEP 8 of 12" "Deploy Rate Limit Infrastructure" "$GREEN"
+show_progress 8
 
+desc "Deploying Redis + Envoy rate limit server for per-user token budgets."
+desc "The rate limit server enforces quotas across all gateway instances."
+echo ""
+
+echo -e "  ${BG_CYAN}${WHITE}${BOLD} Redis ${RESET}              ${ARROW}  ${WHITE}In-memory store for rate limit counters${RESET}"
+echo -e "  ${BG_PURPLE}${WHITE}${BOLD} Rate Limit Server ${RESET}  ${ARROW}  ${WHITE}Envoy ratelimit (gRPC on port 8081)${RESET}"
+echo -e "  ${BG_ORANGE}${WHITE}${BOLD} Config ${RESET}             ${ARROW}  ${WHITE}100K tokens/day per user${RESET}"
+echo ""
+
+# ConfigMap
 RATELIMIT_CONFIG_YAML="apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -805,6 +540,13 @@ data:
         unit: day
         requests_per_unit: 100000"
 
+show_yaml "$RATELIMIT_CONFIG_YAML"
+echo ""
+echo "$RATELIMIT_CONFIG_YAML" | kubectl apply -f-
+
+echo ""
+
+# Redis
 REDIS_YAML="apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -838,6 +580,13 @@ spec:
   - port: 6379
     targetPort: 6379"
 
+show_cmd "kubectl apply -f redis.yaml"
+echo ""
+echo "$REDIS_YAML" | kubectl apply -f-
+
+echo ""
+
+# Rate limit server
 RATELIMIT_SERVER_YAML="apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -894,36 +643,35 @@ spec:
     targetPort: 8081
     name: grpc"
 
-STEP_OUTPUT=$(echo "$RATELIMIT_CONFIG_YAML" | kubectl apply -f- 2>&1)
-STEP_OUTPUT+=$'\n'$(echo "$REDIS_YAML" | kubectl apply -f- 2>&1)
-STEP_OUTPUT+=$'\n'$(echo "$RATELIMIT_SERVER_YAML" | kubectl apply -f- 2>&1)
-STEP_OUTPUT+=$'\n'"Waiting for pods..."
-kubectl wait --for=condition=Ready pods -l app=redis -n "${NAMESPACE}" --timeout=120s >/dev/null 2>&1
-kubectl wait --for=condition=Ready pods -l app=rate-limit-server -n "${NAMESPACE}" --timeout=120s >/dev/null 2>&1
-STEP_OUTPUT+=$'\n'"All rate limit pods ready."
-draw_split 9 "result"
+show_cmd "kubectl apply -f rate-limit-server.yaml"
+echo ""
+echo "$RATELIMIT_SERVER_YAML" | kubectl apply -f-
+
+echo ""
+desc "Waiting for rate limit pods to be ready..."
+kubectl wait --for=condition=Ready pods -l app=redis -n "${NAMESPACE}" --timeout=120s
+kubectl wait --for=condition=Ready pods -l app=rate-limit-server -n "${NAMESPACE}" --timeout=120s
+
+echo ""
+success "Rate limit infrastructure deployed."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 9 — Create per-key token budget policy
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayPolicy
-metadata:
-  name: daily-token-budget
-spec:
-  traffic:
-    rateLimit:
-      global:
-        domain: token-budgets
-        descriptors:
-        - entries:
-          - name: user_id
-            expression: request.headers[\"x-user-id\"]
-          unit: Tokens
-EOF"
-STEP_DESC="100K tokens/day per user via X-User-ID header (CEL expression)."
-draw_split 10 "cmd"
+header "STEP 9 of 12" "Create Per-Key Token Budget Policy" "$CYAN"
+show_progress 9
+
+desc "AgentgatewayPolicy that enforces daily token budgets per user."
+desc "Uses CEL expressions to extract user ID from X-User-ID header."
+echo ""
+
+echo -e "  ${BG_GREEN}${WHITE}${BOLD} Alice ${RESET}  ${GREEN}████████████████████████████████████████${RESET}  ${WHITE}100K tokens/day${RESET}"
+echo -e "  ${BG_CYAN}${WHITE}${BOLD} Bob   ${RESET}  ${CYAN}████████████████████████████████████████${RESET}  ${WHITE}100K tokens/day${RESET}"
+echo ""
+echo -e "  ${DIM}Each user has an independent budget — Alice's usage doesn't affect Bob's.${RESET}"
+echo ""
 
 BUDGET_POLICY_YAML="apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
@@ -949,31 +697,27 @@ spec:
           - name: user_id
             expression: 'request.headers[\"x-user-id\"]'
           unit: Tokens"
-STEP_OUTPUT=$(echo "$BUDGET_POLICY_YAML" | kubectl apply -f- 2>&1)
-draw_split 10 "result"
+
+show_yaml "$BUDGET_POLICY_YAML"
+echo ""
+echo "$BUDGET_POLICY_YAML" | kubectl apply -f-
+
+echo ""
+success "Per-key token budget policy created."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 10 — Create OpenAI backend
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
-metadata:
-  name: openai-backend
-spec:
-  ai:
-    groups:
-    - providers:
-      - name: openai-gpt4
-        openai:
-          model: gpt-5.4-mini
-        policies:
-          auth:
-            secretRef:
-              name: openai-secret
-EOF"
-STEP_DESC="Backend connects to OpenAI gpt-5.4-mini via the provider secret."
-draw_split 11 "cmd"
+header "STEP 10 of 12" "Create OpenAI Backend" "$PURPLE"
+show_progress 10
+
+desc "Backend connects to OpenAI gpt-5.4-mini via the provider secret."
+echo ""
+
+echo -e "  ${BG_PURPLE}${WHITE}${BOLD} openai-backend ${RESET}  ${ARROW}  ${GREEN}OpenAI gpt-5.4-mini${RESET}"
+echo ""
 
 BACKEND_YAML="apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
@@ -991,32 +735,27 @@ spec:
               auth:
                 secretRef:
                   name: openai-secret"
-STEP_OUTPUT=$(echo "$BACKEND_YAML" | kubectl apply -f- 2>&1)
-draw_split 11 "result"
+
+show_yaml "$BACKEND_YAML"
+echo ""
+echo "$BACKEND_YAML" | kubectl apply -f-
+
+echo ""
+success "OpenAI backend created."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 11 — Create HTTPRoute for /openai
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl apply -f- <<EOF
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: openai-route
-spec:
-  parentRefs:
-  - name: agentgateway-proxy
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /openai
-    backendRefs:
-    - name: openai-backend
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
-EOF"
-STEP_DESC="Route exposes /openai endpoint, forwarding to the OpenAI backend."
-draw_split 12 "cmd"
+header "STEP 11 of 12" "Create HTTPRoute for /openai" "$PURPLE"
+show_progress 11
+
+desc "Route exposes /openai endpoint, forwarding to the OpenAI backend."
+echo ""
+
+echo -e "  ${BG_PURPLE}${WHITE}${BOLD} /openai ${RESET}  ${ARROW}  ${WHITE}openai-backend${RESET}  ${ARROW}  ${GREEN}OpenAI gpt-5.4-mini${RESET}"
+echo ""
 
 ROUTE_YAML="apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -1037,25 +776,64 @@ spec:
           namespace: ${NAMESPACE}
           group: agentgateway.dev
           kind: AgentgatewayBackend"
-STEP_OUTPUT=$(echo "$ROUTE_YAML" | kubectl apply -f- 2>&1)
-draw_split 12 "result"
+
+show_yaml "$ROUTE_YAML"
+echo ""
+echo "$ROUTE_YAML" | kubectl apply -f-
+
+echo ""
+success "HTTPRoute created."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 12 — Verify all resources
 # ═══════════════════════════════════════════════════════════════════════════
-STEP_CMD="kubectl get gateway,httproute,agentgatewaybackend,\\
-  agentgatewaypolicy -n ${NAMESPACE}"
-STEP_DESC="Verify all resources were created correctly."
-draw_split 13 "cmd"
+header "STEP 12 of 12" "Verify All Resources" "$GREEN"
+show_progress 12
 
-STEP_OUTPUT=$(kubectl get gateway -n "${NAMESPACE}" 2>&1)
-STEP_OUTPUT+=$'\n'
-STEP_OUTPUT+=$(kubectl get httproute -n "${NAMESPACE}" 2>&1)
-STEP_OUTPUT+=$'\n'
-STEP_OUTPUT+=$(kubectl get agentgatewaybackend -n "${NAMESPACE}" 2>&1)
-STEP_OUTPUT+=$'\n'
-STEP_OUTPUT+=$(kubectl get agentgatewaypolicy -n "${NAMESPACE}" 2>&1)
-draw_split 13 "result"
+desc "Checking that everything was created correctly..."
+echo ""
+
+echo -e "  ${BG_PURPLE}${WHITE}${BOLD} Gateways ${RESET}"
+show_cmd "kubectl get gateway -n ${NAMESPACE}"
+echo ""
+kubectl get gateway -n "${NAMESPACE}"
+echo ""
+
+echo -e "  ${BG_CYAN}${WHITE}${BOLD} HTTPRoutes ${RESET}"
+show_cmd "kubectl get httproute -n ${NAMESPACE}"
+echo ""
+kubectl get httproute -n "${NAMESPACE}"
+echo ""
+
+echo -e "  ${BG_GREEN}${WHITE}${BOLD} AgentgatewayBackends ${RESET}"
+show_cmd "kubectl get agentgatewaybackend -n ${NAMESPACE}"
+echo ""
+kubectl get agentgatewaybackend -n "${NAMESPACE}"
+echo ""
+
+echo -e "  ${BG_ORANGE}${WHITE}${BOLD} AgentgatewayPolicies ${RESET}"
+show_cmd "kubectl get agentgatewaypolicy -n ${NAMESPACE}"
+echo ""
+kubectl get agentgatewaypolicy -n "${NAMESPACE}"
+echo ""
+
+echo -e "  ${BG_PURPLE}${WHITE}${BOLD} Secrets ${RESET}"
+show_cmd "kubectl get secret openai-secret user-alice-key user-bob-key -n ${NAMESPACE}"
+echo ""
+kubectl get secret openai-secret user-alice-key user-bob-key -n "${NAMESPACE}"
+echo ""
+
+echo -e "  ${BG_CYAN}${WHITE}${BOLD} Rate Limit Pods ${RESET}"
+show_cmd "kubectl get pods -l 'app in (redis,rate-limit-server)' -n ${NAMESPACE}"
+echo ""
+kubectl get pods -l 'app in (redis,rate-limit-server)' -n "${NAMESPACE}"
+
+echo ""
+success "All resources verified."
+
+pause
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SUMMARY — Show all commands executed
@@ -1084,11 +862,8 @@ echo ""
 echo -e "  ${PURPLE}${BOLD}# Step 5: Create Gateway${RESET}"
 echo -e "  ${YELLOW}\$ ${WHITE}kubectl apply -f gateway.yaml${RESET}"
 echo ""
-echo -e "  ${CYAN}${BOLD}# Step 6a: Create provider API key secret${RESET}"
-echo -e "  ${YELLOW}\$ ${WHITE}kubectl apply -f openai-secret.yaml${RESET}"
-echo ""
-echo -e "  ${CYAN}${BOLD}# Step 6b: Create user virtual key secrets${RESET}"
-echo -e "  ${YELLOW}\$ ${WHITE}kubectl apply -f virtual-keys.yaml${RESET}"
+echo -e "  ${CYAN}${BOLD}# Step 6: Create secrets (provider + virtual keys)${RESET}"
+echo -e "  ${YELLOW}\$ ${WHITE}kubectl apply -f secrets.yaml${RESET}"
 echo ""
 echo -e "  ${ORANGE}${BOLD}# Step 7: Create API key auth policy${RESET}"
 echo -e "  ${YELLOW}\$ ${WHITE}kubectl apply -f api-key-auth-policy.yaml${RESET}"
