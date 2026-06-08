@@ -83,15 +83,16 @@ DIM=$'\033[2m'
 ITALIC=$'\033[3m'
 RESET=$'\033[0m'
 
-PURPLE=$'\033[38;2;100;30;160m'
-CYAN=$'\033[38;2;0;120;180m'
-GREEN=$'\033[38;2;0;130;80m'
-ORANGE=$'\033[38;2;180;90;20m'
-RED=$'\033[38;2;190;40;40m'
-YELLOW=$'\033[38;2;140;110;0m'
-BLUE=$'\033[38;2;40;80;180m'
-WHITE=$'\033[38;2;30;30;40m'
-GRAY=$'\033[38;2;120;120;135m'
+# Dark-background palette (bright text + vivid accents for black terminals)
+PURPLE=$'\033[38;2;180;130;255m'
+CYAN=$'\033[38;2;90;200;250m'
+GREEN=$'\033[38;2;90;220;150m'
+ORANGE=$'\033[38;2;255;175;90m'
+RED=$'\033[38;2;255;110;110m'
+YELLOW=$'\033[38;2;240;215;120m'
+BLUE=$'\033[38;2;130;165;255m'
+WHITE=$'\033[38;2;235;235;240m'
+GRAY=$'\033[38;2;150;150;165m'
 
 CHECK="${GREEN}✓${RESET}"
 CROSS="${RED}✗${RESET}"
@@ -141,6 +142,9 @@ TEST_DESC=(
   "List tools from both federated servers"
   "Call echo tool via mcp-server-everything"
 )
+TEST_METHODS=("initialize" "tools/list" "tools/call")
+TEST_EXPECT=("200 + protocol version" "200 + federated tools" "200 + echo content")
+TEST_EXPECT_COLOR=("$GREEN" "$GREEN" "$GREEN")
 
 # Request details (set before draw_test)
 REQ_METHOD=""
@@ -155,233 +159,123 @@ RESP_RESULT=""
 RESP_MESSAGE=""
 
 # ---------------------------------------------------------------------------
-# draw_test: renders one test in split-screen layout
+# draw_test: renders one test in natural top-to-bottom flow.
+#   REQUEST on top, RESPONSE below — both shown in FULL (no truncation).
+#
+#   Rendered with a left accent bar (no right border) so content of any
+#   width or length never misaligns and the terminal can scroll cleanly.
+#   This avoids the absolute-cursor (tput cup) scroll-desync that caused
+#   overlapping garbage in the previous version.
+#
+#   $1 = test index (0-2)
+#   $2 = phase: "req" (show request, wait) or "resp" (show response, wait)
 # ---------------------------------------------------------------------------
+
+# bar: print one content line prefixed with a dim left accent bar.
+bar() { printf '%b\n' "  ${DIM}│${RESET}  $1"; }
+
 draw_test() {
   local idx=$1
   local phase=$2
 
   clear
 
-  local cols rows mid lc lw rc rw
-  cols=$(tput cols 2>/dev/null || echo 80)
-  rows=$(tput lines 2>/dev/null || echo 24)
-  mid=$((cols / 2))
-  lc=3
-  lw=$((mid - lc - 1))
-  rc=$((mid + 2))
-  rw=$((cols - rc - 2))
+  local cols
+  cols=$(tput cols 2>/dev/null || echo 100)
 
-  # Vertical separator
-  for ((r=0; r<rows-1; r++)); do
-    put $r $mid "${DIM}│${RESET}"
-  done
+  # --- Header -------------------------------------------------------------
+  echo ""
+  printf '%b\n' "  ${PURPLE}${BOLD}${TEST_HEADERS[$idx]}${RESET}    ${WHITE}${BOLD}${TEST_TITLES[$idx]}${RESET}"
+  echo ""
 
-  # ── LEFT PANEL ──
-  local row=2
-
-  put $row $lc "${PURPLE}${BOLD}${TEST_HEADERS[$idx]}${RESET}  ${DIM}—${RESET}  ${WHITE}${BOLD}${TEST_TITLES[$idx]}${RESET}"
-  ((row += 3))
-
-  # Progress bar
+  # --- Progress bar -------------------------------------------------------
   local prog=$idx
   [[ "$phase" == "resp" ]] && prog=$((idx + 1))
-  local bar_w=$((lw - 6))
-  (( bar_w > 30 )) && bar_w=30
-  local filled=$(( prog * bar_w / TOTAL_TESTS ))
-  local empty=$((bar_w - filled))
+  local bar_len=60
+  (( bar_len > cols - 12 )) && bar_len=$((cols - 12))
+  (( bar_len < 20 )) && bar_len=20
+  local filled=$(( prog * bar_len / TOTAL_TESTS ))
+  local empty=$((bar_len - filled))
   local pct=$(( prog * 100 / TOTAL_TESTS ))
-  local bar="${PURPLE}"
-  [[ $filled -gt 0 ]] && bar+=$(printf '█%.0s' $(seq 1 $filled)) || true
-  bar+="${GRAY}"
-  [[ $empty -gt 0 ]] && bar+=$(printf '░%.0s' $(seq 1 $empty)) || true
-  bar+=" ${WHITE}${pct}%${RESET}"
-  put $row $lc "$bar"
-  ((row += 3))
+  local pbar="  ${PURPLE}"
+  [[ $filled -gt 0 ]] && pbar+=$(printf '█%.0s' $(seq 1 $filled)) || true
+  pbar+="${GRAY}"
+  [[ $empty -gt 0 ]] && pbar+=$(printf '░%.0s' $(seq 1 $empty)) || true
+  pbar+=" ${WHITE}${BOLD}${pct}%${RESET}"
+  printf '%b\n' "$pbar"
+  echo ""
 
-  # Request box — full panel width
-  put $row $lc "${PURPLE}${BOLD}REQUEST${RESET}"
-  ((row += 2))
-  put $row $lc "${DIM}┌$(printf '─%.0s' $(seq 1 $((lw - 2))))┐${RESET}"
-  ((row++))
-  put $row $lc "${DIM}│${RESET}  ${CYAN}${BOLD}${REQ_METHOD}${RESET} ${WHITE}${REQ_URL}${RESET}"
-  put $row $((lc + lw - 1)) "${DIM}│${RESET}"
-  ((row++))
+  # --- Test info ----------------------------------------------------------
+  printf '%b\n' "  ${BULLET} ${WHITE}Method:${RESET} ${CYAN}${TEST_METHODS[$idx]}${RESET}    ${BULLET} ${WHITE}Expect:${RESET} ${TEST_EXPECT_COLOR[$idx]}${TEST_EXPECT[$idx]}${RESET}"
+  printf '%b\n' "  ${BULLET} ${WHITE}Desc:${RESET}   ${DIM}${TEST_DESC[$idx]}${RESET}"
+  echo ""
+
+  # --- REQUEST ------------------------------------------------------------
+  printf '%b\n' "  ${PURPLE}${BOLD}▲ REQUEST${RESET}"
+  bar "${CYAN}${BOLD}${REQ_METHOD}${RESET} ${WHITE}${REQ_URL}${RESET}"
   for h in "${REQ_HEADERS[@]}"; do
-    put $row $lc "${DIM}│${RESET}  ${GRAY}${h}${RESET}"
-    put $row $((lc + lw - 1)) "${DIM}│${RESET}"
-    ((row++))
+    bar "${GRAY}${h}${RESET}"
   done
   if [[ -n "$REQ_BODY" ]]; then
-    put $row $lc "${DIM}│${RESET}"
-    put $row $((lc + lw - 1)) "${DIM}│${RESET}"
-    ((row++))
-    local max_body_lines=$(( rows - row - 8 ))
-    (( max_body_lines < 4 )) && max_body_lines=4
-    (( max_body_lines > 12 )) && max_body_lines=12
-    local line_num=0
+    bar ""
+    bar "${ORANGE}Body:${RESET}"
     while IFS= read -r jline; do
-      ((line_num++))
-      (( line_num > max_body_lines )) && break
-      put $row $lc "${DIM}│${RESET}    ${jline:0:$((lw - 6))}"
-      put $row $((lc + lw - 1)) "${DIM}│${RESET}"
-      ((row++))
-    done <<< "$(echo "$REQ_BODY" | jq '.' 2>/dev/null || echo "$REQ_BODY")"
-    if (( line_num > max_body_lines )); then
-      put $row $lc "${DIM}│${RESET}    ${GRAY}...${RESET}"
-      put $row $((lc + lw - 1)) "${DIM}│${RESET}"
-      ((row++))
-    fi
+      bar "${GRAY}${jline}${RESET}"
+    done <<< "$(echo "$REQ_BODY" | jq -C '.' 2>/dev/null || echo "$REQ_BODY")"
   fi
-  put $row $lc "${DIM}└$(printf '─%.0s' $(seq 1 $((lw - 2))))┘${RESET}"
-  ((row += 3))
+  echo ""
 
-  # Completed tests checklist
-  if [[ $idx -gt 0 || "$phase" == "resp" ]]; then
-    local show_up_to=$idx
-    [[ "$phase" == "resp" ]] && show_up_to=$((idx + 1))
-    for ((t=0; t<show_up_to && t<${#TEST_RESULTS[@]}; t++)); do
-      local ri="${CHECK}" rl="${GREEN}PASS${RESET}"
-      [[ "${TEST_RESULTS[$t]}" == "false" ]] && ri="${CROSS}" && rl="${RED}FAIL${RESET}"
-      put $row $((lc + 2)) "${ri} ${rl}  ${DIM}${TEST_LABELS[$t]}${RESET}"
-      ((row += 2))
-    done
-  fi
-
-  # ── RIGHT PANEL ──
-  local rrow=2
-
-  local re=$((rc + rw - 1))
-
+  # --- RESPONSE -----------------------------------------------------------
   if [[ "$phase" == "req" ]]; then
-    put $rrow $rc "${DIM}${BOLD}RESPONSE${RESET}"
-    ((rrow += 3))
-    put $rrow $rc "${DIM}┌$(printf '─%.0s' $(seq 1 $((rw - 2))))┐${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
-    local pad=$(( (rw - 24) / 2 ))
-    (( pad < 2 )) && pad=2
-    put $rrow $rc "${DIM}│${RESET}$(printf ' %.0s' $(seq 1 $pad))${GRAY}${ITALIC}Waiting for request...${RESET}"
-    put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}└$(printf '─%.0s' $(seq 1 $((rw - 2))))┘${RESET}"
+    printf '%b\n' "  ${DIM}${BOLD}▼ RESPONSE${RESET}"
+    bar "${GRAY}${ITALIC}Waiting for response...${RESET}"
+    echo ""
   else
     local sc="$GREEN"
     [[ "$RESP_STATUS" -ge 400 ]] 2>/dev/null && sc="$RED"
 
-    put $rrow $rc "${sc}${BOLD}RESPONSE${RESET}"
-    ((rrow += 3))
-    put $rrow $rc "${DIM}┌$(printf '─%.0s' $(seq 1 $((rw - 2))))┐${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}│${RESET}   ${WHITE}Status:${RESET} ${sc}${BOLD}HTTP ${RESP_STATUS}${RESET}"
-    put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
+    printf '%b\n' "  ${sc}${BOLD}▼ RESPONSE${RESET}"
+    bar "${WHITE}Status:${RESET} ${sc}${BOLD}HTTP ${RESP_STATUS}${RESET}"
+    bar ""
 
-    local is_json=false
-    [[ -n "$RESP_BODY" ]] && echo "$RESP_BODY" | jq -e '.' &>/dev/null && is_json=true
-
-    if [[ "$is_json" == "true" ]]; then
-      local resp_id
-      resp_id=$(echo "$RESP_BODY" | jq -r '.id // empty' 2>/dev/null || true)
-      if [[ -n "$resp_id" ]]; then
-        put $rrow $rc "${DIM}│${RESET}   ${WHITE}ID:${RESET} ${CYAN}${resp_id}${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-        put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-      fi
-
-      # tools/list — show tool count + servers
+    if [[ -n "$RESP_BODY" ]] && echo "$RESP_BODY" | jq -e '.' &>/dev/null; then
+      # For tools/list, surface a quick summary before the full body.
       if echo "$RESP_BODY" | jq -e '.result.tools' &>/dev/null; then
-        local tc
+        local tc snames
         tc=$(echo "$RESP_BODY" | jq '.result.tools | length' 2>/dev/null || echo "?")
-        put $rrow $rc "${DIM}│${RESET}   ${WHITE}Tools:${RESET} ${ORANGE}${BOLD}${tc}${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-        put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-
-        local snames
+        bar "${WHITE}Tools:${RESET} ${ORANGE}${BOLD}${tc}${RESET}"
+        bar "${WHITE}Servers:${RESET}"
         snames=$(echo "$RESP_BODY" | jq -r '[.result.tools[].name] | map(split("_")[0]) | unique | .[]' 2>/dev/null || true)
-        put $rrow $rc "${DIM}│${RESET}   ${WHITE}Servers:${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
         while IFS= read -r sn; do
           [[ -z "$sn" ]] && continue
-          put $rrow $rc "${DIM}│${RESET}     ${GREEN}●${RESET} ${WHITE}${sn}${RESET}"
-          put $rrow $re "${DIM}│${RESET}"
-          ((rrow++))
+          bar "  ${GREEN}●${RESET} ${WHITE}${sn}${RESET}"
         done <<< "$snames"
-
-        put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-        put $rrow $rc "${DIM}│${RESET}   ${WHITE}Sample:${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-        local st
-        st=$(echo "$RESP_BODY" | jq -r '.result.tools[:4][].name' 2>/dev/null || true)
-        while IFS= read -r tn; do
-          [[ -z "$tn" ]] && continue
-          put $rrow $rc "${DIM}│${RESET}     ${CYAN}→${RESET} ${tn:0:$((rw - 8))}"
-          put $rrow $re "${DIM}│${RESET}"
-          ((rrow++))
-        done <<< "$st"
-
-      # Generic result — compact JSON
-      elif echo "$RESP_BODY" | jq -e '.result' &>/dev/null; then
-        put $rrow $rc "${DIM}│${RESET}   ${WHITE}Result:${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-        while IFS= read -r jl; do
-          put $rrow $rc "${DIM}│${RESET}     ${jl:0:$((rw - 7))}"
-          put $rrow $re "${DIM}│${RESET}"
-          ((rrow++))
-        done <<< "$(echo "$RESP_BODY" | jq '.result' 2>/dev/null | head -8)"
+        bar ""
       fi
 
-      # JSON-RPC error
-      if echo "$RESP_BODY" | jq -e '.error' &>/dev/null; then
-        put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-        local em
-        em=$(echo "$RESP_BODY" | jq -r '"\(.error.code // ""): \(.error.message // "unknown")"' 2>/dev/null || echo "unknown")
-        put $rrow $rc "${DIM}│${RESET}   ${RED}${BOLD}Error:${RESET} ${RED}${em:0:$((rw - 11))}${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-      fi
+      # Full response body — pretty-printed and colorized, in full.
+      bar "${WHITE}Body:${RESET}"
+      while IFS= read -r jl; do
+        bar "${jl}"
+      done <<< "$(echo "$RESP_BODY" | jq -C '.' 2>/dev/null)"
+
     elif [[ -n "$RESP_BODY" ]]; then
-      put $rrow $rc "${DIM}│${RESET}   ${WHITE}Body:${RESET}"
-      put $rrow $re "${DIM}│${RESET}"
-      ((rrow++))
+      bar "${WHITE}Body:${RESET}"
       while IFS= read -r rl; do
-        [[ -z "$rl" ]] && continue
-        put $rrow $rc "${DIM}│${RESET}     ${GRAY}${rl:0:$((rw - 7))}${RESET}"
-        put $rrow $re "${DIM}│${RESET}"
-        ((rrow++))
-      done <<< "$(echo "$RESP_BODY" | head -4)"
+        bar "${GRAY}${rl}${RESET}"
+      done <<< "$RESP_BODY"
     fi
 
-    put $rrow $rc "${DIM}│${RESET}"; put $rrow $re "${DIM}│${RESET}"
-    ((rrow++))
-    put $rrow $rc "${DIM}└$(printf '─%.0s' $(seq 1 $((rw - 2))))┘${RESET}"
-    ((rrow += 3))
-
-    # Verdict
+    echo ""
     if [[ "$RESP_RESULT" == "true" ]]; then
-      put $rrow $rc "  ${CHECK} ${GREEN}${BOLD}PASS${RESET}  ${WHITE}${RESP_MESSAGE}${RESET}"
+      printf '%b\n' "  ${CHECK} ${GREEN}${BOLD}PASS${RESET}  ${WHITE}${RESP_MESSAGE}${RESET}"
     else
-      put $rrow $rc "  ${CROSS} ${RED}${BOLD}FAIL${RESET}  ${WHITE}${RESP_MESSAGE}${RESET}"
+      printf '%b\n' "  ${CROSS} ${RED}${BOLD}FAIL${RESET}  ${WHITE}${RESP_MESSAGE}${RESET}"
     fi
   fi
 
-  put $((rows - 1)) 3 "${GRAY}Press ${WHITE}${BOLD}ENTER${RESET}${GRAY} to continue...${RESET}"
+  echo ""
+  printf '%b' "  ${GRAY}Press ${WHITE}${BOLD}ENTER${RESET}${GRAY} to continue...${RESET}"
   read -r _
 }
 
@@ -395,11 +289,13 @@ draw_results() {
   cols=$(tput cols 2>/dev/null || echo 80)
   rows=$(tput lines 2>/dev/null || echo 24)
   mid=$((cols / 2))
-  left_w=$((mid - 4))
-  right_col=$((mid + 2))
-  right_w=$((cols - right_col - 3))
+  left_w=$((mid - 3))
+  right_col=$((mid + 1))
+  right_w=$((cols - right_col - 1))
 
-  [[ $left_w -gt 40 ]] && left_w=40
+  local sp=$(( (rows - 20) / 6 ))
+  (( sp < 2 )) && sp=2
+  (( sp > 12 )) && sp=12
 
   for ((r=0; r<rows; r++)); do
     put $r $mid "${DIM}│${RESET}"
@@ -408,11 +304,14 @@ draw_results() {
   local row=1
 
   put $row 3 "${PURPLE}${BOLD}TEST RESULTS${RESET}"
-  ((row += 2))
+  ((row += sp))
 
-  local bar="${PURPLE}$(printf '█%.0s' $(seq 1 30)) ${WHITE}${BOLD}100%${RESET}"
+  local bar_len=$((left_w - 8))
+  (( bar_len > 50 )) && bar_len=50
+  (( bar_len < 20 )) && bar_len=20
+  local bar="${PURPLE}$(printf '█%.0s' $(seq 1 $bar_len)) ${WHITE}${BOLD}100%${RESET}"
   put $row 3 "$bar"
-  ((row += 2))
+  ((row += sp))
 
   put $row 3 "${DIM}┌$(printf '─%.0s' $(seq 1 $((left_w - 2))))┐${RESET}"
   ((row++))
@@ -425,7 +324,13 @@ draw_results() {
       icon="${CROSS} ${RED}FAIL${RESET}"
     fi
 
+    put $row 3 "${DIM}│${RESET}"
+    put $row $((3 + left_w - 1)) "${DIM}│${RESET}"
+    ((row++))
     put $row 3 "${DIM}│${RESET}  ${icon}  ${WHITE}${TEST_LABELS[$t]}${RESET}"
+    put $row $((3 + left_w - 1)) "${DIM}│${RESET}"
+    ((row++))
+    put $row 3 "${DIM}│${RESET}"
     put $row $((3 + left_w - 1)) "${DIM}│${RESET}"
     ((row++))
 
@@ -436,10 +341,10 @@ draw_results() {
   done
 
   put $row 3 "${DIM}└$(printf '─%.0s' $(seq 1 $((left_w - 2))))┘${RESET}"
-  ((row += 2))
+  ((row += sp))
 
   put $row 3 "${CHECK} ${GREEN}${PASS} passed${RESET}  ${DIM}${FAIL} failed${RESET}"
-  ((row += 2))
+  ((row += sp))
 
   if [[ $FAIL -eq 0 ]]; then
     put $row 3 "${GREEN}${BOLD}Virtual MCP working as expected.${RESET}"
@@ -450,34 +355,34 @@ draw_results() {
   local rrow=1
 
   put $rrow $right_col "${PURPLE}${BOLD}CONCLUSION${RESET}"
-  ((rrow += 2))
+  ((rrow += sp))
 
   put $rrow $right_col "${WHITE}${BOLD}What We Set Up:${RESET}"
-  ((rrow += 2))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GREEN}●${RESET} ${WHITE}AgentGateway${RESET} ${GRAY}on a local Kind cluster${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GREEN}●${RESET} ${WHITE}Gateway listener${RESET} ${GRAY}on port 80 (HTTP)${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GREEN}●${RESET} ${WHITE}mcp-server-everything${RESET} ${GRAY}(echo, add, sleep...)${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GREEN}●${RESET} ${WHITE}mcp-server-tools${RESET} ${GRAY}(echo, add, sleep...)${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GREEN}●${RESET} ${WHITE}AgentgatewayBackend${RESET} ${GRAY}(federating both servers)${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GREEN}●${RESET} ${WHITE}HTTPRoute${RESET} ${GRAY}on /mcp${RESET}"
-  ((rrow += 2))
+  ((rrow += sp))
 
   put $rrow $right_col "${WHITE}${BOLD}What We Tested:${RESET}"
-  ((rrow += 2))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${CHECK} ${WHITE}MCP initialization handshake${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${CHECK} ${WHITE}Federated tools list from both servers${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${CHECK} ${WHITE}Echo tool call roundtrip${RESET}"
-  ((rrow += 2))
+  ((rrow += sp))
 
   put $rrow $right_col "${CYAN}${BOLD}Key Takeaway:${RESET}"
-  ((rrow++))
+  ((rrow += sp / 2 + 1))
   put $rrow $right_col "  ${GRAY}Virtual MCP multiplexes multiple MCP${RESET}"
   ((rrow++))
   put $rrow $right_col "  ${GRAY}servers behind a single endpoint.${RESET}"
@@ -487,7 +392,7 @@ draw_results() {
   put $rrow $right_col "  ${GRAY}from all federated servers — name${RESET}"
   ((rrow++))
   put $rrow $right_col "  ${GRAY}prefixes identify the source server.${RESET}"
-  ((rrow += 2))
+  ((rrow += sp))
 
   put $rrow $right_col "${WHITE}${BOLD}Next:${RESET}  ${CYAN}./cleanup.sh${RESET} ${GRAY}to tear down${RESET}"
 
@@ -590,7 +495,7 @@ cat << 'BANNER'
 BANNER
 echo -e "${RESET}"
 echo -e "  ${GRAY}JSON-RPC tests for virtual MCP multiplexing${RESET}"
-echo -e "  ${GRAY}Split-screen: REQUEST on the left, RESPONSE on the right${RESET}"
+echo -e "  ${GRAY}Full-width: REQUEST on top, RESPONSE on the bottom${RESET}"
 echo ""
 echo -e "  ${GREEN}●${RESET} MCP initialization     ${CYAN}●${RESET} Federated tools discovery"
 echo -e "  ${GREEN}●${RESET} Echo tool roundtrip"

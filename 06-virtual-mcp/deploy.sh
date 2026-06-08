@@ -27,12 +27,13 @@ BOLD=$'\033[1m'
 DIM=$'\033[2m'
 RESET=$'\033[0m'
 
-PURPLE=$'\033[38;2;100;30;160m'
-CYAN=$'\033[38;2;0;120;180m'
-GREEN=$'\033[38;2;0;130;80m'
-YELLOW=$'\033[38;2;140;110;0m'
-WHITE=$'\033[38;2;30;30;40m'
-GRAY=$'\033[38;2;120;120;135m'
+# Dark-background palette (bright text + vivid accents for black terminals)
+PURPLE=$'\033[38;2;180;130;255m'
+CYAN=$'\033[38;2;90;200;250m'
+GREEN=$'\033[38;2;90;220;150m'
+YELLOW=$'\033[38;2;240;215;120m'
+WHITE=$'\033[38;2;235;235;240m'
+GRAY=$'\033[38;2;150;150;165m'
 
 CHECK="${GREEN}✓${RESET}"
 
