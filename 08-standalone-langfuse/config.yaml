@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# Minimal MVP: agentgateway sends traces directly to Langfuse on the other VM.
+#
+# No collector needed.
+#
+# Recommended way to run:
+#   ./run.sh
+#
+# (The run.sh script loads .env and substitutes ${LANGFUSE_AUTH_STRING} at runtime.
+#  This keeps the real secret out of config.yaml.)
+#
+# See README.md for instructions.
+#
+# How tracing works here (agentgateway + Langfuse):
+# - agentgateway natively emits OpenTelemetry traces using GenAI semantic conventions
+#   (gen_ai.request.model, gen_ai.usage.input_tokens, gen_ai.operation.name, etc.).
+# - These are automatically mapped by Langfuse's OTLP endpoint into rich "generations"
+#   with model, tokens, latency, and cost tracking.
+# - This meets Langfuse baseline requirements: model names, token usage, descriptive names,
+#   correct observation typing, and nested spans for the request lifecycle.
+# - No code changes needed in your LLM apps — the gateway is the instrumentation point.
+
+config:
+  # Enable distributed tracing. See:
+  # - https://agentgateway.dev/docs/standalone/main/integrations/observability/opentelemetry/
+  # - https://langfuse.com/docs/opentelemetry (Langfuse OTLP receiver)
+  tracing:
+    # Langfuse OTLP HTTP endpoint (gRPC is NOT yet supported by Langfuse ingest).
+    # Your self-hosted instance:
+    #   http://172.16.10.112:3000/api/public/otel
+    #
+    # Other common values:
+    #   EU cloud:    https://cloud.langfuse.com/api/public/otel
+    #   US cloud:    https://us.cloud.langfuse.com/api/public/otel
+    #   Self-hosted: http://<host>:3000/api/public/otel
+    otlpEndpoint: http://172.16.10.112:3000/api/public/otel/v1/traces
+
+    # IMPORTANT: Force HTTP (protobuf/json). Default is grpc.
+    otlpProtocol: http
+
+    # Send Langfuse auth + force latest ingestion path for real-time previews.
+    # Build AUTH_STRING locally with: echo -n "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" | base64
+    # Do NOT commit real keys. Use env expansion or a secrets manager in production.
+    headers:
+      Authorization: '"Basic ${LANGFUSE_AUTH_STRING}"'
+      x-langfuse-ingestion-version: '"4"'
+
+    # Sampling: 1.0 (or true) for dev / low-traffic. Lower in prod (e.g. 0.1).
+    # See Langfuse sampling docs and agentgateway randomSampling expression support.
+    randomSampling: true
+
+    # Optional path override (Langfuse accepts /api/public/otel or /api/public/otel/v1/traces)
+    # path: /api/public/otel/v1/traces
+
+    # Extra span attributes. Values are CEL expressions evaluated per request.
+    # NOTE: string literals need inner quotes ('"foo"'); variable refs do not.
+    fields:
+      add:
+        # The actual conversation -> Langfuse maps these to trace input/output.
+        # string() casts the raw body bytes to readable text (else Langfuse shows base64).
+        gen_ai.prompt: 'string(request.body)'
+        gen_ai.completion: 'string(response.body)'
+
+        # Request params not emitted by default.
+        gen_ai.request.stream: 'json(request.body).stream'
+
+        # Attribution / multi-tenant (sent as headers by test.sh).
+        user.id: 'request.headers["x-user-id"]'
+        session.id: 'request.headers["x-session-id"]'
+
+        # Static + connection metadata.
+        environment: '"local-dev"'
+        client.ip: 'source.address'
+
+binds:
+- port: 3000
+  listeners:
+  - name: spark-http
+    protocol: HTTP
+    routes:
+    - name: spark-route
+      backends:
+      - ai:
+          name: spark
+          provider:
+            openAI:
+              model: "Qwen/Qwen3.6-35B-A3B-FP8"
+          hostOverride: "172.16.10.173:8000"
+
+# Optional: attach frontendPolicies if your agentgateway version uses that style
+# frontendPolicies:
+#   tracing:
+#     otlpEndpoint: http://172.16.10.112:3000/api/public/otel
+#     otlpProtocol: http
+#     randomSampling: true
+#     headers:
+#       Authorization: '"Basic ${LANGFUSE_AUTH_STRING}"'
+#       x-langfuse-ingestion-version: '"4"'

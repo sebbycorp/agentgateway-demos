@@ -1,0 +1,24 @@
+# Secrets — never commit
+.env
+.env.*
+*.env
+secrets/
+*.key
+*.pem
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Optional: local binaries or downloads
+agentgateway
+agentgateway-*
+*.tar.gz
+*.zip
+
+# Logs / temp
+*.log
+tmp/
