@@ -1,0 +1,9 @@
+# Demo artifacts
+*.log
+test-results/
+# Never commit real Langfuse keys
+.env
+# OS / editor
+.DS_Store
+*.swp
+*~
