@@ -39,19 +39,24 @@ Client (curl / SDK)
 
 - `kind`, `kubectl`, `helm`, `jq`
 - Docker (for kind)
-- At least 8 GB RAM available for the kind node + Langfuse stack (ClickHouse + Postgres are the heavy parts)
+- **On macOS**: Docker Desktop should have **at least 8-10 GB RAM + 4 CPUs** allocated (ClickHouse is memory hungry)
 - Your local model server already running and reachable from containers on `172.16.10.173:8000` (the value you provided for the spark backend)
+
+**Important**: Langfuse self-hosted is the slowest part of the demo. First-time bootstrap (ClickHouse + Postgres schema + migrations) commonly takes **5-15 minutes** inside kind. The `deploy.sh` uses kind-optimized values (`langfuse-kind-values.yaml`) to keep resource usage reasonable.
 
 ## Quick Start
 
 ```bash
 # 1. Deploy the whole stack (kind + Langfuse + AgentGateway + spark route)
 ./deploy.sh
+# NOTE: Be patient — the script will print progress. Langfuse (especially ClickHouse)
+#       can take 5-15 minutes on first run. You can watch in another terminal:
+#       kubectl get pods -n langfuse -w
 
-# 2. Set up Langfuse project + obtain keys (one-time, interactive in browser)
+# 2. Once the langfuse-web pod is 1/1 Running, set up a project + get keys
 kubectl port-forward -n langfuse svc/langfuse-web 3000:3000 &
 # Open http://localhost:3000
-#   - Create account / org / project
+#   - Create account / org / project (e.g. "cost-analysis")
 #   - Settings → API Keys → copy Public Key (pk-lf-...) and Secret Key (sk-lf-...)
 
 # 3. Wire AgentGateway tracing → Langfuse (injects real auth + OTLP endpoint)
@@ -86,7 +91,7 @@ Then open Langfuse at http://localhost:3000 and explore:
 |------------------------|------------------------------------------|-------|
 | kind cluster           | `kind create cluster`                    | Named `agw-k8s-langfuse` |
 | Gateway API CRDs       | Official v1.5.0 manifest                 | Required by AgentGateway |
-| Langfuse (self-hosted) | `helm install langfuse/langfuse`         | Full stack (Postgres, ClickHouse, Redis, web, worker) in `langfuse` ns |
+| Langfuse (self-hosted) | `helm install langfuse/langfuse` + `langfuse-kind-values.yaml` | Full stack tuned for kind (1 replica, lower resources). Expect 5-15 min first boot. |
 | AgentGateway CRDs + controller | Official OCI Helm charts (v1.1.0) | `agentgateway-system` ns |
 | AgentgatewayParameters | Custom resource (rawConfig)              | Carries the tracing section (updated by configure script) |
 | Gateway                | `agentgateway-proxy` (HTTP 80)           | Standard Gateway API |
@@ -165,6 +170,28 @@ This removes the CRs, Helm releases, namespaces, and the kind cluster.
   Then re-send a request.
 - **Costs are zero / missing**: You must explicitly add the model name + prices in Langfuse (Project → Settings → Models). Langfuse does not guess prices.
 - **Want the full OTel + Grafana stack too?** You can layer the official agentgateway OTel + kube-prometheus-stack manifests on top later; this demo deliberately stays minimal (direct to Langfuse) for cost analysis.
+
+### Langfuse-Specific Notes & Troubleshooting
+
+Langfuse is the slowest and most resource-heavy component. The `deploy.sh` now:
+- Uses `langfuse-kind-values.yaml` (1 replica everywhere + reduced memory/CPU requests)
+- Does phased waits (databases first, then web/worker)
+- Uses longer timeouts (up to 20 min for Helm + per-component waits)
+
+**If after `./deploy.sh` the web pod is not yet 1/1 Running**:
+```bash
+kubectl get pods -n langfuse -w
+# or
+kubectl logs -n langfuse -l app.kubernetes.io/component=web --tail=50
+```
+
+Common on first run:
+- ClickHouse taking a long time to initialize (watch for "ClickHouse server is ready")
+- PostgreSQL migrations
+
+You can safely re-run `./deploy.sh` — it is idempotent for most steps (Helm upgrade, kubectl apply).
+
+If you are very resource-constrained, you can manually edit `langfuse-kind-values.yaml` before running the script (lower memory further or disable persistence for a pure ephemeral demo).
 
 ## References
 

@@ -18,8 +18,11 @@ set -euo pipefail
 # Prerequisites:
 #   - kind, kubectl, helm, jq installed
 #   - Docker running (kind requirement)
-#   - Sufficient resources for kind + Langfuse (8GB+ RAM recommended for the cluster)
+#   - Docker Desktop (macOS) should have at least 8-10 GB RAM + 4+ CPUs allocated
 #   - Your local model server reachable from kind pods at the hostOverride IP
+#
+# Note: Langfuse is the slowest part (ClickHouse especially). First-time bootstrap
+#       commonly takes 5-15 minutes even with the kind-optimized values.
 ##############################################################################
 
 CLUSTER_NAME="agw-k8s-langfuse"
@@ -75,31 +78,63 @@ kubectl apply --server-side --force-conflicts \
 # ---------------------------------------------------------------------------
 echo ""
 echo "==> Step 3: Adding Langfuse Helm repo and installing Langfuse into '${LANGFUSE_NAMESPACE}'..."
-echo "    (This can take several minutes: databases + migrations + pods.)"
+echo "    (This is the heaviest part — ClickHouse + Postgres bootstrap can take 5-15 minutes on kind.)"
+echo "    The script will continue but Langfuse may still be initializing."
 
 helm repo add langfuse https://langfuse.github.io/langfuse-k8s >/dev/null 2>&1 || true
 helm repo update >/dev/null 2>&1 || true
 
+# Use kind-optimized values to keep resource usage reasonable inside Docker Desktop / kind
+# Note: we intentionally omit --wait here. Helm renders/installs immediately,
+# and the explicit kubectl wait blocks below handle pod readiness with proper
+# per-component timeouts. This avoids Helm from swallowing chart errors under
+# the 20m pod-startup timeout.
 helm upgrade -i langfuse langfuse/langfuse \
   --namespace "${LANGFUSE_NAMESPACE}" \
   --create-namespace \
-  --wait --timeout=10m || {
-    echo "Helm install returned non-zero (common during DB init). Continuing with waits..."
+  --values ./langfuse-kind-values.yaml || {
+    echo "" >&2
+    echo "ERROR: Helm install failed (not a timeout). Fix the error above and re-run." >&2
+    exit 1
   }
 
 echo ""
-echo "==> Waiting for Langfuse core components to become Ready (can take 3-8 minutes)..."
+echo "==> Waiting for Langfuse databases and core pods (this can still take several minutes)..."
 
-# Wait for the main web service pods (the ones serving UI + OTLP ingest)
+# Phase 1: Databases (these must be ready first)
+echo "    Waiting for ClickHouse..."
+kubectl wait --for=condition=Ready pod \
+  -l app.kubernetes.io/name=clickhouse -n "${LANGFUSE_NAMESPACE}" --timeout=600s || true
+
+echo "    Waiting for PostgreSQL..."
+kubectl wait --for=condition=Ready pod \
+  -l app.kubernetes.io/name=postgresql -n "${LANGFUSE_NAMESPACE}" --timeout=300s || true
+
+echo "    Waiting for Redis..."
+kubectl wait --for=condition=Ready pod \
+  -l app.kubernetes.io/name=redis -n "${LANGFUSE_NAMESPACE}" --timeout=120s || true
+
+# Phase 2: Application pods
+echo "    Waiting for Langfuse web + worker..."
 kubectl wait --for=condition=Ready pod \
   -l app.kubernetes.io/name=langfuse,app.kubernetes.io/component=web \
   -n "${LANGFUSE_NAMESPACE}" --timeout=300s || true
 
-kubectl get pods -n "${LANGFUSE_NAMESPACE}" || true
+kubectl wait --for=condition=Ready pod \
+  -l app.kubernetes.io/name=langfuse,app.kubernetes.io/component=worker \
+  -n "${LANGFUSE_NAMESPACE}" --timeout=300s || true
 
 echo ""
-echo "    Langfuse should be reachable inside the cluster at:"
+kubectl get pods -n "${LANGFUSE_NAMESPACE}"
+
+echo ""
+echo "    Langfuse (when fully ready) will be reachable inside the cluster at:"
 echo "      http://langfuse-web.${LANGFUSE_NAMESPACE}.svc.cluster.local:3000"
+echo ""
+echo "    TIP: If the web/worker pods are still not 1/1 Running, watch progress with:"
+echo "         kubectl get pods -n ${LANGFUSE_NAMESPACE} -w"
+echo ""
+echo "    (The rest of the script will continue — you can come back to Langfuse later.)"
 
 # ---------------------------------------------------------------------------
 # Step 4: Install AgentGateway CRDs + Controller

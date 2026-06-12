@@ -1,0 +1,91 @@
+# kind-friendly values for Langfuse Helm chart
+# Reduces resource footprint for local kind clusters (macOS Docker Desktop especially).
+# ClickHouse and Postgres are still the heavy parts but now request less memory/CPU
+# and run with 1 replica.
+
+# langfuse.salt.value is required by the chart for JWT signing / internal encryption.
+# Use a fixed value for local dev; rotate in production (use Kubernetes secrets instead).
+# Generate with: openssl rand -base64 32
+global:
+  security:
+    allowInsecureImages: true
+
+langfuse:
+  salt:
+    value: "dev-salt-change-me-in-production"
+  nextauth:
+    secret:
+      value: "dev-nextauth-secret-change-me-in-production"
+
+  web:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+      limits:
+        cpu: "1"
+        memory: 1.5Gi
+  worker:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1.5Gi
+
+clickhouse:
+  auth:
+    password: "dev-clickhouse-password-change-me-in-prod"
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+postgresql:
+  auth:
+    password: "dev-postgres-password-change-me-in-prod"
+  primary:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+redis:
+  auth:
+    username: default
+    password: "dev-redis-password-change-me-in-prod"
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# S3 / MinIO configuration (required for blob storage)
+s3:
+  deploy: true
+  accessKeyId:
+    value: "minio"
+  secretAccessKey:
+    value: "dev-minio-secret-change-me-in-prod"
+  primary:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
