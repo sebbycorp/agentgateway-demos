@@ -74,28 +74,26 @@ def get_provider(name: str) -> ProviderSpec:
 # ---------------------------------------------------------------------------
 
 # Tool surface sizes per mode (for synthetic routes).
-# standard → N (catalog_size); search → 2; code → 1; codesearch → 2
+# standard → N (catalog_size); search → 2; codesearch → 2.
+# (Code mode is excluded: run_code inlines every tool signature, so it does not
+#  reduce tool-definition tokens — it is not a cost-savings mode.)
 TOOL_SURFACE: Dict[str, Optional[int]] = {
     "standard": None,   # equals catalog_size
     "search": 2,
-    "code": 1,
     "codesearch": 2,
 }
 
-# Valid synthetic catalog sizes.
-SYNTHETIC_CATALOG_SIZES = (10, 50, 100)
+# Valid synthetic catalog sizes — realistic gradient.
+SYNTHETIC_CATALOG_SIZES = (10, 15, 20, 30, 50, 100)
 
 # Real-server target names.
-REAL_TARGETS = ("real-everything", "real-f5", "real-github")
-
-# Modes available for real-f5 (has per-mode sub-routes).
-REAL_F5_MODES = ("standard", "search", "code", "codesearch")
+REAL_TARGETS = ("real-everything", "real-github")
 
 
 @dataclass
 class Backend:
     """Describes a single MCP endpoint reachable through the gateway."""
-    target: str          # e.g. "synthetic", "real-f5", "real-github"
+    target: str          # e.g. "synthetic", "real-everything", "real-github"
     mode: str            # e.g. "standard", "search", "code", "codesearch"
     catalog_size: int    # number of tools in the *full* catalog (synthetic) or 0 for real
     route: str           # gateway-relative path, e.g. "/mcp/standard-50"
@@ -144,25 +142,17 @@ def build_synthetic_backend(mode: str, catalog_size: int) -> Backend:
 def build_real_backend(server: str, mode: str = "standard") -> Backend:
     """Build a Backend for a real MCP server route.
 
-    server must be one of: 'everything', 'f5', 'github'.
-    mode is only meaningful for f5; for others standard is used.
+    server must be one of: 'everything', 'github' (both Standard mode).
+    NOTE: real-github is JWT-gated (RBAC) — callers must attach a persona token
+    via with_persona_headers(); an unauthenticated call returns 401.
     """
-    valid_servers = ("everything", "f5", "github")
+    valid_servers = ("everything", "github")
     if server not in valid_servers:
         raise ValueError(f"Unknown real server '{server}'. Valid: {valid_servers}")
 
-    if server == "f5" and mode != "standard":
-        if mode not in REAL_F5_MODES:
-            raise ValueError(f"Unknown f5 mode '{mode}'")
-        route = f"/mcp/real-f5-{mode}"
-        target = "real-f5"
-    elif server == "f5":
-        route = "/mcp/real-f5"
-        target = "real-f5"
-    else:
-        route = f"/mcp/real-{server}"
-        target = f"real-{server}"
-        mode = "standard"
+    route = f"/mcp/real-{server}"
+    target = f"real-{server}"
+    mode = "standard"
 
     return Backend(
         target=target,

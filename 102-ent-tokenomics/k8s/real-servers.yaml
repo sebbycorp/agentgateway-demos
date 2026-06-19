@@ -1,7 +1,6 @@
-# Real MCP servers fronted by AGW.
-#  - everything: reference server (13 heterogeneous tools), stdio bridged to SSE via supergateway.
-#  - f5:        F5 BIG-IP wrapper (29 real LTM tools), native streamable-HTTP MCP at /mcp/mcp.
-# F5 password is injected from a Secret (sed-substituted from gitignored .env), never committed.
+# Real MCP server fronted by AGW: the reference "everything" server (13
+# heterogeneous tools), stdio bridged to SSE via supergateway, so the AGW MCP
+# backend (network/SSE target) can front it. Credential-free.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,8 +16,7 @@ spec:
       containers:
         - name: bridge
           image: node:22
-          # Pinned package versions (supply-chain hygiene). For stricter control,
-          # bake these into a digest-pinned custom image with a lockfile.
+          # Pinned package versions (supply-chain hygiene).
           command: ["npx", "-y", "supergateway@3.4.3",
                     "--stdio", "npx -y @modelcontextprotocol/server-everything@2026.1.26",
                     "--port", "8000", "--healthEndpoint", "/healthz"]
@@ -36,52 +34,6 @@ spec:
   selector: { app: mcp-real-everything }
   ports: [{ name: http, port: 80, targetPort: 8000 }]
 ---
-apiVersion: v1
-kind: Secret
-metadata: { name: f5-secret, namespace: agentgateway-system }
-type: Opaque
-stringData:
-  F5_PASSWORD: "__F5_PASSWORD__"
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mcp-f5
-  namespace: agentgateway-system
-  labels: { app: mcp-f5, mcp-real: "true" }
-spec:
-  replicas: 1
-  selector: { matchLabels: { app: mcp-f5 } }
-  template:
-    metadata: { labels: { app: mcp-f5, mcp-real: "true" } }
-    spec:
-      containers:
-        - name: f5
-          # Built locally for the cluster arch by scripts/build-real-images.sh
-          # (the published sebbycorp/f5-wrapper:latest is amd64-only).
-          image: f5-wrapper:local
-          imagePullPolicy: IfNotPresent
-          ports: [{ containerPort: 8080, name: http }]
-          env:
-            - { name: F5_HOST, value: "https://172.16.10.10" }
-            - { name: F5_USERNAME, value: "admin" }
-            # SECURITY NOTE: TLS verification is disabled because this demo targets a
-            # lab BIG-IP with a self-signed mgmt cert. For production, set
-            # F5_VERIFY_SSL=true and mount the device CA bundle (Secret/ConfigMap)
-            # for the wrapper to trust, rather than disabling verification.
-            - { name: F5_VERIFY_SSL, value: "false" }
-            - { name: READ_ONLY, value: "true" }   # demo safety: block destructive F5 ops
-            - name: F5_PASSWORD
-              valueFrom: { secretKeyRef: { name: f5-secret, key: F5_PASSWORD } }
----
-apiVersion: v1
-kind: Service
-metadata: { name: mcp-f5, namespace: agentgateway-system }
-spec:
-  selector: { app: mcp-f5 }
-  ports: [{ name: http, port: 8080, targetPort: 8080 }]
----
-# Standard-mode backends fronting each real server (per-mode + aggregation comes next).
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
 kind: EnterpriseAgentgatewayBackend
 metadata: { name: real-everything-std, namespace: agentgateway-system }
@@ -101,23 +53,3 @@ spec:
     - matches: [{ path: { type: PathPrefix, value: /mcp/real-everything } }]
       filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
       backendRefs: [{ name: real-everything-std, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
----
-apiVersion: enterpriseagentgateway.solo.io/v1alpha1
-kind: EnterpriseAgentgatewayBackend
-metadata: { name: real-f5-std, namespace: agentgateway-system }
-spec:
-  entMcp:
-    toolMode: Standard
-    targets:
-      - name: f5
-        static: { host: mcp-f5.agentgateway-system.svc.cluster.local, port: 8080, protocol: StreamableHTTP, path: /mcp/mcp }
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata: { name: real-f5-std, namespace: agentgateway-system }
-spec:
-  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
-  rules:
-    - matches: [{ path: { type: PathPrefix, value: /mcp/real-f5 } }]
-      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
-      backendRefs: [{ name: real-f5-std, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]

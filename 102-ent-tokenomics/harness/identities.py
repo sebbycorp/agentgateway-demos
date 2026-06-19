@@ -63,22 +63,23 @@ class Persona:
 
 
 # Tool visibility predicates — these MIRROR the CEL matchExpressions actually
-# enforced by the gateway in k8s/f5-rbac.yaml (the gateway is the source of truth;
-# these are kept in sync for documentation/assertions).
+# enforced by the gateway in k8s/github-rbac.yaml (the gateway is the source of
+# truth; these are kept in sync for documentation/assertions). Applied to the
+# GitHub MCP catalog (47 real tools).
 #
-# readonly (f5-rbac.yaml): allow list_* / get_* / system* / failover_status /
-#                          config_sync_status
-_READONLY_PREFIXES = ("list_", "get_", "system")
-_READONLY_EXACT = ("failover_status", "config_sync_status")
+# readonly (github-rbac.yaml): allow get_* / list_* / search_*
+_READONLY_PREFIXES = ("get_", "list_", "search_")
 
 def _readonly_predicate(tool_name: str) -> bool:
-    return tool_name.startswith(_READONLY_PREFIXES) or tool_name in _READONLY_EXACT
+    return tool_name.startswith(_READONLY_PREFIXES)
 
-# team (f5-rbac.yaml): everything EXCEPT delete_* / remove_*
+# team (github-rbac.yaml): everything EXCEPT delete_* / fork_* / create_repository
 def _team_predicate(tool_name: str) -> bool:
-    return not (tool_name.startswith("delete_") or tool_name.startswith("remove_"))
+    return not (tool_name.startswith("delete_")
+                or tool_name.startswith("fork_")
+                or tool_name == "create_repository")
 
-# admin (f5-rbac.yaml): all tools.
+# admin (github-rbac.yaml): all tools.
 def _admin_predicate(_tool_name: str) -> bool:
     return True
 

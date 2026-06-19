@@ -19,7 +19,7 @@ AGW_VERSION="v2026.6.1"
 GATEWAY_API_VERSION="v1.5.0"
 UI_VERSION="0.3.19"
 MGMT_CLUSTER_NAME="mgmt-cluster"
-TOOL_COUNTS=(10 50 100)
+TOOL_COUNTS=(10 15 20 30 50 100)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==> Checking prerequisites..."
@@ -169,13 +169,14 @@ spec:
     targetPort: 8000
 EOF
 
-  # All four progressive-disclosure modes (CRD enum: Standard|Search|Code|CodeSearch).
-  # standard=full tool list, search=get_tool+invoke_tool, code=run_code, codesearch=get_tool+run_code.
-  for mode in standard search code codesearch; do
+  # Progressive-disclosure modes (CRD enum: Standard|Search|CodeSearch).
+  # standard=full tool list, search=get_tool+invoke_tool, codesearch=get_tool+run_code.
+  # (Code mode is excluded: run_code inlines every tool signature, so it does not
+  #  reduce tool-definition tokens — it is not a cost-savings mode.)
+  for mode in standard search codesearch; do
     case "$mode" in
       standard)   tool_mode="Standard" ;;
       search)     tool_mode="Search" ;;
-      code)       tool_mode="Code" ;;
       codesearch) tool_mode="CodeSearch" ;;
     esac
     kubectl apply -f- <<EOF
@@ -233,6 +234,33 @@ sed "s|__OPENAI_API_KEY__|${OPENAI_API_KEY}|" "${SCRIPT_DIR}/k8s/openai.yaml" | 
 echo ""
 echo "==> Step 8b: Configuring Anthropic LLM backend (/anthropic)..."
 sed "s|__ANTHROPIC_API_KEY__|${ANTHROPIC_API_KEY}|" "${SCRIPT_DIR}/k8s/anthropic.yaml" | kubectl apply -f-
+
+# ---------------------------------------------------------------------------
+# Step 8c: Real MCP servers (everything + GitHub) + 3-persona RBAC on GitHub
+# ---------------------------------------------------------------------------
+echo ""
+echo "==> Step 8c: Deploying real MCP servers (everything + GitHub)..."
+kubectl apply -f "${SCRIPT_DIR}/k8s/real-servers.yaml"
+
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  sed "s|__GITHUB_TOKEN__|${GITHUB_TOKEN}|" "${SCRIPT_DIR}/k8s/github.yaml" | kubectl apply -f-
+
+  echo "    Generating RBAC JWT material (keypair + JWKS + persona tokens)..."
+  ( cd "${SCRIPT_DIR}/harness" && ./.venv/bin/python identities.py --generate >/dev/null 2>&1 ) || \
+    echo "    (skipped token gen — run ./test.sh which sets up the venv first)"
+  if [[ -f "${SCRIPT_DIR}/harness/.rbac_jwks.json" ]]; then
+    # Substitute the (compacted, single-line) inline JWKS into the RBAC policy and apply.
+    python3 - "${SCRIPT_DIR}/k8s/github-rbac.yaml" "${SCRIPT_DIR}/harness/.rbac_jwks.json" <<'PY' | kubectl apply -f-
+import sys, json, pathlib
+tmpl = pathlib.Path(sys.argv[1]).read_text()
+jwks = json.dumps(json.loads(pathlib.Path(sys.argv[2]).read_text()))  # compact to one line
+print(tmpl.replace("__JWKS_INLINE__", jwks))
+PY
+    echo "    GitHub RBAC policies applied (readonly/team/admin)."
+  fi
+else
+  echo "    (GITHUB_TOKEN not set — skipping GitHub backend + RBAC)"
+fi
 
 echo ""
 echo "==> Step 9: Installing observability (Prometheus + Pushgateway + Grafana)..."

@@ -10,13 +10,13 @@ Env knobs (all optional; defaults give a cheap smoke run):
   PROVIDERS         comma-list                  [openai,anthropic]
   OPENAI_MODEL      override OpenAI model       [gpt-5.5]
   ANTHROPIC_MODEL   override Anthropic model    [claude-opus-4-8]
-  MODES             comma-list                  [standard,search,code,codesearch]
-  CATALOG_SIZES     comma-list (synthetic)      [10,50,100]
+  MODES             comma-list                  [standard,search,codesearch]
+  CATALOG_SIZES     comma-list (synthetic)      [10,15,20,30,50,100]
   PERSONAS          comma-list or "none"        [none]
   TASKS             comma-list of task IDs      [two_tools,single_echo]
   LOOP_KS           comma-list                  [0]   (0 = non-loop tasks only)
   SAMPLES           int; repeat each cell       [1]
-  TARGETS           synthetic,real-f5,…         [synthetic]
+  TARGETS           synthetic,real-everything,real-github [synthetic]
   MAX_TOOL_TURNS    max LLM→tool rounds         [8]
 
   -- output --
@@ -63,9 +63,9 @@ GATEWAY = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 PUSHGATEWAY = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")
 
 PROVIDERS_ENV = os.environ.get("PROVIDERS", "openai,anthropic").split(",")
-MODES_ENV = os.environ.get("MODES", "standard,search,code,codesearch").split(",")
+MODES_ENV = os.environ.get("MODES", "standard,search,codesearch").split(",")
 CATALOG_SIZES_ENV = [
-    int(x) for x in os.environ.get("CATALOG_SIZES", "10,50,100").split(",")
+    int(x) for x in os.environ.get("CATALOG_SIZES", "10,15,20,30,50,100").split(",")
 ]
 PERSONAS_ENV = os.environ.get("PERSONAS", "none").split(",")
 TASKS_ENV = os.environ.get("TASKS", ",".join(SMOKE_TASKS)).split(",")
@@ -134,6 +134,14 @@ async def run_cell(
     if persona is not None and persona.name != "none":
         active_backend = backend.with_persona_headers(persona.auth_header())
         persona_name = persona.name
+    elif backend.target == "real-github":
+        # real-github is JWT-gated (RBAC); an unauthenticated call 401s. When no
+        # persona is set, use the admin token so the cost sweep can still run.
+        try:
+            admin = PERSONAS["admin"]
+            active_backend = backend.with_persona_headers(admin.auth_header())
+        except (KeyError, FileNotFoundError):
+            pass  # no token available; call will 401 and be recorded as a failed cell
 
     mcp_url = active_backend.mcp_url(GATEWAY)
 
@@ -423,10 +431,10 @@ async def main() -> None:
             assertion_failures.append(str(exc))
             print(f"  ASSERT FAIL: {exc}")
 
-    # RBAC subset check: readonly ⊂ admin for real-f5.
+    # RBAC subset check: readonly ⊂ admin for real-github.
     if "readonly" in PERSONAS_ENV and "admin" in PERSONAS_ENV:
         for backend in backends:
-            if backend.target == "real-f5" and backend.mode == "standard":
+            if backend.target == "real-github" and backend.mode == "standard":
                 for provider_name in PROVIDERS_ENV:
                     for task in tasks:
                         ro_rows = [
