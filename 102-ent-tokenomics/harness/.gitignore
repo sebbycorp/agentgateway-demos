@@ -10,3 +10,4 @@ projection.csv
 .rbac_token_*.txt
 results_v3.csv
 results_v3.json
+projection_v3.csv
