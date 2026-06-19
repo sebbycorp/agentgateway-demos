@@ -101,8 +101,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Tools advertised \u2014 Standard / Search / Code",
-      "description": "F5 tools the model sees per mode (29 / 2 / 1).",
+      "title": "Tools advertised \u2014 Standard (full F5 catalog)",
+      "description": "F5 tools the model sees in Standard mode (Search=2, Code=1 \u2014 see the by-mode bar panel).",
       "gridPos": {
         "h": 6,
         "w": 8,
@@ -165,7 +165,7 @@
             "mode": "fixed",
             "fixedColor": "green"
           },
-          "decimals": 0
+          "decimals": 4
         }
       },
       "targets": [

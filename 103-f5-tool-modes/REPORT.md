@@ -36,23 +36,27 @@ context is *not* smaller — Code mode's value is workflow batching, not context
 
 | Question | Mode | first-call tok | total tok | LLM calls | cost (est) | ok |
 |----------|------|---------------:|----------:|----------:|-----------:|:--:|
-| pools | standard | 1,592 | 4,967 | 2 | $0.0298 | ✅ |
-| pools | search | 371 | 2,850 | 3 | $0.0170 | ✅ |
-| pools | code | 1,943 | 4,110 | 2 | $0.0217 | ✅ |
-| virtuals | standard | 1,586 | 4,538 | 2 | $0.0237 | ✅ |
-| virtuals | search | 365 | 8,152 | 5 | $0.0475 | ✅ |
-| virtuals | code | 1,937 | 4,148 | 2 | $0.0222 | ✅ |
-| system | standard | 1,588 | 3,481 | 2 | $0.0183 | ✅ |
-| system | search | 367 | 1,739 | 3 | $0.0114 | ✅ |
-| system | code | 1,939 | 6,803 | 3 | $0.0385 | ✅ |
+| pools | standard | 1,592 | 9,135 | 3 | $0.0507 | ✅ |
+| pools | search | 371 | 6,339 | 4 | $0.0390 | ✅ |
+| pools | code | 1,943 | 4,143 | 2 | $0.0220 | ✅ |
+| virtuals | standard | 1,586 | 4,533 | 2 | $0.0236 | ✅ |
+| virtuals | search | 365 | 2,791 | 3 | $0.0165 | ✅ |
+| virtuals | code | 1,937 | 4,098 | 2 | $0.0217 | ✅ |
+| system | standard | 1,588 | 3,486 | 2 | $0.0184 | ✅ |
+| system | search | 367 | 1,583 | 3 | $0.0091 | ✅ |
+| system | code | 1,939 | 4,790 | 2 | $0.0282 | ✅ |
 | failover | standard | 1,588 | 3,329 | 2 | $0.0172 | ✅ |
-| failover | search | 367 | 1,463 | 3 | $0.0084 | ✅ |
-| failover | code | 1,939 | 4,071 | 2 | $0.0210 | ✅ |
-| certs | standard | 1,585 | 14,257 | 4 | $0.0747 | ✅ |
-| certs | search | 364 | 12,670 | 6 | $0.0709 | ✅ |
-| certs | code | 1,936 | 4,144 | 2 | $0.0221 | ✅ |
+| failover | search | 367 | 1,474 | 3 | $0.0086 | ✅ |
+| failover | code | 1,939 | 4,081 | 2 | $0.0212 | ✅ |
+| certs | standard | 1,585 | 8,555 | 3 | $0.0467 | ✅ |
+| certs | search | 364 | 12,617 | 6 | $0.0701 | ✅ |
+| certs | code | 1,936 | 4,174 | 2 | $0.0224 | ✅ |
 
-(Costs are gpt-5.5 list-price estimates; see `harness/f5_questions.py`.)
+**Averages (per task):** Standard $0.0313 · **Search $0.0286** · Code $0.0231.
+Avg first-call tool tokens — Standard 1,588 · **Search 367 (−77%)** · Code 1,939.
+(Costs are gpt-5.5 list-price estimates; see `harness/f5_questions.py`. Search/Code
+totals vary with how many round-trips the model chooses — e.g. `certs` in Search took
+6 turns. First-call tool context is the deterministic, always-smaller win.)
 
 ## What the data shows (honest read)
 

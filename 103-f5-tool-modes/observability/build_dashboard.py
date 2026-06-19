@@ -10,13 +10,13 @@ b64 = base64.b64encode((HERE / "logo.svg").read_bytes()).decode()
 logo_uri = f"data:image/svg+xml;base64,{b64}"
 
 
-def stat(id, title, desc, x, y, w, expr, color=None, unit=None, pct=False):
+def stat(id, title, desc, x, y, w, expr, color=None, unit=None, pct=False, dec=0):
     fc = {"defaults": {}}
     if unit:
         fc["defaults"]["unit"] = unit
     if color:
         fc["defaults"]["color"] = {"mode": "fixed", "fixedColor": color}
-    fc["defaults"]["decimals"] = 0
+    fc["defaults"]["decimals"] = dec
     return {"id": id, "type": "stat", "title": title, "description": desc,
             "gridPos": {"h": 6, "w": w, "x": x, "y": y}, "fieldConfig": fc,
             "targets": [{"expr": expr}]}
@@ -47,12 +47,12 @@ panels = [
          16, 3, 8, '(1 - avg(agw_f5q_first_call_tokens{mode="search"}) / avg(agw_f5q_first_call_tokens{mode="standard"})) * 100',
          unit="percent"),
 
-    stat(4, "Tools advertised — Standard / Search / Code", "F5 tools the model sees per mode (29 / 2 / 1).",
+    stat(4, "Tools advertised — Standard (full F5 catalog)", "F5 tools the model sees in Standard mode (Search=2, Code=1 — see the by-mode bar panel).",
          0, 9, 8, 'avg(agw_f5q_advertised_tools{mode="standard"})', color="red"),
     stat(5, "Questions answered successfully", "Share of the 5 F5 questions completed across all modes.",
          8, 9, 8, 'avg(agw_f5q_task_ok) * 100', unit="percent"),
     stat(6, "Avg cost per task — Search", "Average USD per F5 question in Search mode (gpt-5.5 list-price estimate).",
-         16, 9, 8, 'avg(agw_f5q_usd_cost{mode="search"})', unit="currencyUSD", color="green"),
+         16, 9, 8, 'avg(agw_f5q_usd_cost{mode="search"})', unit="currencyUSD", color="green", dec=4),
 
     bars(10, "First-call tool tokens by question — Standard vs Search", "Per F5 question: tool-definition tokens the model carries. Standard (29 tools) vs Search (2). Shorter is better.",
          0, 15, 12, 9,
