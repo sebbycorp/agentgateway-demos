@@ -1,0 +1,87 @@
+# Self-contained RBAC demo: a dedicated synthetic MCP server with semantically
+# named tools (get_/list_/create_/update_/delete_resource_NNN) so per-identity
+# tool filtering is meaningful, fronted Standard-mode at /mcp/rbac, with:
+#   readonly → get_* / list_* only
+#   team     → everything except delete_*
+#   admin    → all tools
+# JWT validated with an inline JWKS (public key) substituted by deploy.sh from
+# harness/.rbac_jwks.json; tokens minted with the matching private key (gitignored).
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: mcp-rbac, namespace: agentgateway-system, labels: { app: mcp-rbac } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mcp-rbac } }
+  template:
+    metadata: { labels: { app: mcp-rbac } }
+    spec:
+      containers:
+        - name: server
+          image: synthetic-mcp:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: TOOL_COUNT, value: "20" }
+            - { name: TOOL_NAMING, value: "semantic" }
+          ports: [{ containerPort: 8000, name: http }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: mcp-rbac, namespace: agentgateway-system }
+spec:
+  selector: { app: mcp-rbac }
+  ports: [{ name: http, port: 80, targetPort: 8000 }]
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata: { name: mcp-rbac, namespace: agentgateway-system }
+spec:
+  entMcp:
+    toolMode: Standard
+    targets:
+      - name: rbac
+        static: { host: mcp-rbac.agentgateway-system.svc.cluster.local, port: 80, protocol: SSE }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: mcp-rbac, namespace: agentgateway-system }
+spec:
+  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp/rbac } }]
+      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
+      backendRefs: [{ name: mcp-rbac, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata: { name: rbac-jwt, namespace: agentgateway-system }
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: mcp-rbac
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      providers:
+        - issuer: https://tokenomix.demo
+          audiences: [agentgateway]
+          jwks:
+            inline: '__JWKS_INLINE__'
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata: { name: rbac-authz, namespace: agentgateway-system }
+spec:
+  targetRefs:
+    - group: enterpriseagentgateway.solo.io
+      kind: EnterpriseAgentgatewayBackend
+      name: mcp-rbac
+  backend:
+    mcp:
+      authorization:
+        action: Allow
+        policy:
+          matchExpressions:
+            - 'jwt.role == "admin"'
+            - 'jwt.role == "team" && !mcp.tool.name.startsWith("delete_")'
+            - 'jwt.role == "readonly" && (mcp.tool.name.startsWith("get_") || mcp.tool.name.startsWith("list_"))'

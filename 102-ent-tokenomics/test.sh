@@ -34,16 +34,33 @@ echo "    Using interpreter: ${PYTHON} ($(${PYTHON} --version 2>&1))"
 ./.venv/bin/python -m pip install -q --upgrade pip
 ./.venv/bin/python -m pip install -q -r requirements.txt
 
-# Full sweep: both providers x 4 modes x 3 tool counts x cold/warm. Override any
-# of PROVIDERS / MODES / TOOL_COUNTS / RUNS to scope it down for a quick demo.
-RUNS="${RUNS:-3}" ./.venv/bin/python run_ab.py
+# --- v3 evaluation framework (default) -------------------------------------
+# Tests BOTH normal MCP tool calls (two_tools task) AND agentic loops (loop_k*),
+# across modes/providers/catalog sizes, with accuracy + cost. Scope with env vars:
+#   PROVIDERS, OPENAI_MODEL, ANTHROPIC_MODEL, MODES, CATALOG_SIZES, PERSONAS,
+#   TASKS, LOOP_KS, SAMPLES, TARGETS  (see eval.py header).
+# Cheap smoke example:
+#   PROVIDERS=openai OPENAI_MODEL=gpt-4o-mini CATALOG_SIZES=10 MODES=standard,search \
+#     TASKS=two_tools LOOP_KS=1 SAMPLES=1 ./test.sh
+echo "==> Running v3 evaluation sweep (eval.py)..."
+./.venv/bin/python eval.py
 
 echo ""
-echo "==> Computing business cost projection..."
-./.venv/bin/python projection.py
+echo "==> Computing business cost projection ($/month by mode & loop length)..."
+./.venv/bin/python projection_v3.py
+
+# --- v2 A/B sweep (optional) ------------------------------------------------
+# Set RUN_V2_AB=1 to also run the original cold/warm cache A/B (run_ab.py).
+if [[ "${RUN_V2_AB:-0}" == "1" ]]; then
+  echo ""
+  echo "==> (optional) Running v2 cache A/B sweep (run_ab.py)..."
+  RUNS="${RUNS:-3}" ./.venv/bin/python run_ab.py
+  ./.venv/bin/python projection.py
+fi
 
 echo ""
-echo "==> Ground-truth data: harness/results.csv  +  harness/projection.csv"
+echo "==> Ground-truth data: harness/results_v3.csv  +  harness/projection_v3.csv"
 echo "==> Dashboards: kubectl port-forward svc/grafana -n observability 3001:80  ->  http://localhost:3001"
 echo "      - 'MCP Search Mode — Token & Cost Savings' (headline)"
 echo "      - 'MCP Progressive Disclosure — Deep Dive'  (modes, cache, latency, projection)"
+echo "      - 'MCP Progressive Disclosure — Evaluation Framework' (accuracy, loops, RBAC, projection)"

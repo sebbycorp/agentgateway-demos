@@ -19,7 +19,7 @@ AGW_VERSION="v2026.6.1"
 GATEWAY_API_VERSION="v1.5.0"
 UI_VERSION="0.3.19"
 MGMT_CLUSTER_NAME="mgmt-cluster"
-TOOL_COUNTS=(10 50 100)
+TOOL_COUNTS=(5 10 15 30 50 100)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==> Checking prerequisites..."
@@ -169,13 +169,14 @@ spec:
     targetPort: 8000
 EOF
 
-  # All four progressive-disclosure modes (CRD enum: Standard|Search|Code|CodeSearch).
-  # standard=full tool list, search=get_tool+invoke_tool, code=run_code, codesearch=get_tool+run_code.
-  for mode in standard search code codesearch; do
+  # Progressive-disclosure modes (CRD enum: Standard|Search|CodeSearch).
+  # standard=full tool list, search=get_tool+invoke_tool, codesearch=get_tool+run_code.
+  # (Code mode is excluded: run_code inlines every tool signature, so it does not
+  #  reduce tool-definition tokens — it is not a cost-savings mode.)
+  for mode in standard search codesearch; do
     case "$mode" in
       standard)   tool_mode="Standard" ;;
       search)     tool_mode="Search" ;;
-      code)       tool_mode="Code" ;;
       codesearch) tool_mode="CodeSearch" ;;
     esac
     kubectl apply -f- <<EOF
@@ -234,6 +235,27 @@ echo ""
 echo "==> Step 8b: Configuring Anthropic LLM backend (/anthropic)..."
 sed "s|__ANTHROPIC_API_KEY__|${ANTHROPIC_API_KEY}|" "${SCRIPT_DIR}/k8s/anthropic.yaml" | kubectl apply -f-
 
+# ---------------------------------------------------------------------------
+# Step 8c: Self-contained RBAC demo — semantic-named synthetic server at /mcp/rbac
+# with 3-persona JWT tool filtering (readonly/team/admin).
+# ---------------------------------------------------------------------------
+echo ""
+echo "==> Step 8c: Deploying RBAC demo (synthetic semantic-tool server + JWT policies)..."
+echo "    Generating RBAC JWT material (keypair + JWKS + persona tokens)..."
+if ( cd "${SCRIPT_DIR}/harness" && ./.venv/bin/python identities.py --generate >/dev/null 2>&1 ) \
+   && [[ -f "${SCRIPT_DIR}/harness/.rbac_jwks.json" ]]; then
+  # Substitute the (compacted, single-line) inline JWKS into the RBAC manifest and apply.
+  python3 - "${SCRIPT_DIR}/k8s/rbac.yaml" "${SCRIPT_DIR}/harness/.rbac_jwks.json" <<'PY' | kubectl apply -f-
+import sys, json, pathlib
+tmpl = pathlib.Path(sys.argv[1]).read_text()
+jwks = json.dumps(json.loads(pathlib.Path(sys.argv[2]).read_text()))  # compact to one line
+print(tmpl.replace("__JWKS_INLINE__", jwks))
+PY
+  echo "    RBAC server + policies applied (readonly/team/admin at /mcp/rbac)."
+else
+  echo "    (skipped RBAC — run ./test.sh first to set up the harness venv, then re-run)"
+fi
+
 echo ""
 echo "==> Step 9: Installing observability (Prometheus + Pushgateway + Grafana)..."
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
@@ -251,10 +273,10 @@ kubectl create configmap agw-dashboard -n observability \
   --dry-run=client -o yaml | kubectl apply -f-
 kubectl label configmap agw-dashboard -n observability grafana_dashboard=1 --overwrite
 
-kubectl create configmap agw-dashboard-deepdive -n observability \
-  --from-file=dashboard-deepdive.json="${SCRIPT_DIR}/observability/dashboard-deepdive.json" \
+kubectl create configmap agw-dashboard-eval -n observability \
+  --from-file=dashboard-eval.json="${SCRIPT_DIR}/observability/dashboard-eval.json" \
   --dry-run=client -o yaml | kubectl apply -f-
-kubectl label configmap agw-dashboard-deepdive -n observability grafana_dashboard=1 --overwrite
+kubectl label configmap agw-dashboard-eval -n observability grafana_dashboard=1 --overwrite
 
 helm upgrade -i grafana grafana/grafana \
   -n observability -f "${SCRIPT_DIR}/observability/grafana-values.yaml"

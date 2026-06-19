@@ -1,7 +1,7 @@
 # Demo 102: Enterprise Progressive Disclosure (MCP Search Mode) — Design
 
 **Date:** 2026-06-19
-**Demo dir:** `102-ent-tokenomix-report/`
+**Demo dir:** `102-ent-tokenomics/`
 **Status:** Approved design, pending implementation plan
 
 ## Goal

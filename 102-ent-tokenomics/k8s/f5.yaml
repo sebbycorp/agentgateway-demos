@@ -1,0 +1,91 @@
+# Optional real-world add-on: the F5 BIG-IP MCP wrapper (29 LTM tools), fronted by
+# AgentGateway in BOTH Standard and Search mode so you can A/B the token savings on
+# a real tool catalog (harness/f5_savings.py).
+#
+# Build the image first (the published sebbycorp/f5-wrapper is amd64-only):
+#   git clone https://github.com/sebbycorp/k8s-iceman
+#   docker build -t f5-wrapper:local k8s-iceman/apps/f5-wrapper
+#   kind load docker-image f5-wrapper:local --name agw-progressive-disclosure
+# Then apply with the F5 password substituted from the gitignored .env:
+#   sed "s|__F5_PASSWORD__|${F5_PASSWORD}|" k8s/f5.yaml | kubectl apply -f-
+#
+# The wrapper serves streamable-HTTP MCP at /mcp/mcp (FastMCP double-mount). It is
+# run READ_ONLY for demo safety. F5_VERIFY_SSL=false targets a lab BIG-IP with a
+# self-signed cert — for production set true and mount the device CA.
+apiVersion: v1
+kind: Secret
+metadata: { name: f5-secret, namespace: agentgateway-system }
+type: Opaque
+stringData:
+  F5_PASSWORD: "__F5_PASSWORD__"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: mcp-f5, namespace: agentgateway-system, labels: { app: mcp-f5 } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mcp-f5 } }
+  template:
+    metadata: { labels: { app: mcp-f5 } }
+    spec:
+      containers:
+        - name: f5
+          image: f5-wrapper:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 8080, name: http }]
+          env:
+            - { name: F5_HOST, value: "https://172.16.10.10" }
+            - { name: F5_USERNAME, value: "admin" }
+            - { name: F5_VERIFY_SSL, value: "false" }
+            - { name: READ_ONLY, value: "true" }
+            - name: F5_PASSWORD
+              valueFrom: { secretKeyRef: { name: f5-secret, key: F5_PASSWORD } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: mcp-f5, namespace: agentgateway-system }
+spec:
+  selector: { app: mcp-f5 }
+  ports: [{ name: http, port: 8080, targetPort: 8080 }]
+---
+# Standard mode: all 29 F5 tools advertised to the model.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata: { name: real-f5-std, namespace: agentgateway-system }
+spec:
+  entMcp:
+    toolMode: Standard
+    targets:
+      - name: f5
+        static: { host: mcp-f5.agentgateway-system.svc.cluster.local, port: 8080, protocol: StreamableHTTP, path: /mcp/mcp }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: real-f5-std, namespace: agentgateway-system }
+spec:
+  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp/real-f5-std } }]
+      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
+      backendRefs: [{ name: real-f5-std, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
+---
+# Search mode: only get_tool + invoke_tool advertised; gateway dispatches the real tool.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata: { name: real-f5-search, namespace: agentgateway-system }
+spec:
+  entMcp:
+    toolMode: Search
+    targets:
+      - name: f5
+        static: { host: mcp-f5.agentgateway-system.svc.cluster.local, port: 8080, protocol: StreamableHTTP, path: /mcp/mcp }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: real-f5-search, namespace: agentgateway-system }
+spec:
+  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp/real-f5-search } }]
+      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
+      backendRefs: [{ name: real-f5-search, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
