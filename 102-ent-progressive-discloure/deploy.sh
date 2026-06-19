@@ -90,4 +90,98 @@ spec:
 EOF
 kubectl wait --for=condition=Available deployment/agentgateway-proxy -n "${NAMESPACE}" --timeout=300s
 
-# --- Parts B/C/D/E appended in later tasks ---
+echo ""
+echo "==> Step 6: Building + loading synthetic MCP server image..."
+docker build -t synthetic-mcp:dev "${SCRIPT_DIR}/mcp-server"
+kind load docker-image synthetic-mcp:dev --name "${CLUSTER_NAME}"
+
+echo ""
+echo "==> Step 7: Deploying synthetic MCP servers + backends + routes..."
+for count in "${TOOL_COUNTS[@]}"; do
+  kubectl apply -f- <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server-${count}
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mcp-server-${count} }
+  template:
+    metadata:
+      labels: { app: mcp-server-${count} }
+    spec:
+      containers:
+      - name: server
+        image: synthetic-mcp:dev
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: TOOL_COUNT
+          value: "${count}"
+        ports:
+        - containerPort: 8000
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server-${count}
+  namespace: ${NAMESPACE}
+spec:
+  selector: { app: mcp-server-${count} }
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+EOF
+
+  for mode in default search; do
+    if [[ "$mode" == "search" ]]; then tool_mode="Search"; else tool_mode="default"; fi
+    kubectl apply -f- <<EOF
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: mcp-${mode}-${count}
+  namespace: ${NAMESPACE}
+spec:
+  entMcp:
+    toolMode: ${tool_mode}
+    targets:
+    - name: synthetic
+      static:
+        host: mcp-server-${count}.${NAMESPACE}.svc.cluster.local
+        port: 80
+        protocol: SSE
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-${mode}-${count}
+  namespace: ${NAMESPACE}
+spec:
+  parentRefs:
+  - name: agentgateway-proxy
+    namespace: ${NAMESPACE}
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /mcp/${mode}-${count}
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /mcp
+    backendRefs:
+    - name: mcp-${mode}-${count}
+      group: enterpriseagentgateway.solo.io
+      kind: EnterpriseAgentgatewayBackend
+EOF
+  done
+done
+
+for count in "${TOOL_COUNTS[@]}"; do
+  kubectl rollout status deployment/mcp-server-${count} -n "${NAMESPACE}" --timeout=120s
+done
