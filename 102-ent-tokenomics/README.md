@@ -22,10 +22,10 @@ behind the gateway. The model looks up only what it needs, when it needs it.
 |------------|-------------:|-------------|
 | Standard   |       12,584 | baseline    |
 | Search     |          624 | **−95%**    |
-| CodeSearch |          901 | −93%        |
-| Code       |       10,276 | −18%        |
+| CodeSearch |          901 | **−93%**    |
 
 > Source: `harness/results.csv`, cold runs, openai/gpt-4o-mini, catalog_size=100.
+> Code mode was excluded: `run_code` inlines all tool signatures, so it does NOT reduce tokens — it saves −18% at 100 tools but costs +23% at 10 tools, making it a net negative at realistic catalog sizes.
 
 ### Agentic-loop compounding (gpt-4o-mini, 50 tools, total prompt tokens)
 
@@ -58,19 +58,18 @@ catalog.
  ┌──────────────────────────────────────────────────────────────────────┐
  │  agentgateway-proxy  (Gateway API / EnterpriseAgentGateway)          │
  │                                                                      │
- │  Synthetic (10/50/100 tools)                                         │
+ │  Synthetic (10/15/20/30/50/100 tools)                                │
  │   ├─ /mcp/standard-N    → EnterpriseAgentgatewayBackend toolMode: Standard   ┐ │
  │   ├─ /mcp/search-N      → EnterpriseAgentgatewayBackend toolMode: Search     │→ mcp-server-N
- │   ├─ /mcp/code-N        → EnterpriseAgentgatewayBackend toolMode: Code       │  (TOOL_COUNT
- │   └─ /mcp/codesearch-N  → EnterpriseAgentgatewayBackend toolMode: CodeSearch ┘  env knob)
- │                                                                      │
+ │   └─ /mcp/codesearch-N  → EnterpriseAgentgatewayBackend toolMode: CodeSearch ┘  (TOOL_COUNT
+ │                                                                      │   env knob)
  │  Real MCP servers                                                    │
- │   ├─ /mcp/real-everything  → everything server (13 tools, stdio+SSE) │
- │   ├─ /mcp/real-f5          → F5 BIG-IP wrapper (29 tools, StreamableHTTP)    │
- │   ├─ /mcp/real-f5-search   → F5 in Search mode   ┐  JWT RBAC applied │
- │   ├─ /mcp/real-f5-code     → F5 in Code mode     │  (admin/team/     │
- │   ├─ /mcp/real-f5-codesearch → F5 in CodeSearch  ┘   readonly)       │
- │   └─ /mcp/real-github      → GitHub (47 tools, hosted remote MCP)    │
+ │   ├─ /mcp/real-everything  → everything server (13 tools, SSE via supergateway) │
+ │   └─ /mcp/real-github      → GitHub (47 tools, hosted remote MCP,   │
+ │                               PAT-injected, TLS)                    │
+ │                               JWT RBAC: admin=47 / team=44 /         │
+ │                               readonly=25 / no-token=blocked         │
+ │                               (k8s/github-rbac.yaml)                │
  │                                                                      │
  │  LLM backends                                                        │
  │   ├─ /openai      → AgentgatewayBackend (gpt-5.5 via OPENAI_API_KEY) │
@@ -98,9 +97,8 @@ The eval framework exercises real infrastructure, not mocks:
 | Backend | Tools | Notes |
 |---------|------:|-------|
 | `everything` (MCP reference server) | 13 | stdio bridged to SSE via `supergateway` |
-| F5 BIG-IP wrapper | 29 | Live-authenticated StreamableHTTP MCP; per-mode sub-routes |
-| GitHub (hosted remote MCP) | 47 | AGW injects PAT as upstream Bearer header |
-| Synthetic | 10 / 50 / 100 | `TOOL_COUNT` env-knob; 4 mode variants each |
+| GitHub (hosted remote MCP) | 47 | AGW injects PAT as upstream Bearer header; JWT RBAC enforced |
+| Synthetic | 10 / 15 / 20 / 30 / 50 / 100 | `TOOL_COUNT` env-knob; 3 mode variants each |
 
 Two frontier models are tested:
 - OpenAI `gpt-5.5` (default; override with `OPENAI_MODEL`)
@@ -118,47 +116,49 @@ accuracy is comparable across modes.
 |------------|-----------------|:----------------:|-----------------------|
 | Standard   | `Standard`       | N (all)          | Full schema of every tool injected upfront; token cost scales linearly with catalog size |
 | Search     | `Search`         | 2                | `get_tool` + `invoke_tool`; model looks up schema by name on demand — token cost stays flat |
-| Code       | `Code`           | 1                | `run_code`; model writes JS to orchestrate tool calls — inlines all signatures, so it is NOT a token-savings play at small catalogs |
 | CodeSearch | `CodeSearch`     | 2                | `get_tool` + `run_code`; on-demand lookup then code execution — savings comparable to Search |
 
-**Honest tradeoff:** Code and CodeSearch add round-trips and code-gen tokens. At
-small catalogs they can cost more than Standard (see Code at 10 tools: +23% first-call
-tokens vs Standard). Search wins immediately and at every catalog size. CodeSearch
-follows a similar pattern to Search. Use the Deep-Dive Grafana dashboard to find
-the crossover for your specific task and model.
+**Why Code mode was excluded:** `run_code` alone inlines all tool signatures into
+the prompt, so it does NOT reduce tokens — it costs +23% vs Standard at 10 tools
+and only claws back −18% at 100. It was dropped from this demo because it is not a
+token-savings mechanism.
+
+**Honest tradeoff:** CodeSearch adds round-trips and code-gen tokens. Search wins
+immediately at every catalog size. CodeSearch follows a similar savings curve.
+Use the Deep-Dive Grafana dashboard to find the crossover for your specific task
+and model.
 
 ---
 
-## JWT RBAC on the F5 Backend
+## JWT RBAC on the GitHub Backend
 
-The F5 BIG-IP backend demonstrates AGW's MCP authorization capability. A JWT
-`jwtAuthentication` policy (Strict mode) is applied to the F5 route; an
+The GitHub backend demonstrates AGW's MCP authorization capability. A JWT
+`jwtAuthentication` policy (Strict mode) is applied to the GitHub route; an
 `mcp.authorization` policy on the backend filters which tools each role may see.
+Config lives in `k8s/github-rbac.yaml`; predicates are mirrored in
+`harness/identities.py`.
 
-### Personas
+### Personas (live-verified counts against GitHub's 47-tool catalog)
 
-| Persona  | JWT `role` claim | Visible tools (F5, 29 total) | Rule |
-|----------|-----------------|-----------------------------:|------|
-| admin    | `admin`         | 29 (all)                     | unconditional allow |
-| team     | `team`          | 25 (approx.)                 | deny `delete_*` and `remove_*` prefixes |
-| readonly | `readonly`      | 19 (approx.)                 | allow only `list_*`, `get_*`, `system*`, `failover_status`, `config_sync_status` |
-| (none)   | —               | blocked                      | no token → request rejected |
-
-Exact tool counts at runtime depend on the live F5 catalog; the numbers above
-reflect the predicate logic in `k8s/f5-rbac.yaml` and `harness/identities.py`.
+| Persona  | JWT `role` claim | Visible tools | Rule |
+|----------|-----------------|:-------------:|------|
+| admin    | `admin`         | 47 (all)      | unconditional allow |
+| team     | `team`          | 44            | deny `delete_*`, `fork_*`, `create_repository` |
+| readonly | `readonly`      | 25            | allow only `get_*`, `list_*`, `search_*` |
+| (none)   | —               | blocked       | no token → request rejected |
 
 ### Configuration snippet
 
 ```yaml
-# k8s/f5-rbac.yaml
+# k8s/github-rbac.yaml
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
 kind: EnterpriseAgentgatewayPolicy
-metadata: { name: f5-rbac, namespace: agentgateway-system }
+metadata: { name: github-rbac, namespace: agentgateway-system }
 spec:
   targetRefs:
   - group: enterpriseagentgateway.solo.io
     kind: EnterpriseAgentgatewayBackend
-    name: real-f5-std
+    name: real-github
   backend:
     mcp:
       authorization:
@@ -166,13 +166,13 @@ spec:
         policy:
           matchExpressions:
           - 'jwt.role == "admin"'
-          - 'jwt.role == "team" && !(mcp.tool.name.startsWith("delete_") || mcp.tool.name.startsWith("remove_"))'
-          - 'jwt.role == "readonly" && (mcp.tool.name.startsWith("list_") || mcp.tool.name.startsWith("get_") || mcp.tool.name.startsWith("system") || mcp.tool.name == "failover_status" || mcp.tool.name == "config_sync_status")'
+          - 'jwt.role == "team" && !(mcp.tool.name.startsWith("delete_") || mcp.tool.name.startsWith("fork_") || mcp.tool.name == "create_repository")'
+          - 'jwt.role == "readonly" && (mcp.tool.name.startsWith("get_") || mcp.tool.name.startsWith("list_") || mcp.tool.name.startsWith("search_"))'
 ```
 
 RS256 JWTs are generated offline by `harness/identities.py`
 (`python3 -m harness.identities` → writes `.rbac_key.pem`, `.rbac_jwks.json`,
-`.rbac_token_<role>.txt`). The JWKS public key is inlined in `f5-rbac.yaml`.
+`.rbac_token_<role>.txt`). The JWKS public key is inlined in `github-rbac.yaml`.
 
 ---
 
@@ -195,10 +195,7 @@ Environment variables:
 | `AGENTGATEWAY_LICENSE_KEY` | yes | Solo Enterprise license — https://www.solo.io/company/contact |
 | `OPENAI_API_KEY` | yes | OpenAI key for the `/openai` gateway route |
 | `ANTHROPIC_API_KEY` | yes | Anthropic key for the `/anthropic` gateway route |
-| `GITHUB_TOKEN` | yes (real-github) | GitHub PAT injected as upstream Bearer header |
-| `F5_HOST` | yes (F5 backend) | F5 BIG-IP management URL, e.g. `https://172.16.10.10` |
-| `F5_USERNAME` | yes (F5 backend) | BIG-IP admin username |
-| `F5_PASSWORD` | yes (F5 backend) | BIG-IP admin password (injected via Kubernetes Secret) |
+| `GITHUB_TOKEN` | yes | GitHub PAT injected as upstream Bearer header for the GitHub MCP backend |
 
 ---
 
@@ -224,8 +221,8 @@ set -a; . .env; set +a
 # PROVIDERS=openai OPENAI_MODEL=gpt-4o-mini MODES=standard,search CATALOG_SIZES=10 SAMPLES=1 TASKS=two_tools LOOP_KS=1 ./test.sh
 
 # Full frontier run (all providers, modes, sizes, personas, loop depths):
-# PROVIDERS=openai,anthropic MODES=standard,search,code,codesearch \
-#   CATALOG_SIZES=10,50,100 PERSONAS=admin,team,readonly,none \
+# PROVIDERS=openai,anthropic MODES=standard,search,codesearch \
+#   CATALOG_SIZES=10,15,20,30,50,100 PERSONAS=admin,team,readonly,none \
 #   TASKS=two_tools,single_echo LOOP_KS=1,3 SAMPLES=3 ./test.sh
 
 # 4. Open dashboards
@@ -264,13 +261,13 @@ are importable independently; `eval.py` is the orchestrator.
 | `PROVIDERS` | `openai,anthropic` | Comma-list of providers to sweep |
 | `OPENAI_MODEL` | `gpt-5.5` | Override OpenAI model |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Override Anthropic model |
-| `MODES` | `standard,search,code,codesearch` | Tool modes to test |
-| `CATALOG_SIZES` | `10,50,100` | Synthetic catalog sizes |
+| `MODES` | `standard,search,codesearch` | Tool modes to test |
+| `CATALOG_SIZES` | `10,15,20,30,50,100` | Synthetic catalog sizes |
 | `PERSONAS` | `none` | Comma-list: `admin`, `team`, `readonly`, `none` |
 | `TASKS` | `two_tools,single_echo` | Task IDs (see `tasks.py`) |
 | `LOOP_KS` | `0` | Agentic loop depths; `0` = single-shot tasks only |
 | `SAMPLES` | `1` | Repeat each cell N times |
-| `TARGETS` | `synthetic` | `synthetic`, `real-f5`, `real-github`, `real-everything` |
+| `TARGETS` | `synthetic` | `synthetic`, `real-github`, `real-everything` |
 | `MAX_TOOL_TURNS` | `8` | Max LLM→tool round-trips per task |
 | `RESULTS_CSV` | `harness/results_v3.csv` | Output CSV path |
 | `RESULTS_JSON` | `harness/results_v3.json` | Output JSON path |
@@ -344,7 +341,7 @@ metadata:
   namespace: agentgateway-system
 spec:
   entMcp:
-    toolMode: Search          # Standard | Search | Code | CodeSearch
+    toolMode: Search          # Standard | Search | CodeSearch
     targets:
     - name: synthetic
       static:
