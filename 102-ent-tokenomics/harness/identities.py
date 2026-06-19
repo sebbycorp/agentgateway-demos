@@ -62,23 +62,23 @@ class Persona:
         return self.tool_predicate(tool_name)
 
 
-# Tool visibility predicates (applied against real-f5 Standard route).
-# readonly: sees only read-only tools (no write/delete/update/create).
-_WRITE_KEYWORDS = ("write", "delete", "update", "create", "post", "put", "patch",
-                   "modify", "remove", "set_", "add_")
+# Tool visibility predicates — these MIRROR the CEL matchExpressions actually
+# enforced by the gateway in k8s/f5-rbac.yaml (the gateway is the source of truth;
+# these are kept in sync for documentation/assertions).
+#
+# readonly (f5-rbac.yaml): allow list_* / get_* / system* / failover_status /
+#                          config_sync_status
+_READONLY_PREFIXES = ("list_", "get_", "system")
+_READONLY_EXACT = ("failover_status", "config_sync_status")
 
 def _readonly_predicate(tool_name: str) -> bool:
-    name_lower = tool_name.lower()
-    return not any(kw in name_lower for kw in _WRITE_KEYWORDS)
+    return tool_name.startswith(_READONLY_PREFIXES) or tool_name in _READONLY_EXACT
 
-# team: sees read + restricted write (no admin/org-level ops).
-_ADMIN_KEYWORDS = ("admin", "org", "billing", "rbac", "iam", "global")
-
+# team (f5-rbac.yaml): everything EXCEPT delete_* / remove_*
 def _team_predicate(tool_name: str) -> bool:
-    name_lower = tool_name.lower()
-    return not any(kw in name_lower for kw in _ADMIN_KEYWORDS)
+    return not (tool_name.startswith("delete_") or tool_name.startswith("remove_"))
 
-# admin: sees everything.
+# admin (f5-rbac.yaml): all tools.
 def _admin_predicate(_tool_name: str) -> bool:
     return True
 

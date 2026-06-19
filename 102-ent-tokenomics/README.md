@@ -221,7 +221,7 @@ set -a; . .env; set +a
 # Prints a savings summary table in the terminal.
 
 # Scope a cheap smoke run:
-# RUNS=1 PROVIDERS=openai MODES=standard,search CATALOG_SIZES=10 ./test.sh
+# PROVIDERS=openai OPENAI_MODEL=gpt-4o-mini MODES=standard,search CATALOG_SIZES=10 SAMPLES=1 TASKS=two_tools LOOP_KS=1 ./test.sh
 
 # Full frontier run (all providers, modes, sizes, personas, loop depths):
 # PROVIDERS=openai,anthropic MODES=standard,search,code,codesearch \
@@ -290,7 +290,6 @@ One row per `(provider, model, mode, persona, target, catalog_size, task_id, loo
 | `latency_ms` | Wall-clock task latency |
 | `usd_cost_uncached` / `usd_cost_cached` | USD cost without/with cache discount |
 | `selected_tools` | Raw tool names called (incl. meta-tools) |
-| `effective_tools` | Upstream tool targets after unwrapping meta-tools |
 | `correct` | Top-1 tool match against expected_tools |
 | `task_ok` | All expected tools effectively invoked (+ echo-string check for `two_tools`) |
 
