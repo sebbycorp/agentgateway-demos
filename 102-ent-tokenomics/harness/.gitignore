@@ -8,3 +8,5 @@ projection.csv
 .rbac_key.pem
 .rbac_jwks.json
 .rbac_token_*.txt
+results_v3.csv
+results_v3.json
