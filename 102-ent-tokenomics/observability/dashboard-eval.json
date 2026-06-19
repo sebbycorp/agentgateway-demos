@@ -1,0 +1,393 @@
+{
+  "title": "MCP Progressive Disclosure — Evaluation Framework",
+  "uid": "agw-progressive-disclosure-eval",
+  "schemaVersion": 39,
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "provider",
+        "label": "Provider",
+        "type": "custom",
+        "query": "openai,anthropic",
+        "current": { "text": "openai", "value": "openai" },
+        "options": [
+          { "text": "openai", "value": "openai", "selected": true },
+          { "text": "anthropic", "value": "anthropic", "selected": false }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "mode",
+        "label": "Mode",
+        "type": "custom",
+        "query": "standard,search,code,codesearch",
+        "current": { "text": "search", "value": "search" },
+        "options": [
+          { "text": "standard", "value": "standard", "selected": false },
+          { "text": "search", "value": "search", "selected": true },
+          { "text": "code", "value": "code", "selected": false },
+          { "text": "codesearch", "value": "codesearch", "selected": false }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Tool-selection accuracy at scale",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Accuracy by mode across catalog size (cheaper AND correct)",
+      "description": "Top-1 tool-selection accuracy rate by mode as the catalog grows. Standard degrades as the model must choose from more tools; search stays high because the model only sees get_tool+invoke_tool regardless of catalog depth. This is the 'cheaper AND correct' story.",
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "green", "value": 0.9 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, catalog_size) (agw_v3_accuracy{provider=\"$provider\"})",
+          "legendFormat": "{{mode}} catalog={{catalog_size}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "bargauge",
+      "title": "Accuracy by mode (latest)",
+      "description": "Current top-1 tool accuracy rate averaged across all catalog sizes, per mode. A green bar means the mode selects the right tool reliably despite a large backend catalog.",
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "green", "value": 0.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_v3_accuracy{provider=\"$provider\"})",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Total tokens per task by mode across catalog size",
+      "description": "Total tokens (prompt + completion) per task as catalog grows. Standard mode inflates the prompt with every extra tool definition; search mode's token bill is nearly flat because only 2 tools are ever advertised.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, catalog_size) (agw_v3_total_tokens{provider=\"$provider\"})",
+          "legendFormat": "{{mode}} catalog={{catalog_size}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Per-task USD by mode across catalog size",
+      "description": "Cache-aware USD cost per task broken out by mode and catalog size. A flat bar across catalog sizes confirms the cost advantage of progressive-disclosure modes does not degrade as the backend grows.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 6,
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, catalog_size) (agw_v3_usd_cost_cached{provider=\"$provider\"})",
+          "legendFormat": "{{mode}} catalog={{catalog_size}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Agentic-loop compounding",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Cumulative total tokens by mode across loop depth (loop_k)",
+      "description": "Total tokens per task at each agentic-loop depth (loop_k). Standard mode compounds: every additional loop iteration re-sends the full tool list, so the token bill rises steeply. Search/code/codesearch stay nearly flat because the context they carry per turn is tiny.",
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 20 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, loop_k) (agw_v3_total_tokens{provider=\"$provider\"})",
+          "legendFormat": "{{mode}} loop_k={{loop_k}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Cumulative cost per task by mode across loop depth (loop_k)",
+      "description": "Cache-aware USD per task at increasing agentic-loop depths. The compounding cost of re-sending tool definitions in standard mode is visible as a steep curve; search and codesearch modes show a much flatter slope.",
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 20 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 6,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, loop_k) (agw_v3_usd_cost_cached{provider=\"$provider\"})",
+          "legendFormat": "{{mode}} loop_k={{loop_k}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "LLM round-trips per task by mode and loop depth",
+      "description": "Average LLM calls needed to complete a task at each loop depth. Progressive-disclosure modes (search, code) add an initial discovery turn but avoid the spiral of repeated full-catalog prompts.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 29 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, loop_k) (agw_v3_llm_calls{provider=\"$provider\"})",
+          "legendFormat": "{{mode}} loop_k={{loop_k}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "RBAC per-persona",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 }
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "Advertised tools by persona",
+      "description": "Number of tools advertised to the model per persona (readonly / team / admin). Admin sees the full catalog; readonly and team see a filtered view matching their RBAC scope. Fewer advertised tools = smaller prompt and better accuracy.",
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 80 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (persona) (agw_v3_advertised_tools{provider=\"$provider\",mode=\"$mode\"})",
+          "legendFormat": "{{persona}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Accuracy by persona",
+      "description": "Top-1 tool-selection accuracy rate per persona. Scoped personas (readonly/team) benefit from a shorter, more relevant tool list — accuracy should be equal to or better than admin even though admin has broader access.",
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "green", "value": 0.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (persona) (agw_v3_accuracy{provider=\"$provider\",mode=\"$mode\"})",
+          "legendFormat": "{{persona}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "bargauge",
+      "title": "Total tokens per task by persona",
+      "description": "Total tokens consumed per task broken down by persona. A narrower RBAC scope produces a shorter tool list, which directly reduces prompt size and cost — visible here as shorter bars for readonly vs admin.",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (persona) (agw_v3_total_tokens{provider=\"$provider\",mode=\"$mode\"})",
+          "legendFormat": "{{persona}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Business projection",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 }
+    },
+    {
+      "id": 15,
+      "type": "bargauge",
+      "title": "Projected monthly LLM spend by mode, loop depth, and volume",
+      "description": "Projected USD/month at 10k / 50k / 200k agent calls per day, broken down by mode and loop_k. The loop-compounding effect is visible: standard at high loop_k dwarfs search at the same depth.",
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 49 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "agw_eval_proj_usd_per_month{provider=\"$provider\"}",
+          "legendFormat": "{{mode}} loop_k={{loop_k}} @{{volume}}/day"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "bargauge",
+      "title": "Monthly $ saved vs Standard at 200k calls/day",
+      "description": "USD saved per month versus the standard (full-catalog) mode at 200k agent calls per day, by mode and loop depth. Taller bars confirm that progressive-disclosure pays off more as agents run deeper loops.",
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 49 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 500 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "agw_eval_proj_saved_per_month_vs_standard{provider=\"$provider\",volume=\"200000\"}",
+          "legendFormat": "{{mode}} loop_k={{loop_k}}"
+        }
+      ]
+    }
+  ]
+}

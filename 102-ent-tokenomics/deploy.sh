@@ -256,6 +256,11 @@ kubectl create configmap agw-dashboard-deepdive -n observability \
   --dry-run=client -o yaml | kubectl apply -f-
 kubectl label configmap agw-dashboard-deepdive -n observability grafana_dashboard=1 --overwrite
 
+kubectl create configmap agw-dashboard-eval -n observability \
+  --from-file=dashboard-eval.json="${SCRIPT_DIR}/observability/dashboard-eval.json" \
+  --dry-run=client -o yaml | kubectl apply -f-
+kubectl label configmap agw-dashboard-eval -n observability grafana_dashboard=1 --overwrite
+
 helm upgrade -i grafana grafana/grafana \
   -n observability -f "${SCRIPT_DIR}/observability/grafana-values.yaml"
 

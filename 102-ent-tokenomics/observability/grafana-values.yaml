@@ -27,6 +27,13 @@ dashboardProviders:
       type: file
       options:
         path: /var/lib/grafana/dashboards/deepdive
+    - name: eval
+      orgId: 1
+      folder: ""
+      type: file
+      options:
+        path: /var/lib/grafana/dashboards/eval
 dashboardsConfigMaps:
   default: agw-dashboard
   deepdive: agw-dashboard-deepdive
+  eval: agw-dashboard-eval
