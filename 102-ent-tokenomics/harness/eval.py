@@ -233,17 +233,15 @@ async def run_cell(
                 str(m.get("content", "")) for m in messages
                 if isinstance(m.get("content"), str)
             )
-            # Default success heuristic: all expected tools were effectively invoked.
+            # Success = every expected upstream tool was effectively invoked AND its
+            # echo surfaced in the transcript (derived from the task, not hardcoded,
+            # so it works regardless of which tools/catalog sizes the task uses).
             if expected:
-                task_ok = all(t in effective_tools for t in expected)
+                tools_invoked = all(t in effective_tools for t in expected)
+                echoes_present = "echoed" in blob and all(t in blob for t in expected)
+                task_ok = tools_invoked and echoes_present
             else:
                 task_ok = True
-
-            # For the proven two-tool task, also require echo strings.
-            if task.id == "two_tools":
-                task_ok = (
-                    "tool_003" in blob and "tool_005" in blob and "echoed" in blob
-                )
 
     return {
         "provider": provider_spec.name,
