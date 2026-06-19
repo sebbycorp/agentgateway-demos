@@ -18,6 +18,17 @@ Code mode (`run_code` alone) was excluded: it inlines all tool signatures into
 the prompt and does not reduce tokens — it costs +23% vs Standard at 10 tools
 and only recovers −18% at 100.
 
+The demo is **fully synthetic and self-contained**. All MCP servers run inside the
+kind cluster — no external MCP services, hosted endpoints, or third-party APIs are
+required. Two types of synthetic servers are deployed:
+
+- **Cost-sweep servers** — one per catalog size (10/15/20/30/50/100), tools named
+  `tool_NNN` (numeric naming), fronted at `/mcp/standard-N`, `/mcp/search-N`,
+  `/mcp/codesearch-N`.
+- **RBAC server** — 20 semantically-named tools (`get_/list_/create_/update_/delete_resource_NNN`),
+  fronted at `/mcp/rbac`, JWT authentication + `mcp.authorization` enforced
+  (config: `k8s/rbac.yaml`).
+
 A Python harness runs an identical **multi-tool agent task** (call `tool_003` and
 `tool_005`, return both echoes) through each mode, on **two frontier models**
 routed via AgentGateway's OpenAI-compatible API:
@@ -42,11 +53,22 @@ results are directionally the same at larger absolute token counts.
 | 50  | 6,334  | 424 (−93%)  | 701 (−89%) |
 | 100 | 12,584 | 624 (−95%)  | 901 (−93%) |
 
-### Frontier per-task cost at 50 tools (illustrative)
-| Model | Standard | Search | Saved |
-|-------|--------:|-------:|------:|
-| gpt-5.5 | $0.045 | $0.0084 | **−81%** |
-| claude-opus-4-8 | $0.50 | $0.137 | **−73%** |
+### Frontier per-task cost (measured, n=3, averaged)
+
+| Provider | Mode | Catalog | Tokens | Cost/task |
+|----------|------|--------:|-------:|----------:|
+| gpt-5.5 | Standard | 10 | 1,341 | $0.0136 |
+| gpt-5.5 | Standard | 100 | 12,591 | $0.0868 |
+| gpt-5.5 | Search | 10 | 271 | $0.0063 |
+| gpt-5.5 | Search | 100 | 631 | $0.0111 |
+| gpt-5.5 | CodeSearch | 100 | 908 | $0.0294 |
+| claude-opus-4-8 | Standard | 10 | 2,828 | $0.142 |
+| claude-opus-4-8 | Standard | 100 | 23,078 | $0.951 |
+| claude-opus-4-8 | Search | 100 | 1,219 | $0.151 |
+| claude-opus-4-8 | CodeSearch | 100 | 1,533 | $0.177 |
+
+100-tool savings: Search −95% tokens; opus standard $0.95/task → search $0.15
+(≈84% cheaper); gpt-5.5 $0.087 → $0.011 (≈87% cheaper).
 
 **Search and CodeSearch stay nearly flat as the tool catalog grows; Standard
 scales linearly.** That widening gap is the saving, and it grows with catalog size.
@@ -92,15 +114,32 @@ standard K=1→12,685 / K=3→25,910; search K=1→871 / K=3→2,261.
 
 Full breakdown (10k/50k/200k calls/day, all modes, cold/warm) in `harness/projection_v3.csv`.
 
-## 5. Task success — does disclosure preserve correctness?
+## 5. JWT RBAC — tool visibility by persona
+
+The RBAC synthetic server hosts 20 semantically-named tools. A JWT
+`jwtAuthentication` policy (Strict) is applied to the `/mcp/rbac` route;
+`mcp.authorization` matchExpressions on the backend filter tool visibility per role.
+Config: `k8s/rbac.yaml`. Predicates mirrored in `harness/identities.py`.
+
+| Persona | JWT `role` | Visible tools | Rule |
+|---------|-----------|:-------------:|------|
+| admin | `admin` | 20 (all) | unconditional allow |
+| team | `team` | 16 | deny `delete_*` (4 tools) |
+| readonly | `readonly` | 8 | allow only `get_*` and `list_*` |
+| (none) | — | blocked | no token → request rejected |
+
+(Counts live-verified against the 20-tool catalog: 4 each of get/list/create/update/delete.)
+
+## 6. Task success — does disclosure preserve correctness?
 
 | Standard | Search | CodeSearch |
 |---------:|-------:|-----------:|
 | 24/24 | 24/24 | 24/24 |
 
-Search and CodeSearch are as reliable as Standard.
+Search and CodeSearch are as reliable as Standard. Task success: **100% across all
+modes/models/sizes** in the comprehensive n=3 frontier sweep.
 
-## 6. Observability
+## 7. Observability
 
 - **Tracing:** an `EnterpriseAgentgatewayPolicy` exports GenAI spans to the Solo
   Enterprise UI (spans land in ClickHouse `platformdb.otel_traces_json`).
@@ -109,10 +148,10 @@ Search and CodeSearch are as reliable as Standard.
   - *MCP Progressive Disclosure — Deep Dive* (token footprint, tradeoffs, caching,
     task success, business projection; `provider` + `cache_state` switches)
 
-## 7. How to reproduce
+## 8. How to reproduce
 
 ```bash
-cp .env.example .env   # set AGENTGATEWAY_LICENSE_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN
+cp .env.example .env   # set AGENTGATEWAY_LICENSE_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 set -a; . .env; set +a
 ./deploy.sh
 ./test.sh              # full sweep + projection; writes results_v3.csv / projection_v3.csv
@@ -132,3 +171,4 @@ savings compound: Search total prompt tokens grow from 871 (K=1) to 2,261 (K=3),
 while Standard grows from 12,685 to 25,910. CodeSearch delivers comparable token
 savings to Search with a light extra latency cost (`get_tool` + `run_code`).
 Code mode was excluded — it does NOT reduce tokens at realistic catalog sizes.
+The demo is fully self-contained: no external MCP services required.

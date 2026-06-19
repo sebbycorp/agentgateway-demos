@@ -27,6 +27,22 @@ behind the gateway. The model looks up only what it needs, when it needs it.
 > Source: `harness/results.csv`, cold runs, openai/gpt-4o-mini, catalog_size=100.
 > Code mode was excluded: `run_code` inlines all tool signatures, so it does NOT reduce tokens — it saves −18% at 100 tools but costs +23% at 10 tools, making it a net negative at realistic catalog sizes.
 
+### Frontier per-task cost (measured, averaged, n=3)
+
+| Provider | Mode | Catalog | Tokens | Cost/task |
+|----------|------|--------:|-------:|----------:|
+| gpt-5.5 | Standard | 10 | 1,341 | $0.0136 |
+| gpt-5.5 | Standard | 100 | 12,591 | $0.0868 |
+| gpt-5.5 | Search | 10 | 271 | $0.0063 |
+| gpt-5.5 | Search | 100 | 631 | $0.0111 |
+| gpt-5.5 | CodeSearch | 100 | 908 | $0.0294 |
+| claude-opus-4-8 | Standard | 10 | 2,828 | $0.142 |
+| claude-opus-4-8 | Standard | 100 | 23,078 | $0.951 |
+| claude-opus-4-8 | Search | 100 | 1,219 | $0.151 |
+| claude-opus-4-8 | CodeSearch | 100 | 1,533 | $0.177 |
+
+100-tool savings: Search −95% tokens; opus standard $0.95/task → search $0.15 (≈84% cheaper); gpt-5.5 $0.087 → $0.011 (≈87% cheaper). Task success: **100% across all modes/models/sizes**.
+
 ### Agentic-loop compounding (gpt-4o-mini, 50 tools, total prompt tokens)
 
 | Mode     | K=1 (single loop) | K=3 (3-turn loop) |
@@ -58,18 +74,19 @@ catalog.
  ┌──────────────────────────────────────────────────────────────────────┐
  │  agentgateway-proxy  (Gateway API / EnterpriseAgentGateway)          │
  │                                                                      │
- │  Synthetic (10/15/20/30/50/100 tools)                                │
+ │  Synthetic cost-sweep servers (10/15/20/30/50/100 tools each)        │
  │   ├─ /mcp/standard-N    → EnterpriseAgentgatewayBackend toolMode: Standard   ┐ │
  │   ├─ /mcp/search-N      → EnterpriseAgentgatewayBackend toolMode: Search     │→ mcp-server-N
  │   └─ /mcp/codesearch-N  → EnterpriseAgentgatewayBackend toolMode: CodeSearch ┘  (TOOL_COUNT
- │                                                                      │   env knob)
- │  Real MCP servers                                                    │
- │   ├─ /mcp/real-everything  → everything server (13 tools, SSE via supergateway) │
- │   └─ /mcp/real-github      → GitHub (47 tools, hosted remote MCP,   │
- │                               PAT-injected, TLS)                    │
- │                               JWT RBAC: admin=47 / team=44 /         │
- │                               readonly=25 / no-token=blocked         │
- │                               (k8s/github-rbac.yaml)                │
+ │                                                                      │   env knob, numeric
+ │                                                                      │   tool names tool_NNN)
+ │  RBAC synthetic server (20 semantically-named tools)                 │
+ │   └─ /mcp/rbac          → EnterpriseAgentgatewayBackend             │
+ │                           jwtAuthentication (Strict) on route        │
+ │                           mcp.authorization matchExpressions         │
+ │                           on backend (k8s/rbac.yaml)                 │
+ │                           TOOL_NAMING=semantic (get_/list_/create_/  │
+ │                           update_/delete_resource_NNN)              │
  │                                                                      │
  │  LLM backends                                                        │
  │   ├─ /openai      → AgentgatewayBackend (gpt-5.5 via OPENAI_API_KEY) │
@@ -90,15 +107,17 @@ catalog.
 
 ---
 
-## What Is Real About It
+## Fully Synthetic — Self-Contained
 
-The eval framework exercises real infrastructure, not mocks:
+This demo is **entirely self-contained**. It does not connect to any external MCP
+service, cloud API (beyond LLM providers), or hosted endpoint. All MCP tool
+catalogs are served by synthetic Python servers (`mcp-server/server.py`) running
+inside the kind cluster:
 
 | Backend | Tools | Notes |
 |---------|------:|-------|
-| `everything` (MCP reference server) | 13 | stdio bridged to SSE via `supergateway` |
-| GitHub (hosted remote MCP) | 47 | AGW injects PAT as upstream Bearer header; JWT RBAC enforced |
-| Synthetic | 10 / 15 / 20 / 30 / 50 / 100 | `TOOL_COUNT` env-knob; 3 mode variants each |
+| Synthetic cost-sweep (per size) | 10 / 15 / 20 / 30 / 50 / 100 | `TOOL_COUNT` env knob; numeric naming `tool_NNN`; 3 mode variants each |
+| Synthetic RBAC server | 20 | `TOOL_NAMING=semantic`; semantically-named tools (`get_/list_/create_/update_/delete_resource_NNN`); fronted at `/mcp/rbac`; JWT RBAC enforced |
 
 Two frontier models are tested:
 - OpenAI `gpt-5.5` (default; override with `OPENAI_MODEL`)
@@ -130,35 +149,39 @@ and model.
 
 ---
 
-## JWT RBAC on the GitHub Backend
+## JWT RBAC on the RBAC Synthetic Backend
 
-The GitHub backend demonstrates AGW's MCP authorization capability. A JWT
-`jwtAuthentication` policy (Strict mode) is applied to the GitHub route; an
-`mcp.authorization` policy on the backend filters which tools each role may see.
-Config lives in `k8s/github-rbac.yaml`; predicates are mirrored in
-`harness/identities.py`.
+The RBAC backend demonstrates AGW's MCP authorization capability on a dedicated
+synthetic server with 20 semantically-named tools. A JWT `jwtAuthentication` policy
+(Strict mode) is applied to the `/mcp/rbac` route; an `mcp.authorization` policy on
+the backend filters which tools each role may see. Config lives in `k8s/rbac.yaml`;
+predicates are mirrored in `harness/identities.py`.
 
-### Personas (live-verified counts against GitHub's 47-tool catalog)
+Tool naming convention: `get_resource_NNN`, `list_resource_NNN`,
+`create_resource_NNN`, `update_resource_NNN`, `delete_resource_NNN` (4 tools each
+verb = 20 total).
+
+### Personas (live-verified counts against the 20-tool synthetic catalog)
 
 | Persona  | JWT `role` claim | Visible tools | Rule |
 |----------|-----------------|:-------------:|------|
-| admin    | `admin`         | 47 (all)      | unconditional allow |
-| team     | `team`          | 44            | deny `delete_*`, `fork_*`, `create_repository` |
-| readonly | `readonly`      | 25            | allow only `get_*`, `list_*`, `search_*` |
+| admin    | `admin`         | 20 (all)      | unconditional allow |
+| team     | `team`          | 16            | deny `delete_*` (4 tools) |
+| readonly | `readonly`      | 8             | allow only `get_*` and `list_*` |
 | (none)   | —               | blocked       | no token → request rejected |
 
 ### Configuration snippet
 
 ```yaml
-# k8s/github-rbac.yaml
+# k8s/rbac.yaml
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
 kind: EnterpriseAgentgatewayPolicy
-metadata: { name: github-rbac, namespace: agentgateway-system }
+metadata: { name: rbac-policy, namespace: agentgateway-system }
 spec:
   targetRefs:
   - group: enterpriseagentgateway.solo.io
     kind: EnterpriseAgentgatewayBackend
-    name: real-github
+    name: mcp-rbac
   backend:
     mcp:
       authorization:
@@ -166,13 +189,13 @@ spec:
         policy:
           matchExpressions:
           - 'jwt.role == "admin"'
-          - 'jwt.role == "team" && !(mcp.tool.name.startsWith("delete_") || mcp.tool.name.startsWith("fork_") || mcp.tool.name == "create_repository")'
-          - 'jwt.role == "readonly" && (mcp.tool.name.startsWith("get_") || mcp.tool.name.startsWith("list_") || mcp.tool.name.startsWith("search_"))'
+          - 'jwt.role == "team" && !mcp.tool.name.startsWith("delete_")'
+          - 'jwt.role == "readonly" && (mcp.tool.name.startsWith("get_") || mcp.tool.name.startsWith("list_"))'
 ```
 
 RS256 JWTs are generated offline by `harness/identities.py`
 (`python3 -m harness.identities` → writes `.rbac_key.pem`, `.rbac_jwks.json`,
-`.rbac_token_<role>.txt`). The JWKS public key is inlined in `github-rbac.yaml`.
+`.rbac_token_<role>.txt`). The JWKS public key is inlined in `rbac.yaml`.
 
 ---
 
@@ -195,7 +218,6 @@ Environment variables:
 | `AGENTGATEWAY_LICENSE_KEY` | yes | Solo Enterprise license — https://www.solo.io/company/contact |
 | `OPENAI_API_KEY` | yes | OpenAI key for the `/openai` gateway route |
 | `ANTHROPIC_API_KEY` | yes | Anthropic key for the `/anthropic` gateway route |
-| `GITHUB_TOKEN` | yes | GitHub PAT injected as upstream Bearer header for the GitHub MCP backend |
 
 ---
 
@@ -208,7 +230,7 @@ cp .env.example .env
 set -a; . .env; set +a
 
 # 2. Deploy the full stack
-#    (kind cluster + Enterprise AGW + synthetic + real servers + observability)
+#    (kind cluster + Enterprise AGW + synthetic servers + observability)
 ./deploy.sh
 
 # 3. Run the eval sweep
@@ -267,7 +289,7 @@ are importable independently; `eval.py` is the orchestrator.
 | `TASKS` | `two_tools,single_echo` | Task IDs (see `tasks.py`) |
 | `LOOP_KS` | `0` | Agentic loop depths; `0` = single-shot tasks only |
 | `SAMPLES` | `1` | Repeat each cell N times |
-| `TARGETS` | `synthetic` | `synthetic`, `real-github`, `real-everything` |
+| `TARGETS` | `synthetic` | `synthetic`, `rbac` |
 | `MAX_TOOL_TURNS` | `8` | Max LLM→tool round-trips per task |
 | `RESULTS_CSV` | `harness/results_v3.csv` | Output CSV path |
 | `RESULTS_JSON` | `harness/results_v3.json` | Output JSON path |
