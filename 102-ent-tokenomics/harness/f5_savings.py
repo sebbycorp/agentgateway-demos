@@ -15,8 +15,10 @@ import os
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from prometheus_client import CollectorRegistry, Gauge, delete_from_gateway, push_to_gateway
 
 GW = os.environ.get("GATEWAY_URL", "http://localhost:8080")
+PUSHGATEWAY = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")
 LLM = GW + "/openai"
 TASK = os.environ.get(
     "F5_TASK",
@@ -81,14 +83,35 @@ async def main():
     async with httpx.AsyncClient(timeout=120) as c:
         print(f"{'mode':<10}{'adv_tools':>10}{'first_tok':>11}{'total_prompt':>13}{'llm_calls':>10}{'usd_cost':>11}")
         res = {}
+        metrics = {}  # mode -> (adv, first, cost)
         for mode, path in [("standard", "/mcp/real-f5-std"), ("search", "/mcp/real-f5-search")]:
             adv, first, tp, calls, cost = await run(path, c)
             res[mode] = (first, cost)
+            metrics[mode] = (adv, first, cost)
             print(f"{mode:<10}{adv:>10}{first:>11}{tp:>13}{calls:>10}{cost:>11.6f}")
         sf, sc = res["search"]
         df, dc = res["standard"]
         print(f"\nSearch vs Standard — first-call tool tokens: {df} -> {sf}  ({(df - sf) / df * 100:.1f}% less)")
         print(f"Search vs Standard — task cost: ${dc:.6f} -> ${sc:.6f}  ({(dc - sc) / dc * 100:.1f}% less)")
+
+        # Push to Prometheus so the Grafana "Real F5 catalog" panel can chart it.
+        reg = CollectorRegistry()
+        g_tok = Gauge("agw_f5_first_call_prompt_tokens", "F5 first-call tool tokens", ["mode"], registry=reg)
+        g_adv = Gauge("agw_f5_advertised_tools", "F5 tools advertised to the model", ["mode"], registry=reg)
+        g_cost = Gauge("agw_f5_usd_cost", "F5 task USD cost", ["mode"], registry=reg)
+        for mode, (adv, first, cost) in metrics.items():
+            g_tok.labels(mode=mode).set(first)
+            g_adv.labels(mode=mode).set(adv)
+            g_cost.labels(mode=mode).set(cost)
+        try:
+            delete_from_gateway(PUSHGATEWAY, job="agw_f5")
+        except Exception:
+            pass
+        try:
+            push_to_gateway(PUSHGATEWAY, job="agw_f5", registry=reg)
+            print(f"Pushed F5 metrics to {PUSHGATEWAY}")
+        except Exception as e:
+            print(f"WARN: could not push F5 metrics ({e})")
 
 
 if __name__ == "__main__":

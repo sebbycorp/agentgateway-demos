@@ -309,6 +309,112 @@
           "legendFormat": "CodeSearch"
         }
       ]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Real F5 catalog \u2014 tool-context reduction (Search vs Standard)",
+      "description": "Live measurement against a real F5 BIG-IP MCP server (29 LTM tools). Reduction in first-call tool-definition tokens when Search mode replaces the full catalog with get_tool + invoke_tool. Populated by harness/f5_savings.py.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 75
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "(1 - agw_f5_first_call_prompt_tokens{mode=\"search\"} / agw_f5_first_call_prompt_tokens{mode=\"standard\"}) * 100"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "Real F5 catalog \u2014 per-call tool tokens by mode",
+      "description": "First-call tool-definition tokens the model carries: Standard (all 29 F5 tools) vs Search (2 meta-tools). Shorter is cheaper.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 24
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5_first_call_prompt_tokens{mode=\"standard\"}",
+          "legendFormat": "Standard (29 tools)"
+        },
+        {
+          "expr": "agw_f5_first_call_prompt_tokens{mode=\"search\"}",
+          "legendFormat": "Search (2 meta-tools)"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Real F5 catalog \u2014 cost per task by mode",
+      "description": "USD cost of one F5 task (gpt-4o-mini) \u2014 Standard vs Search. Search is cheaper even with the extra discovery round-trip.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 6
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5_usd_cost{mode=\"standard\"}",
+          "legendFormat": "Standard"
+        },
+        {
+          "expr": "agw_f5_usd_cost{mode=\"search\"}",
+          "legendFormat": "Search"
+        }
+      ]
     }
   ]
 }
