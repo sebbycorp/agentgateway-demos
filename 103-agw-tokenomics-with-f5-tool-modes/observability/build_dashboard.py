@@ -74,8 +74,40 @@ panels = [
           {"expr": 'agw_f5q_usd_cost{mode="code"}', "legendFormat": "{{question}} — code"}],
          unit="currencyUSD", dec=5),
 
+    # ----- Multi-turn conversation row (from harness/f5_conversation.py) -----
+    bars(20, "Conversation cost after 5 turns, by mode (cumulative, cache-aware)",
+         "ONE ongoing 5-question F5 conversation. Search adds discovery round-trips and "
+         "each re-sends the growing history, so over a long conversation Search can cost "
+         "MORE than Standard. The per-call tool-context win is real; total conversation "
+         "cost depends on round-trips.",
+         0, 33, 12, 8,
+         [{"expr": 'agw_f5conv_cum_cost{turn="5"}', "legendFormat": "{{mode}}"}],
+         unit="currencyUSD", dec=4),
+    bars(21, "Conversation tokens after 5 turns, by mode (cumulative)",
+         "Cumulative total tokens across the 5-question conversation. Standard re-sends "
+         "29 tool schemas each turn but takes fewer round-trips; Search's extra hops "
+         "re-process accumulated F5 results.",
+         12, 33, 12, 8,
+         [{"expr": 'agw_f5conv_cum_total_tokens{turn="5"}', "legendFormat": "{{mode}}"}]),
+    bars(22, "Cache-read tokens after 5 turns, by mode (cumulative)",
+         "gpt-5.5 prompt caching: tokens served from cache over the conversation (stable "
+         "prefix = system + tools + earlier turns). Applies to all modes.",
+         0, 41, 12, 8,
+         [{"expr": 'agw_f5conv_cum_cached_tokens{turn="5"}', "legendFormat": "{{mode}}"}]),
+    {"id": 23, "type": "text", "title": "Single call vs full conversation — read this",
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 41},
+     "options": {"mode": "markdown", "content":
+        "**Two different stories:**\n\n"
+        "- **Per call / short task** — Search shrinks the tool context **~77%** "
+        "(367 vs 1,588 tokens) and is cheaper. Best for a large catalog + short task.\n\n"
+        "- **Long conversation (3–5+ turns, tool-heavy)** — Search's extra discovery "
+        "round-trips each re-send the accumulated history, so cumulative cost can exceed "
+        "Standard. Standard pays a fixed catalog tax per turn but uses fewer round-trips; "
+        "Code batches tool calls in one `run_code` and lands in between.\n\n"
+        "Match the mode to the workload."}},
+
     {"id": 14, "type": "text", "title": "The 5 F5 questions asked",
-     "gridPos": {"h": 5, "w": 24, "x": 0, "y": 33},
+     "gridPos": {"h": 5, "w": 24, "x": 0, "y": 49},
      "options": {"mode": "markdown", "content":
         "Each question is asked through **Standard**, **Search**, and **Code** mode against the real F5 BIG-IP:\n"
         "1. How many LTM pools are in Common, and list their names?\n"

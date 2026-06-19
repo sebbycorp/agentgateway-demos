@@ -307,6 +307,105 @@
       ]
     },
     {
+      "id": 20,
+      "type": "bargauge",
+      "title": "Conversation cost after 5 turns, by mode (cumulative, cache-aware)",
+      "description": "ONE ongoing 5-question F5 conversation. Search adds discovery round-trips and each re-sends the growing history, so over a long conversation Search can cost MORE than Standard. The per-call tool-context win is real; total conversation cost depends on round-trips.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5conv_cum_cost{turn=\"5\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "bargauge",
+      "title": "Conversation tokens after 5 turns, by mode (cumulative)",
+      "description": "Cumulative total tokens across the 5-question conversation. Standard re-sends 29 tool schemas each turn but takes fewer round-trips; Search's extra hops re-process accumulated F5 results.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5conv_cum_total_tokens{turn=\"5\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "bargauge",
+      "title": "Cache-read tokens after 5 turns, by mode (cumulative)",
+      "description": "gpt-5.5 prompt caching: tokens served from cache over the conversation (stable prefix = system + tools + earlier turns). Applies to all modes.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5conv_cum_cached_tokens{turn=\"5\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "text",
+      "title": "Single call vs full conversation \u2014 read this",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Two different stories:**\n\n- **Per call / short task** \u2014 Search shrinks the tool context **~77%** (367 vs 1,588 tokens) and is cheaper. Best for a large catalog + short task.\n\n- **Long conversation (3\u20135+ turns, tool-heavy)** \u2014 Search's extra discovery round-trips each re-send the accumulated history, so cumulative cost can exceed Standard. Standard pays a fixed catalog tax per turn but uses fewer round-trips; Code batches tool calls in one `run_code` and lands in between.\n\nMatch the mode to the workload."
+      }
+    },
+    {
       "id": 14,
       "type": "text",
       "title": "The 5 F5 questions asked",
@@ -314,7 +413,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 49
       },
       "options": {
         "mode": "markdown",

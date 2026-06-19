@@ -77,6 +77,40 @@ totals vary with how many round-trips the model chooses — e.g. `certs` in Sear
 success — the bigger the tool catalog and the longer the agent runs, the more that
 flat, tiny context compounds in your favor.
 
+## Multi-turn conversation (3–5 questions deep) — the important nuance
+
+The numbers above are single questions. A real operator has a *conversation*. We ran
+one ongoing 5-question F5 chat per mode (`harness/f5_conversation.py`), where the
+message history (including every F5 result) accumulates and the gateway re-sends the
+tool definitions on every turn. gpt-5.5 prompt caching is captured (cache reads).
+
+**Cumulative after 5 turns:**
+
+| Mode | cum. total tokens | cache-read tokens | cum. cost (cache-aware) |
+|------|------------------:|------------------:|------------------------:|
+| **Standard** | 55,389 | 42,624 | **$0.186** |
+| Code | 70,813 | 56,704 | $0.254 |
+| **Search** | 221,502 | 173,696 | **$0.755** |
+
+**This flips the single-call story — and it's the key insight.** In a long,
+tool-heavy conversation **Search costs *more*, not less.** Why: Search adds discovery
+round-trips (`get_tool` → `invoke_tool`, often several per question), and **every
+extra round-trip re-sends the entire accumulated conversation history** (full of F5
+JSON). The per-call tool-definition saving (367 vs 1,588) is real but small next to
+re-processing a growing transcript many times. Standard pays a fixed 29-tool catalog
+tax per turn but takes fewer round-trips. Code batches tool calls into one `run_code`
+and lands in between. Prompt caching is heavy in every mode (gpt-5.5 served
+40k–170k tokens from cache) but does not reverse Search's round-trip overhead.
+
+**Rule of thumb:**
+- **Large catalog + short task / single call →** Search/CodeSearch: ~77% smaller tool
+  context, cheaper.
+- **Long agentic conversation with many tool results →** weigh the round-trips; the
+  flat per-call context win can be outweighed by re-sent history. Standard or Code may
+  win on total cost.
+
+The demo lets you *measure* this for your own workload rather than assume it.
+
 ## Dashboard
 
 Provisioned Grafana dashboard **"F5 BIG-IP — MCP Tool Modes"** (uid `agw-f5-tool-modes`)
