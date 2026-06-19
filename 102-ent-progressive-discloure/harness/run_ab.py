@@ -59,7 +59,8 @@ async def run_one(mode, count, run_idx, client):
             openai_tools = mcp_tools_to_openai(tools)
 
             messages = [{"role": "user", "content": TASK}]
-            first_prompt = total_prompt = completion = 0
+            first_prompt = None
+            total_prompt = completion = 0
             task_ok = False
 
             for _ in range(6):  # bounded tool loop
@@ -71,7 +72,7 @@ async def run_one(mode, count, run_idx, client):
                 p = usage.get("prompt_tokens", 0)
                 completion += usage.get("completion_tokens", 0)
                 total_prompt += p
-                if first_prompt == 0:
+                if first_prompt is None:
                     first_prompt = p
 
                 choice = resp["choices"][0]["message"]
@@ -92,10 +93,14 @@ async def run_one(mode, count, run_idx, client):
                         "role": "tool", "tool_call_id": call["id"], "content": text,
                     })
 
+            if not task_ok:
+                print(f"WARN: {mode}-{count} run {run_idx} did not confirm task "
+                      f"completion (tool-loop limit reached or no echo seen)")
+
             return {
                 "mode": mode, "tool_count": count, "run": run_idx,
                 "advertised_tools": len(tools),
-                "first_call_prompt_tokens": first_prompt,
+                "first_call_prompt_tokens": first_prompt or 0,
                 "total_prompt_tokens": total_prompt,
                 "completion_tokens": completion,
                 "total_tokens": total_prompt + completion,
@@ -153,6 +158,10 @@ async def main():
                     rows.append(row)
                     print(f"{mode}-{count} run {run_idx}: "
                           f"first_prompt={row['first_call_prompt_tokens']} ok={row['task_ok']}")
+
+    if not rows:
+        print("No rows collected — nothing to write.")
+        return
 
     (HERE / "results.json").write_text(json.dumps(rows, indent=2))
     with open(HERE / "results.csv", "w", newline="") as f:
