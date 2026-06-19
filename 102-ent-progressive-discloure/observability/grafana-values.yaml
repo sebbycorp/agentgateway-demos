@@ -21,5 +21,12 @@ dashboardProviders:
       type: file
       options:
         path: /var/lib/grafana/dashboards/default
+    - name: deepdive
+      orgId: 1
+      folder: ""
+      type: file
+      options:
+        path: /var/lib/grafana/dashboards/deepdive
 dashboardsConfigMaps:
   default: agw-dashboard
+  deepdive: agw-dashboard-deepdive

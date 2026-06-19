@@ -245,11 +245,16 @@ kubectl create namespace observability --dry-run=client -o yaml | kubectl apply 
 helm upgrade -i prometheus prometheus-community/prometheus \
   -n observability -f "${SCRIPT_DIR}/observability/prometheus-values.yaml"
 
-# Provision the dashboard JSON as a ConfigMap Grafana auto-loads.
+# Provision the dashboard JSONs as ConfigMaps Grafana auto-loads.
 kubectl create configmap agw-dashboard -n observability \
   --from-file=dashboard.json="${SCRIPT_DIR}/observability/dashboard.json" \
   --dry-run=client -o yaml | kubectl apply -f-
 kubectl label configmap agw-dashboard -n observability grafana_dashboard=1 --overwrite
+
+kubectl create configmap agw-dashboard-deepdive -n observability \
+  --from-file=dashboard-deepdive.json="${SCRIPT_DIR}/observability/dashboard-deepdive.json" \
+  --dry-run=client -o yaml | kubectl apply -f-
+kubectl label configmap agw-dashboard-deepdive -n observability grafana_dashboard=1 --overwrite
 
 helm upgrade -i grafana grafana/grafana \
   -n observability -f "${SCRIPT_DIR}/observability/grafana-values.yaml"
