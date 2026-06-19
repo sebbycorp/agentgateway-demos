@@ -148,7 +148,9 @@ async def run_cell(
 
             first_prompt: Optional[int] = None
             total_prompt = completion = cached = write = read = llm_calls = 0
-            selected_tools: List[str] = []
+            selected_tools: List[str] = []   # raw tool calls (incl. meta-tools)
+            effective_tools: List[str] = []  # unwrapped upstream targets (for accuracy)
+            expected = task.expected_tools
 
             t0 = time.perf_counter()
 
@@ -187,6 +189,19 @@ async def run_cell(
                     if fn not in selected_tools:
                         selected_tools.append(fn)
                     args = json.loads(call["function"]["arguments"] or "{}")
+                    # Unwrap meta-tools to the effective upstream tool, so accuracy
+                    # is comparable across modes (search/code don't call tools directly).
+                    if fn in ("invoke_tool", "get_tool"):
+                        tgt = args.get("name") or args.get("tool") or args.get("tool_name")
+                        if tgt and tgt not in effective_tools:
+                            effective_tools.append(tgt)
+                    elif fn == "run_code":
+                        code = str(args.get("code", "") or args.get("source", ""))
+                        for et in expected:           # detect referenced upstream tools
+                            if et and et in code and et not in effective_tools:
+                                effective_tools.append(et)
+                    elif fn not in effective_tools:
+                        effective_tools.append(fn)
                     try:
                         res = await session.call_tool(fn, arguments=args)
                         text = res.content[0].text if res.content else ""
@@ -200,19 +215,19 @@ async def run_cell(
 
             latency_ms = (time.perf_counter() - t0) * 1000.0
 
-            # Accuracy: top-1 correct means first selected tool matches expected[0].
-            expected = task.expected_tools
-            correct = bool(selected_tools and expected
-                           and selected_tools[0] == expected[0])
+            # Accuracy uses EFFECTIVE tools (meta-tools unwrapped), so search/code
+            # are scored on the upstream tool they actually targeted.
+            correct = bool(effective_tools and expected
+                           and expected[0] in effective_tools)
 
             # task_ok: for deterministic tasks, check for known echo strings.
             blob = " ".join(
                 str(m.get("content", "")) for m in messages
                 if isinstance(m.get("content"), str)
             )
-            # Default success heuristic: all expected tools were invoked.
+            # Default success heuristic: all expected tools were effectively invoked.
             if expected:
-                task_ok = all(t in selected_tools for t in expected)
+                task_ok = all(t in effective_tools for t in expected)
             else:
                 task_ok = True
 
@@ -300,10 +315,15 @@ async def main() -> None:
                 except ValueError:
                     pass  # skip unsupported mode/server combos
 
-    # Resolve tasks.
+    # Resolve tasks. (Empty TASKS= is valid — e.g. loop-only runs via LOOP_KS.)
     tasks: List[Task] = []
     for tid in TASKS_ENV:
-        tasks.append(get_task(tid))
+        if not tid.strip():
+            continue
+        try:
+            tasks.append(get_task(tid))
+        except KeyError:
+            print(f"WARN: unknown task '{tid}', skipping")
     for k in LOOP_KS_ENV:
         if k > 0:
             tasks.append(make_loop_task(k))
