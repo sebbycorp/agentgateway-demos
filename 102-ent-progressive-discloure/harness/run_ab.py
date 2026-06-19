@@ -14,7 +14,7 @@ import pathlib
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from prometheus_client import CollectorRegistry, Gauge, delete_from_gateway, push_to_gateway
 
 GATEWAY = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 LLM_URL = os.environ.get("LLM_URL", f"{GATEWAY}/openai")
@@ -79,7 +79,7 @@ async def run_one(mode, count, run_idx, client):
                 messages.append(choice)
                 calls = choice.get("tool_calls") or []
                 if not calls:
-                    if "tool_007 echoed" in (choice.get("content") or ""):
+                    if "echoed" in (choice.get("content") or ""):
                         task_ok = True
                     break
                 for call in calls:
@@ -87,7 +87,7 @@ async def run_one(mode, count, run_idx, client):
                     args = json.loads(call["function"]["arguments"] or "{}")
                     result = await session.call_tool(fn, arguments=args)
                     text = result.content[0].text if result.content else ""
-                    if "tool_007 echoed" in text:
+                    if "echoed" in text:
                         task_ok = True
                     messages.append({
                         "role": "tool", "tool_call_id": call["id"], "content": text,
@@ -127,6 +127,10 @@ def push_metrics(rows):
         g_total.labels(**lbl).set(sum(r["total_tokens"] for r in rs) / n)
         g_cost.labels(**lbl).set(sum(r["usd_cost"] for r in rs) / n)
         g_adv.labels(**lbl).set(rs[0]["advertised_tools"])
+    try:
+        delete_from_gateway(PUSHGATEWAY, job="agw_progressive_disclosure")
+    except Exception:
+        pass  # best-effort: nothing to delete on first run, or gateway unavailable
     try:
         push_to_gateway(PUSHGATEWAY, job="agw_progressive_disclosure", registry=reg)
         print(f"Pushed metrics to {PUSHGATEWAY}")

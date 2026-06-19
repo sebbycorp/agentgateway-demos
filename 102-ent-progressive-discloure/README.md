@@ -69,14 +69,12 @@ set -a; . .env; set +a
 # 2. Deploy the full stack (kind cluster + AGW + MCP servers + observability)
 ./deploy.sh
 
-# 3. In separate terminals, start the required port-forwards:
-kubectl port-forward deployment/agentgateway-proxy -n agentgateway-system 8080:80
-kubectl port-forward svc/prometheus-prometheus-pushgateway -n observability 9091:9091
-
-# 4. Run the A/B sweep (full 10/50/100 tool-count sweep, 5 runs each)
+# 3. Run the A/B sweep (full 10/50/100 tool-count sweep, 5 runs each)
+# NOTE: test.sh self-manages the proxy (8080) and pushgateway (9091) port-forwards.
+# Do NOT start those manually — it would collide ("address already in use").
 ./test.sh
 
-# 5. View the Grafana dashboard
+# 4. View the Grafana dashboard — this is the only forward you need to start manually:
 kubectl port-forward svc/grafana -n observability 3001:80
 # Open http://localhost:3001  (username: admin / password: admin)
 

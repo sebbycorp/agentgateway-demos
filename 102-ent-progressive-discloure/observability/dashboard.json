@@ -5,21 +5,21 @@
   "time": { "from": "now-6h", "to": "now" },
   "panels": [
     {
-      "id": 1, "type": "stat", "title": "Avg prompt tokens — DEFAULT mode",
+      "id": 1, "type": "stat", "title": "Avg prompt tokens — DEFAULT mode (avg across tool counts)",
       "description": "Tool definitions sent to the model on the first call when ALL tools are advertised. Higher = more wasted context.",
       "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
       "targets": [ { "expr": "avg(agw_first_call_prompt_tokens{mode=\"default\"})", "legendFormat": "default" } ]
     },
     {
-      "id": 2, "type": "stat", "title": "Avg prompt tokens — SEARCH mode",
+      "id": 2, "type": "stat", "title": "Avg prompt tokens — SEARCH mode (avg across tool counts)",
       "description": "Tool definitions sent when only get_tool + invoke_tool are advertised. Stays flat regardless of backend tool count.",
       "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
       "targets": [ { "expr": "avg(agw_first_call_prompt_tokens{mode=\"search\"})", "legendFormat": "search" } ]
     },
     {
-      "id": 3, "type": "stat", "title": "Prompt-token reduction",
+      "id": 3, "type": "stat", "title": "Prompt-token reduction (avg across tool counts)",
       "description": "How much smaller the model's tool context is with search mode. Bigger is better.",
       "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 50 } ] } } },
