@@ -194,7 +194,7 @@ echo ""
 echo "==> Step 9: Installing observability (Prometheus + Pushgateway + Grafana)..."
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
-helm repo update >/dev/null
+helm repo update >/dev/null 2>&1
 
 kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f-
 

@@ -39,7 +39,7 @@
       "description": "Real dollar cost per agent task at gpt-4o-mini list prices. Search bars are dramatically shorter.",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 6 } },
-      "targets": [ { "expr": "agw_usd_cost", "legendFormat": "{{mode}} {{tool_count}}" } ]
+      "targets": [ { "expr": "avg by (mode, tool_count) (agw_usd_cost)", "legendFormat": "{{mode}} {{tool_count}}" } ]
     }
   ]
 }
