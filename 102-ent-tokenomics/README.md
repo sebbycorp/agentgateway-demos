@@ -326,11 +326,11 @@ gateway.
 
 | Dashboard | Key panels |
 |-----------|------------|
-| **MCP Search Mode — Token & Cost Savings** (headline) | Avg prompt tokens std vs search; % token reduction; "aha curve" (standard rises, search flat); avg USD cost by mode |
+| **MCP Progressive Disclosure — Executive Summary** (headline, uid `agw-progressive-disclosure`) | Frames the story as *Without progressive disclosure* (Standard baseline) vs Search vs CodeSearch: monthly LLM spend without disclosure (baseline), with Search, and monthly savings ($); tool-context reduction % (Search vs baseline); task success rate; per-call tool context as the catalog grows (Without vs Search bargauge); projected monthly spend by approach (Without / Search / CodeSearch) |
 | **MCP Progressive Disclosure — Deep Dive** | Tool footprint; round-trip / latency tradeoffs; caching economics; task success rate; $/month projection at 10k/50k/200k calls/day |
-| **Evaluation run** | Per-run metrics pushed by eval.py via Pushgateway |
+| **MCP Progressive Disclosure — Evaluation Framework** | Accuracy at scale; agentic-loop compounding; RBAC per-persona tool visibility; $/month projection |
 
-Template variables on the Deep Dive dashboard: `provider`, `cache_state`.
+Template variables on the Executive Summary dashboard: `provider` (Model: openai/anthropic) and `volume` (Agent calls/day: 10000/50000/200000). It reads `agw_eval_proj_usd_per_month`, `agw_eval_proj_saved_per_month_vs_standard`, `agw_v3_first_call_prompt_tokens`, and `agw_v3_task_ok`. Template variables on the Deep Dive dashboard: `provider`, `cache_state`.
 
 ### Solo Enterprise UI tracing
 

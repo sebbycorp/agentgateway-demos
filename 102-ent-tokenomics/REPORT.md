@@ -143,10 +143,17 @@ modes/models/sizes** in the comprehensive n=3 frontier sweep.
 
 - **Tracing:** an `EnterpriseAgentgatewayPolicy` exports GenAI spans to the Solo
   Enterprise UI (spans land in ClickHouse `platformdb.otel_traces_json`).
-- **Grafana** (both verified resolving live data):
-  - *MCP Search Mode — Token & Cost Savings* (headline)
+- **Grafana** (3 provisioned dashboards, verified resolving live data):
+  - *MCP Progressive Disclosure — Executive Summary* (headline) — frames *Without
+    progressive disclosure* (Standard baseline) vs Search vs CodeSearch: monthly
+    LLM spend without disclosure, with Search, and monthly savings ($); tool-context
+    reduction % (Search vs baseline); task success rate; per-call tool context as the
+    catalog grows; projected monthly spend by approach. Template vars: `provider`
+    (model) + `volume` (agent calls/day).
   - *MCP Progressive Disclosure — Deep Dive* (token footprint, tradeoffs, caching,
     task success, business projection; `provider` + `cache_state` switches)
+  - *MCP Progressive Disclosure — Evaluation Framework* (accuracy at scale,
+    agentic-loop compounding, RBAC per-persona, projection)
 
 ## 8. How to reproduce
 
