@@ -40,3 +40,24 @@ spec:
     - name: anthropic
       group: agentgateway.dev
       kind: AgentgatewayBackend
+---
+# Enables Anthropic prompt caching (caches system + tool definitions). NOTE: in
+# AGW v2026.6.1 the cache tokens did not surface in usage during testing, so the
+# demo MODELS Anthropic cache economics in projection.py (1.25x write / 0.1x read).
+# The policy is included as the documented, forward-compatible enablement.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: anthropic-prompt-caching
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - kind: AgentgatewayBackend
+    group: agentgateway.dev
+    name: anthropic
+  backend:
+    ai:
+      promptCaching:
+        cacheSystem: true
+        cacheMessages: true
+        cacheTools: true
