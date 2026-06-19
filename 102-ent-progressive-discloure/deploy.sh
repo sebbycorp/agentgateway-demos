@@ -189,3 +189,37 @@ done
 echo ""
 echo "==> Step 8: Configuring OpenAI LLM backend (/openai)..."
 sed "s|__OPENAI_API_KEY__|${OPENAI_API_KEY}|" "${SCRIPT_DIR}/k8s/openai.yaml" | kubectl apply -f-
+
+echo ""
+echo "==> Step 9: Installing observability (Prometheus + Pushgateway + Grafana)..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo update >/dev/null
+
+kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f-
+
+helm upgrade -i prometheus prometheus-community/prometheus \
+  -n observability -f "${SCRIPT_DIR}/observability/prometheus-values.yaml"
+
+# Provision the dashboard JSON as a ConfigMap Grafana auto-loads.
+kubectl create configmap agw-dashboard -n observability \
+  --from-file=dashboard.json="${SCRIPT_DIR}/observability/dashboard.json" \
+  --dry-run=client -o yaml | kubectl apply -f-
+kubectl label configmap agw-dashboard -n observability grafana_dashboard=1 --overwrite
+
+helm upgrade -i grafana grafana/grafana \
+  -n observability -f "${SCRIPT_DIR}/observability/grafana-values.yaml"
+
+kubectl rollout status deployment/prometheus-server -n observability --timeout=180s || true
+kubectl rollout status deployment/grafana -n observability --timeout=180s || true
+
+echo ""
+echo "============================================================"
+echo " Deployment complete!  Cluster: kind-${CLUSTER_NAME}"
+echo "============================================================"
+echo " Port-forwards (run each in its own terminal):"
+echo "   kubectl port-forward deployment/agentgateway-proxy -n ${NAMESPACE} 8080:80"
+echo "   kubectl port-forward svc/prometheus-prometheus-pushgateway -n observability 9091:9091"
+echo "   kubectl port-forward svc/grafana -n observability 3001:80"
+echo " Then: ./test.sh   (runs the A/B sweep)"
+echo " Grafana: http://localhost:3001  (admin/admin)"

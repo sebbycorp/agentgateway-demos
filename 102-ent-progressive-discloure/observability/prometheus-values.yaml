@@ -1,0 +1,14 @@
+# Lightweight Prometheus for kind: server + pushgateway, no alertmanager/node-exporter.
+alertmanager:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-pushgateway:
+  enabled: true
+server:
+  persistentVolume:
+    enabled: false
+  global:
+    scrape_interval: 5s

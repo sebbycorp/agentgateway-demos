@@ -1,0 +1,45 @@
+{
+  "title": "MCP Search Mode — Token & Cost Savings",
+  "uid": "agw-progressive-disclosure",
+  "schemaVersion": 39,
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Avg prompt tokens — DEFAULT mode",
+      "description": "Tool definitions sent to the model on the first call when ALL tools are advertised. Higher = more wasted context.",
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
+      "targets": [ { "expr": "avg(agw_first_call_prompt_tokens{mode=\"default\"})", "legendFormat": "default" } ]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Avg prompt tokens — SEARCH mode",
+      "description": "Tool definitions sent when only get_tool + invoke_tool are advertised. Stays flat regardless of backend tool count.",
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [ { "expr": "avg(agw_first_call_prompt_tokens{mode=\"search\"})", "legendFormat": "search" } ]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Prompt-token reduction",
+      "description": "How much smaller the model's tool context is with search mode. Bigger is better.",
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 50 } ] } } },
+      "targets": [ { "expr": "(1 - avg(agw_first_call_prompt_tokens{mode=\"search\"}) / avg(agw_first_call_prompt_tokens{mode=\"default\"})) * 100" } ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Prompt tokens vs tool count (the aha curve)",
+      "description": "Default rises as the backend exposes more tools; search stays flat. The gap is the saving.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "targets": [
+        { "expr": "avg by (tool_count) (agw_first_call_prompt_tokens{mode=\"default\"})", "legendFormat": "default {{tool_count}} tools" },
+        { "expr": "avg by (tool_count) (agw_first_call_prompt_tokens{mode=\"search\"})", "legendFormat": "search {{tool_count}} tools" }
+      ]
+    },
+    {
+      "id": 5, "type": "bargauge", "title": "Avg USD cost per task by mode & tool count",
+      "description": "Real dollar cost per agent task at gpt-4o-mini list prices. Search bars are dramatically shorter.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 6 } },
+      "targets": [ { "expr": "agw_usd_cost", "legendFormat": "{{mode}} {{tool_count}}" } ]
+    }
+  ]
+}
