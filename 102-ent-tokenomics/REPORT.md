@@ -5,6 +5,38 @@
 **Environment:** local `kind` cluster `agw-progressive-disclosure`, Solo Enterprise for AgentGateway `v2026.6.1`
 **Run:** 2 providers × 3 tool modes × 6 tool counts (5/10/15/30/50/100) × {cold, warm} × 2 runs = **144 task executions**
 
+## How it works
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as LLM (model)
+    participant G as AgentGateway
+    participant U as Upstream MCP server (N tools)
+
+    rect rgb(245, 232, 255)
+    Note over M,U: Standard — full catalog in the model's context
+    G->>M: tools/list → ALL N tool schemas
+    M->>G: call tool_003(args)
+    G->>U: invoke tool_003
+    U-->>G: result
+    G-->>M: result
+    end
+
+    rect rgb(232, 245, 233)
+    Note over M,U: Search — progressive disclosure (2 meta-tools)
+    G->>M: tools/list → get_tool + invoke_tool only
+    M->>G: invoke_tool(name="tool_003", arguments={...})
+    G->>U: gateway resolves the name and dispatches the REAL tool_003
+    U-->>G: result
+    G-->>M: result
+    end
+```
+
+The model only ever calls the meta-tools; the gateway holds the full catalog and
+dispatches the real upstream tool. The per-call tool context stays flat regardless
+of catalog size — that is the saving measured below.
+
 ## What was tested
 
 Progressive disclosure ("tool modes") changes how many MCP tool definitions the

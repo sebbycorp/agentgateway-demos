@@ -67,7 +67,78 @@ catalog.
 
 ---
 
+## How It Works
+
+In **Standard** mode the gateway injects every upstream tool's schema into the
+model's context, and the model calls tools directly. In **Search** mode the
+gateway advertises only two meta-tools (`get_tool`, `invoke_tool`); the model
+discovers and calls tools through them, and **the gateway resolves the name in its
+full catalog and dispatches the real upstream tool** — the catalog never enters the
+model's prompt.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as LLM (model)
+    participant G as AgentGateway
+    participant U as Upstream MCP server (N tools)
+
+    rect rgb(245, 232, 255)
+    Note over M,U: Standard mode — full catalog in context
+    G->>M: tools/list → ALL N tool schemas (large context)
+    M->>G: call tool_003(args)
+    G->>U: invoke tool_003
+    U-->>G: result
+    G-->>M: result
+    end
+
+    rect rgb(232, 245, 233)
+    Note over M,U: Search mode — progressive disclosure (2 meta-tools)
+    G->>M: tools/list → get_tool + invoke_tool (tiny context)
+    M->>G: get_tool(name="tool_003")
+    G-->>M: tool_003 schema (looked up in full catalog)
+    M->>G: invoke_tool(name="tool_003", arguments={...})
+    G->>U: gateway dispatches the REAL tool_003
+    U-->>G: result
+    G-->>M: result
+    end
+```
+
+The model's per-call tool context stays flat (2 tools) no matter how many tools
+the backend fronts — that is the ~95% token saving. The cost is one extra
+discovery round-trip, which is why Search adds latency but wins decisively on
+tokens, and the gap widens as the catalog and the agentic loop grow.
+
 ## Architecture
+
+```mermaid
+flowchart LR
+    H["Python eval harness<br/>MCP client + OpenAI-compatible SDK"]
+
+    subgraph AGW["agentgateway-proxy · Enterprise AgentGateway"]
+        direction TB
+        RS["MCP routes<br/>/mcp/standard-N<br/>/mcp/search-N<br/>/mcp/codesearch-N"]
+        RB["/mcp/rbac<br/>JWT (Strict) + mcp.authorization"]
+        L1["/openai → gpt-5.5"]
+        L2["/anthropic → claude-opus-4-8"]
+    end
+
+    SYN["Synthetic cost-sweep servers<br/>mcp-server-N · 5/10/15/30/50/100 tools"]
+    RBS["RBAC server<br/>20 semantic tools<br/>get_/list_/create_/update_/delete_"]
+    OAI["OpenAI API"]
+    ANT["Anthropic API"]
+
+    OBS["Prometheus ◀ Pushgateway ◀ harness<br/>Grafana · 2 dashboards<br/>OTel → ClickHouse → Solo UI tracing"]
+
+    H -->|MCP| RS --> SYN
+    H -->|MCP + JWT| RB --> RBS
+    H -->|chat completions| L1 --> OAI
+    H -->|chat completions| L2 --> ANT
+    AGW -. OTLP / metrics .-> OBS
+    H -. pushes results .-> OBS
+```
+
+<details><summary>Detailed text view</summary>
 
 ```
                     kind: agw-progressive-disclosure
@@ -104,6 +175,8 @@ catalog.
  harness/eval.py → results_v3.csv / results_v3.json
  harness/projection_v3.py → projection_v3.csv
 ```
+
+</details>
 
 ---
 
