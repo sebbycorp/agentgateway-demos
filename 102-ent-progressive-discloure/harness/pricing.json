@@ -1,3 +1,14 @@
 {
-  "gpt-4o-mini": { "input_per_1k": 0.00015, "output_per_1k": 0.0006 }
+  "_comment": "USD per 1K tokens. List prices as of 2026-06. OpenAI caches automatically (cached input ~50% off, >=1024-token prompts). Anthropic uses explicit cache_control: cache writes cost 1.25x base input, cache reads 0.1x.",
+  "gpt-4o-mini": {
+    "input_per_1k": 0.00015,
+    "cached_input_per_1k": 0.000075,
+    "output_per_1k": 0.0006
+  },
+  "claude-sonnet-4-6": {
+    "input_per_1k": 0.003,
+    "cache_write_per_1k": 0.00375,
+    "cache_read_per_1k": 0.0003,
+    "output_per_1k": 0.015
+  }
 }
