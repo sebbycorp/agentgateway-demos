@@ -16,7 +16,7 @@ Env knobs (all optional; defaults give a cheap smoke run):
   TASKS             comma-list of task IDs      [two_tools,single_echo]
   LOOP_KS           comma-list                  [0]   (0 = non-loop tasks only)
   SAMPLES           int; repeat each cell       [1]
-  TARGETS           synthetic,real-everything,real-github [synthetic]
+  TARGETS           synthetic,rbac              [synthetic]
   MAX_TOOL_TURNS    max LLM→tool rounds         [8]
 
   -- output --
@@ -134,8 +134,8 @@ async def run_cell(
     if persona is not None and persona.name != "none":
         active_backend = backend.with_persona_headers(persona.auth_header())
         persona_name = persona.name
-    elif backend.target == "real-github":
-        # real-github is JWT-gated (RBAC); an unauthenticated call 401s. When no
+    elif backend.target == "rbac":
+        # the rbac server is JWT-gated; an unauthenticated call 401s. When no
         # persona is set, use the admin token so the cost sweep can still run.
         try:
             admin = PERSONAS["admin"]
@@ -315,13 +315,12 @@ async def main() -> None:
                     catalog_sizes=CATALOG_SIZES_ENV,
                 )
             )
-        elif target.startswith("real-"):
-            server = target[len("real-"):]
-            for mode in MODES_ENV:
-                try:
-                    backends.append(build_real_backend(server, mode))
-                except ValueError:
-                    pass  # skip unsupported mode/server combos
+        elif target == "rbac":
+            # Dedicated RBAC server (Standard mode, JWT-gated). One backend.
+            try:
+                backends.append(build_real_backend("rbac"))
+            except ValueError:
+                pass
 
     # Resolve tasks. (Empty TASKS= is valid — e.g. loop-only runs via LOOP_KS.)
     tasks: List[Task] = []
@@ -431,10 +430,10 @@ async def main() -> None:
             assertion_failures.append(str(exc))
             print(f"  ASSERT FAIL: {exc}")
 
-    # RBAC subset check: readonly ⊂ admin for real-github.
+    # RBAC subset check: readonly ⊂ admin for the rbac server.
     if "readonly" in PERSONAS_ENV and "admin" in PERSONAS_ENV:
         for backend in backends:
-            if backend.target == "real-github" and backend.mode == "standard":
+            if backend.target == "rbac" and backend.mode == "standard":
                 for provider_name in PROVIDERS_ENV:
                     for task in tasks:
                         ro_rows = [

@@ -236,30 +236,24 @@ echo "==> Step 8b: Configuring Anthropic LLM backend (/anthropic)..."
 sed "s|__ANTHROPIC_API_KEY__|${ANTHROPIC_API_KEY}|" "${SCRIPT_DIR}/k8s/anthropic.yaml" | kubectl apply -f-
 
 # ---------------------------------------------------------------------------
-# Step 8c: Real MCP servers (everything + GitHub) + 3-persona RBAC on GitHub
+# Step 8c: Self-contained RBAC demo — semantic-named synthetic server at /mcp/rbac
+# with 3-persona JWT tool filtering (readonly/team/admin).
 # ---------------------------------------------------------------------------
 echo ""
-echo "==> Step 8c: Deploying real MCP servers (everything + GitHub)..."
-kubectl apply -f "${SCRIPT_DIR}/k8s/real-servers.yaml"
-
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  sed "s|__GITHUB_TOKEN__|${GITHUB_TOKEN}|" "${SCRIPT_DIR}/k8s/github.yaml" | kubectl apply -f-
-
-  echo "    Generating RBAC JWT material (keypair + JWKS + persona tokens)..."
-  ( cd "${SCRIPT_DIR}/harness" && ./.venv/bin/python identities.py --generate >/dev/null 2>&1 ) || \
-    echo "    (skipped token gen — run ./test.sh which sets up the venv first)"
-  if [[ -f "${SCRIPT_DIR}/harness/.rbac_jwks.json" ]]; then
-    # Substitute the (compacted, single-line) inline JWKS into the RBAC policy and apply.
-    python3 - "${SCRIPT_DIR}/k8s/github-rbac.yaml" "${SCRIPT_DIR}/harness/.rbac_jwks.json" <<'PY' | kubectl apply -f-
+echo "==> Step 8c: Deploying RBAC demo (synthetic semantic-tool server + JWT policies)..."
+echo "    Generating RBAC JWT material (keypair + JWKS + persona tokens)..."
+if ( cd "${SCRIPT_DIR}/harness" && ./.venv/bin/python identities.py --generate >/dev/null 2>&1 ) \
+   && [[ -f "${SCRIPT_DIR}/harness/.rbac_jwks.json" ]]; then
+  # Substitute the (compacted, single-line) inline JWKS into the RBAC manifest and apply.
+  python3 - "${SCRIPT_DIR}/k8s/rbac.yaml" "${SCRIPT_DIR}/harness/.rbac_jwks.json" <<'PY' | kubectl apply -f-
 import sys, json, pathlib
 tmpl = pathlib.Path(sys.argv[1]).read_text()
 jwks = json.dumps(json.loads(pathlib.Path(sys.argv[2]).read_text()))  # compact to one line
 print(tmpl.replace("__JWKS_INLINE__", jwks))
 PY
-    echo "    GitHub RBAC policies applied (readonly/team/admin)."
-  fi
+  echo "    RBAC server + policies applied (readonly/team/admin at /mcp/rbac)."
 else
-  echo "    (GITHUB_TOKEN not set — skipping GitHub backend + RBAC)"
+  echo "    (skipped RBAC — run ./test.sh first to set up the harness venv, then re-run)"
 fi
 
 echo ""

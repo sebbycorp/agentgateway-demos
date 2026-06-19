@@ -86,14 +86,15 @@ TOOL_SURFACE: Dict[str, Optional[int]] = {
 # Valid synthetic catalog sizes — realistic gradient.
 SYNTHETIC_CATALOG_SIZES = (10, 15, 20, 30, 50, 100)
 
-# Real-server target names.
-REAL_TARGETS = ("real-everything", "real-github")
+# Non-synthetic targets. "rbac" is the dedicated semantic-tool server used for the
+# JWT RBAC demo (route /mcp/rbac, Standard mode, JWT-gated).
+REAL_TARGETS = ("rbac",)
 
 
 @dataclass
 class Backend:
     """Describes a single MCP endpoint reachable through the gateway."""
-    target: str          # e.g. "synthetic", "real-everything", "real-github"
+    target: str          # e.g. "synthetic" or "rbac"
     mode: str            # e.g. "standard", "search", "code", "codesearch"
     catalog_size: int    # number of tools in the *full* catalog (synthetic) or 0 for real
     route: str           # gateway-relative path, e.g. "/mcp/standard-50"
@@ -140,18 +141,16 @@ def build_synthetic_backend(mode: str, catalog_size: int) -> Backend:
 
 
 def build_real_backend(server: str, mode: str = "standard") -> Backend:
-    """Build a Backend for a real MCP server route.
+    """Build a Backend for the RBAC demo server route (/mcp/rbac, Standard mode).
 
-    server must be one of: 'everything', 'github' (both Standard mode).
-    NOTE: real-github is JWT-gated (RBAC) — callers must attach a persona token
-    via with_persona_headers(); an unauthenticated call returns 401.
+    server must be 'rbac'. This route is JWT-gated — callers must attach a persona
+    token via with_persona_headers(); an unauthenticated call returns 401.
     """
-    valid_servers = ("everything", "github")
-    if server not in valid_servers:
-        raise ValueError(f"Unknown real server '{server}'. Valid: {valid_servers}")
+    if server != "rbac":
+        raise ValueError(f"Unknown server '{server}'. Valid: ('rbac',)")
 
-    route = f"/mcp/real-{server}"
-    target = f"real-{server}"
+    route = "/mcp/rbac"
+    target = "rbac"
     mode = "standard"
 
     return Backend(
@@ -178,10 +177,9 @@ def get_backend(target: str, mode: str, catalog_size: int) -> Backend:
     key = (target, mode, catalog_size)
     if key in BACKENDS:
         return BACKENDS[key]
-    # Try to construct a real-server backend.
-    if target.startswith("real-"):
-        server = target[len("real-"):]
-        return build_real_backend(server, mode)
+    # Try to construct the RBAC server backend.
+    if target == "rbac":
+        return build_real_backend("rbac", mode)
     raise KeyError(f"No backend registered for {key}")
 
 
