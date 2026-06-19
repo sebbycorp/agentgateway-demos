@@ -1,7 +1,7 @@
 # Demo 102 v2: Real-World Progressive Disclosure — Design
 
 **Date:** 2026-06-19
-**Demo dir:** `102-ent-progressive-discloure/` (extends v1)
+**Demo dir:** `102-ent-tokenomix-report/` (extends v1)
 **Status:** Design for review
 **Builds on:** `2026-06-19-progressive-disclosure-search-mode-design.md` (v1, shipped & deployed)
 

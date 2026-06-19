@@ -1,7 +1,7 @@
 # Demo 102 v3: Progressive Disclosure Evaluation Framework — Design
 
 **Date:** 2026-06-19
-**Demo dir:** `102-ent-progressive-discloure/` (extends v2)
+**Demo dir:** `102-ent-tokenomix-report/` (extends v2)
 **Status:** Design for review
 **Builds on:** v1 (search-mode proof) + v2 (4 modes, 2 models, cache-aware, projection)
 
@@ -40,7 +40,7 @@ test/dashboards must **show all** dimensions.
 | Agentic loops | Loop lengths K∈{1,3,5}; cumulative cost/tokens/round-trips per mode |
 | Models | **OpenAI `gpt-5.5` + Anthropic `claude-opus-4-8`** (frontier; both live-verified through AGW). gpt-5.5 resolves to `gpt-5.5-2026-04-23`. |
 | Modes | Standard / Search / Code / CodeSearch (from v2) |
-| Folder | **Rename `102-ent-progressive-discloure/` → `102-ent-tokenomix-report/`** (first build step; cluster name/namespace unchanged) |
+| Folder | **Rename `102-ent-tokenomix-report/` → `102-ent-tokenomix-report/`** (first build step; cluster name/namespace unchanged) |
 | Secrets | `GITHUB_TOKEN` + (frontier) `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` via gitignored `.env` → Secret (sed); never committed |
 | Cost control | Frontier models are ~100× prior tiers. A full matrix on Opus can cost hundreds of $; the eval orchestrator MUST support scoping (subset models/modes/catalog/samples) and a token budget so full runs are opt-in. |
 

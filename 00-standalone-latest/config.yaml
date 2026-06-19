@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=https://agentgateway.dev/schema/config
 binds:
 - port: 3000
   listeners:
@@ -6,18 +5,30 @@ binds:
     - policies:
         cors:
           allowOrigins:
-          - "*"
+          - '*'
           allowHeaders:
           - mcp-protocol-version
           - content-type
           - cache-control
           - mcp-session-id
           exposeHeaders:
-          - "Mcp-Session-Id"
+          - Mcp-Session-Id
       backends:
       - mcp:
           targets:
           - name: everything
             stdio:
               cmd: npx
-              args: ["@modelcontextprotocol/server-everything"]
+              args:
+              - '@modelcontextprotocol/server-everything'
+llm:
+  port: 4000
+  models: []
+  providers: []
+  virtualModels: []
+frontendPolicies:
+  http:
+    maxBufferSize: 33554432
+config:
+  modelCatalog:
+  - file: base-costs.json
