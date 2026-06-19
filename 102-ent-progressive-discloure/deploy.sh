@@ -90,6 +90,38 @@ spec:
 EOF
 kubectl wait --for=condition=Available deployment/agentgateway-proxy -n "${NAMESPACE}" --timeout=300s
 
+# ---------------------------------------------------------------------------
+# Step 5b: Enable GenAI distributed tracing -> Solo Enterprise UI
+#
+# Without this, the data-plane proxy emits no telemetry (its config is empty)
+# and the Solo UI "Tracing" view stays blank. This policy points the proxy's
+# OTLP exporter at the bundled telemetry collector, which writes spans to
+# ClickHouse where the UI reads them.
+# ---------------------------------------------------------------------------
+echo ""
+echo "==> Step 5b: Enabling GenAI tracing to the Solo UI..."
+kubectl apply -f- <<EOF
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: tracing
+  namespace: ${NAMESPACE}
+spec:
+  targetRefs:
+  - kind: Gateway
+    name: agentgateway-proxy
+    group: gateway.networking.k8s.io
+  frontend:
+    tracing:
+      backendRef:
+        name: solo-enterprise-telemetry-collector
+        namespace: ${NAMESPACE}
+        port: 4317
+      protocol: GRPC
+      clientSampling: "true"
+      randomSampling: "true"
+EOF
+
 echo ""
 echo "==> Step 6: Building + loading synthetic MCP server image..."
 docker build -t synthetic-mcp:dev "${SCRIPT_DIR}/mcp-server"

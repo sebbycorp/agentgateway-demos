@@ -163,6 +163,29 @@ rather than receiving all definitions upfront.
 
 Reference: https://docs.solo.io/agentgateway/latest/mcp/tool-mode/search-mode/
 
+## Tracing in the Solo Enterprise UI
+
+`deploy.sh` Step 5b applies an `EnterpriseAgentgatewayPolicy` that turns on GenAI
+distributed tracing. Without it the data-plane proxy emits no telemetry (its
+config is empty) and the UI's **Tracing** view stays blank. The policy points the
+proxy's OTLP exporter at the bundled `solo-enterprise-telemetry-collector`, which
+writes spans into ClickHouse (`platformdb.otel_traces_json`) where the Solo UI
+reads them.
+
+```bash
+# Open the Solo UI
+kubectl port-forward svc/solo-enterprise-ui -n agentgateway-system 4000:80
+# http://localhost:4000  — after running ./test.sh, the Tracing view shows
+# the get_tool / invoke_tool spans for search-mode calls.
+
+# Verify spans are landing:
+kubectl exec -n agentgateway-system management-clickhouse-shard0-0 -c clickhouse \
+  -- clickhouse-client --query "SELECT count() FROM platformdb.otel_traces_json"
+```
+
+> Note: this enables **traces**. Metrics export to ClickHouse is a separate
+> pipeline and is not enabled by this policy.
+
 ## Demo Cluster / Versions
 
 | Demo | Cluster name | AGW version | Gateway API |
