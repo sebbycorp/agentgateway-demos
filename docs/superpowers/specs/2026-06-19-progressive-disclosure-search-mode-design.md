@@ -107,8 +107,20 @@ Sanity assertions: search-mode tool list length == 2; default-mode == TOOL_COUNT
 search `prompt_tokens` < default; both modes complete the task functionally.
 
 ### 4. Grafana dashboard
-Provisioned JSON. Panels: prompt-tokens per call by mode, % token reduction, USD
-saved per 1,000 calls, and the savings-vs-tool-count curve. Datasource: Prometheus.
+Provisioned JSON. Datasource: Prometheus.
+
+**Design principle: simple and self-explanatory.** The dashboard must tell the
+savings story to someone who has never seen it, at a glance. Concretely:
+- A single screen, no scrolling, ordered top-to-bottom as a narrative.
+- Lead with **3 big stat panels**: avg prompt tokens (default), avg prompt tokens
+  (search), and the headline **% reduction** — color-coded green.
+- Then the **savings-vs-tool-count curve** (two lines: default rises with tool
+  count, search stays flat) — this is the "aha" visual.
+- Then **$ saved per 1,000 calls** by tool count (bar).
+- Every panel has a one-line description/subtitle in plain language explaining
+  what it shows and why it matters. No raw metric names exposed to the viewer.
+- Minimal panel count (≈5–6 total) — resist adding panels that don't advance the
+  savings narrative.
 
 ### 5. Standard scripts
 - `test.sh` — runs the harness end-to-end (full sweep), prints a summary table.
