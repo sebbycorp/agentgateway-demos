@@ -1,6 +1,6 @@
 # F5 MCP Tool Modes — Test Report
 
-**Demo:** `103-f5-tool-modes`
+**Demo:** `103-agw-tokenomics-with-f5-tool-modes`
 **Date:** 2026-06-19
 **Backend:** real F5 BIG-IP (`172.16.10.10`) via the `f5-wrapper` MCP server (29 LTM tools), READ_ONLY
 **LLM:** `gpt-5.5` through the AgentGateway `/openai` route
