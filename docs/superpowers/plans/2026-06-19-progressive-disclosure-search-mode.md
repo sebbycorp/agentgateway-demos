@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a self-contained AgentGateway Enterprise demo (`102-ent-progressive-discloure/`) that deploys MCP search mode and produces hard A/B data proving search mode cuts prompt tokens and cost versus default mode, visualized in a simple Grafana dashboard.
+**Goal:** Build a self-contained AgentGateway Enterprise demo (`102-ent-tokenomix-report/`) that deploys MCP search mode and produces hard A/B data proving search mode cuts prompt tokens and cost versus default mode, visualized in a simple Grafana dashboard.
 
 **Architecture:** A kind cluster runs Solo Enterprise AgentGateway. A synthetic Python MCP server is deployed at three tool counts (10/50/100). Two `EnterpriseAgentgatewayBackend`s expose each server in `default` and `Search` tool modes via HTTPRoutes. A Python harness runs an identical agent task through an OpenAI model (routed through the gateway) against each (mode × tool_count) route, capturing real `prompt_tokens` and cost into `results.csv`/`results.json` and pushing labeled gauges to a Prometheus Pushgateway. Grafana reads Prometheus and charts the savings.
 
@@ -22,14 +22,14 @@
 - Required env vars: `AGENTGATEWAY_LICENSE_KEY`, `OPENAI_API_KEY`
 - Secrets via env only; never commit keys. Commit `.env.example`.
 - Helm charts from `oci://us-docker.pkg.dev/solo-public/...` (enterprise) and `prometheus-community` / `grafana` repos (observability).
-- All work lives under `102-ent-progressive-discloure/`. Run commands from that directory unless noted.
+- All work lives under `102-ent-tokenomix-report/`. Run commands from that directory unless noted.
 
 ---
 
 ## File Structure
 
 ```
-102-ent-progressive-discloure/
+102-ent-tokenomix-report/
   deploy.sh              # full environment bring-up (idempotent)
   test.sh                # port-forward + run harness sweep + print summary
   cleanup.sh             # delete kind cluster
@@ -59,9 +59,9 @@
 ## Task 1: Synthetic MCP server
 
 **Files:**
-- Create: `102-ent-progressive-discloure/mcp-server/server.py`
-- Create: `102-ent-progressive-discloure/mcp-server/requirements.txt`
-- Create: `102-ent-progressive-discloure/mcp-server/Dockerfile`
+- Create: `102-ent-tokenomix-report/mcp-server/server.py`
+- Create: `102-ent-tokenomix-report/mcp-server/requirements.txt`
+- Create: `102-ent-tokenomix-report/mcp-server/Dockerfile`
 
 **Interfaces:**
 - Produces: an SSE MCP server on `0.0.0.0:8000` (SSE endpoint `/sse`) exposing `TOOL_COUNT` echo tools named `tool_000`…`tool_NNN`. Each tool has input schema fields `text: str`, `number: int = 0`, `flag: bool = False`, `tags: list[str] = []`, `note: str = ""` and returns a deterministic echo string. `TOOL_COUNT` read from env (default `10`).
@@ -140,7 +140,7 @@ CMD ["python", "server.py"]
 
 Run:
 ```bash
-cd 102-ent-progressive-discloure/mcp-server
+cd 102-ent-tokenomix-report/mcp-server
 docker build -t synthetic-mcp:dev .
 docker run -d --rm -e TOOL_COUNT=10 -p 8000:8000 --name smcp synthetic-mcp:dev
 sleep 3
@@ -154,7 +154,7 @@ Expected: container logs print `Starting synthetic MCP server with 10 tools`; th
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/mcp-server
+git add 102-ent-tokenomix-report/mcp-server
 git commit -m "feat(102): synthetic MCP server with TOOL_COUNT echo tools"
 ```
 
@@ -163,8 +163,8 @@ git commit -m "feat(102): synthetic MCP server with TOOL_COUNT echo tools"
 ## Task 2: Enterprise cluster bring-up in `deploy.sh` (Part A)
 
 **Files:**
-- Create: `102-ent-progressive-discloure/deploy.sh`
-- Create: `102-ent-progressive-discloure/.env.example`
+- Create: `102-ent-tokenomix-report/deploy.sh`
+- Create: `102-ent-tokenomix-report/.env.example`
 
 **Interfaces:**
 - Produces: a kind cluster `agw-progressive-disclosure` with Enterprise AGW v2026.6.1 control plane, Solo UI, and a `agentgateway-proxy` Gateway in `agentgateway-system`. This is the foundation later deploy parts append to.
@@ -282,7 +282,7 @@ kubectl wait --for=condition=Available deployment/agentgateway-proxy -n "${NAMES
 
 Run:
 ```bash
-cd 102-ent-progressive-discloure
+cd 102-ent-tokenomix-report
 chmod +x deploy.sh
 ./deploy.sh
 kubectl get gateway,deploy,svc -n agentgateway-system
@@ -293,7 +293,7 @@ Expected: `agentgateway-proxy` Gateway and deployment are `Available`; `enterpri
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/deploy.sh 102-ent-progressive-discloure/.env.example
+git add 102-ent-tokenomix-report/deploy.sh 102-ent-tokenomix-report/.env.example
 git commit -m "feat(102): deploy.sh part A — enterprise control plane + gateway"
 ```
 
@@ -302,7 +302,7 @@ git commit -m "feat(102): deploy.sh part A — enterprise control plane + gatewa
 ## Task 3: Deploy synthetic servers + search/default backends (`deploy.sh` Part B)
 
 **Files:**
-- Modify: `102-ent-progressive-discloure/deploy.sh` (append Part B before the `# --- Parts ...` marker comment)
+- Modify: `102-ent-tokenomix-report/deploy.sh` (append Part B before the `# --- Parts ...` marker comment)
 
 **Interfaces:**
 - Consumes: kind cluster + Gateway from Task 2; `synthetic-mcp:dev` image from Task 1.
@@ -414,7 +414,7 @@ done
 
 Run:
 ```bash
-cd 102-ent-progressive-discloure
+cd 102-ent-tokenomix-report
 ./deploy.sh
 kubectl get enterpriseagentgatewaybackend,httproute -n agentgateway-system
 kubectl get pods -n agentgateway-system | grep mcp-server
@@ -455,7 +455,7 @@ NOTE: If the connection fails, AGW may present the MCP listener over SSE rather 
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/deploy.sh
+git add 102-ent-tokenomix-report/deploy.sh
 git commit -m "feat(102): deploy.sh part B — synthetic servers + search/default backends"
 ```
 
@@ -464,8 +464,8 @@ git commit -m "feat(102): deploy.sh part B — synthetic servers + search/defaul
 ## Task 4: OpenAI LLM route (`deploy.sh` Part C + `k8s/openai.yaml`)
 
 **Files:**
-- Create: `102-ent-progressive-discloure/k8s/openai.yaml`
-- Modify: `102-ent-progressive-discloure/deploy.sh` (append Part C)
+- Create: `102-ent-tokenomix-report/k8s/openai.yaml`
+- Modify: `102-ent-tokenomix-report/deploy.sh` (append Part C)
 
 **Interfaces:**
 - Produces: an OpenAI chat-completions endpoint reachable through the gateway at `/openai`, backed by `gpt-4o-mini`, authed via `openai-secret`.
@@ -530,7 +530,7 @@ sed "s|__OPENAI_API_KEY__|${OPENAI_API_KEY}|" "${SCRIPT_DIR}/k8s/openai.yaml" | 
 
 Run (with proxy port-forwarded to 8080):
 ```bash
-cd 102-ent-progressive-discloure && ./deploy.sh
+cd 102-ent-tokenomix-report && ./deploy.sh
 curl -s "localhost:8080/openai" -H content-type:application/json \
   -d '{"model":"","messages":[{"role":"user","content":"Reply with the single word OK"}]}' | jq '.choices[0].message.content, .usage'
 ```
@@ -540,7 +540,7 @@ Expected: a chat completion whose content contains `OK` and a `usage` object wit
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/k8s/openai.yaml 102-ent-progressive-discloure/deploy.sh
+git add 102-ent-tokenomix-report/k8s/openai.yaml 102-ent-tokenomix-report/deploy.sh
 git commit -m "feat(102): deploy.sh part C — OpenAI LLM route"
 ```
 
@@ -549,9 +549,9 @@ git commit -m "feat(102): deploy.sh part C — OpenAI LLM route"
 ## Task 5: A/B harness
 
 **Files:**
-- Create: `102-ent-progressive-discloure/harness/run_ab.py`
-- Create: `102-ent-progressive-discloure/harness/pricing.json`
-- Create: `102-ent-progressive-discloure/harness/requirements.txt`
+- Create: `102-ent-tokenomix-report/harness/run_ab.py`
+- Create: `102-ent-tokenomix-report/harness/pricing.json`
+- Create: `102-ent-tokenomix-report/harness/requirements.txt`
 
 **Interfaces:**
 - Consumes: gateway at `http://localhost:8080` with MCP routes `/mcp/{default,search}-{10,50,100}` and LLM route `/openai`; the MCP transport confirmed in Task 3.
@@ -756,7 +756,7 @@ if __name__ == "__main__":
 
 Run (proxy port-forwarded to 8080; pushgateway not required yet):
 ```bash
-cd 102-ent-progressive-discloure/harness
+cd 102-ent-tokenomix-report/harness
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 RUNS=1 TOOL_COUNTS=10 python run_ab.py
 ```
@@ -767,7 +767,7 @@ NOTE: if MCP connection fails, switch `streamablehttp_client` import to `from mc
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/harness
+git add 102-ent-tokenomix-report/harness
 git commit -m "feat(102): A/B token-savings harness"
 ```
 
@@ -776,10 +776,10 @@ git commit -m "feat(102): A/B token-savings harness"
 ## Task 6: Observability stack (`deploy.sh` Part D)
 
 **Files:**
-- Create: `102-ent-progressive-discloure/observability/prometheus-values.yaml`
-- Create: `102-ent-progressive-discloure/observability/grafana-values.yaml`
-- Create: `102-ent-progressive-discloure/observability/dashboard.json`
-- Modify: `102-ent-progressive-discloure/deploy.sh` (append Part D)
+- Create: `102-ent-tokenomix-report/observability/prometheus-values.yaml`
+- Create: `102-ent-tokenomix-report/observability/grafana-values.yaml`
+- Create: `102-ent-tokenomix-report/observability/dashboard.json`
+- Modify: `102-ent-tokenomix-report/deploy.sh` (append Part D)
 
 **Interfaces:**
 - Consumes: kind cluster.
@@ -928,7 +928,7 @@ echo " Grafana: http://localhost:3001  (admin/admin)"
 
 Run:
 ```bash
-cd 102-ent-progressive-discloure && ./deploy.sh
+cd 102-ent-tokenomix-report && ./deploy.sh
 kubectl get pods -n observability
 kubectl port-forward svc/prometheus-prometheus-pushgateway -n observability 9091:9091 &
 kubectl port-forward svc/grafana -n observability 3001:80 &
@@ -943,7 +943,7 @@ NOTE: confirm the pushgateway service name with `kubectl get svc -n observabilit
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/observability 102-ent-progressive-discloure/deploy.sh
+git add 102-ent-tokenomix-report/observability 102-ent-tokenomix-report/deploy.sh
 git commit -m "feat(102): deploy.sh part D — Prometheus + Pushgateway + Grafana dashboard"
 ```
 
@@ -952,9 +952,9 @@ git commit -m "feat(102): deploy.sh part D — Prometheus + Pushgateway + Grafan
 ## Task 7: `test.sh`, `cleanup.sh`, `step-by-step.sh`
 
 **Files:**
-- Create: `102-ent-progressive-discloure/test.sh`
-- Create: `102-ent-progressive-discloure/cleanup.sh`
-- Create: `102-ent-progressive-discloure/step-by-step.sh`
+- Create: `102-ent-tokenomix-report/test.sh`
+- Create: `102-ent-tokenomix-report/cleanup.sh`
+- Create: `102-ent-tokenomix-report/step-by-step.sh`
 
 **Interfaces:**
 - Consumes: a deployed cluster + the harness.
@@ -1021,7 +1021,7 @@ echo "Open Grafana to see the savings curve: http://localhost:3001 (admin/admin)
 
 Run:
 ```bash
-cd 102-ent-progressive-discloure
+cd 102-ent-tokenomix-report
 chmod +x test.sh cleanup.sh step-by-step.sh
 RUNS=3 ./test.sh
 ```
@@ -1031,7 +1031,7 @@ Expected: the summary prints three lines (10/50/100 tools) each with a positive 
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/test.sh 102-ent-progressive-discloure/cleanup.sh 102-ent-progressive-discloure/step-by-step.sh
+git add 102-ent-tokenomix-report/test.sh 102-ent-tokenomix-report/cleanup.sh 102-ent-tokenomix-report/step-by-step.sh
 git commit -m "feat(102): test/cleanup/step-by-step scripts"
 ```
 
@@ -1040,7 +1040,7 @@ git commit -m "feat(102): test/cleanup/step-by-step scripts"
 ## Task 8: README
 
 **Files:**
-- Create: `102-ent-progressive-discloure/README.md`
+- Create: `102-ent-tokenomix-report/README.md`
 
 **Interfaces:**
 - Consumes: everything above.
@@ -1068,7 +1068,7 @@ Include these sections with real content:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/README.md
+git add 102-ent-tokenomix-report/README.md
 git commit -m "docs(102): README for progressive disclosure demo"
 ```
 
@@ -1077,8 +1077,8 @@ git commit -m "docs(102): README for progressive disclosure demo"
 ## Task 9 (stretch): Live gateway-emitted GenAI metrics corroboration
 
 **Files:**
-- Modify: `102-ent-progressive-discloure/deploy.sh` (optional Part E)
-- Modify: `102-ent-progressive-discloure/observability/prometheus-values.yaml`
+- Modify: `102-ent-tokenomix-report/deploy.sh` (optional Part E)
+- Modify: `102-ent-tokenomix-report/observability/prometheus-values.yaml`
 
 **Interfaces:**
 - Consumes: running control plane + Prometheus.
@@ -1123,7 +1123,7 @@ Document in the README that AGW's native telemetry is OTLP-only here and the har
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-git add 102-ent-progressive-discloure/observability/prometheus-values.yaml 102-ent-progressive-discloure/deploy.sh
+git add 102-ent-tokenomix-report/observability/prometheus-values.yaml 102-ent-tokenomix-report/deploy.sh
 git commit -m "feat(102): scrape gateway-native GenAI metrics as corroboration"
 ```
 

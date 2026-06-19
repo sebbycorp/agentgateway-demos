@@ -29,7 +29,7 @@
 
 ## Task 1: Anthropic backend wired into deploy.sh
 
-**Files:** Modify `102-ent-progressive-discloure/deploy.sh` (add ANTHROPIC_API_KEY preflight + apply step); `k8s/anthropic.yaml` (exists, verify).
+**Files:** Modify `102-ent-tokenomix-report/deploy.sh` (add ANTHROPIC_API_KEY preflight + apply step); `k8s/anthropic.yaml` (exists, verify).
 
 - [ ] **Step 1:** Add `ANTHROPIC_API_KEY` to the preflight check block (alongside OPENAI_API_KEY): require it set, error if missing.
 - [ ] **Step 2:** After the OpenAI step (Part C), add Part C2:

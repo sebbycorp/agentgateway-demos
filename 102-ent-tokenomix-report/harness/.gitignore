@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+results.csv
+results.json
+projection.csv
+
+# RBAC crypto material (generated at deploy time; never commit)
+.rbac_key.pem
+.rbac_jwks.json
+.rbac_token_*.txt
