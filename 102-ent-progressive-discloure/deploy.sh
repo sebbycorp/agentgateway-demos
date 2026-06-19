@@ -137,7 +137,8 @@ spec:
 EOF
 
   for mode in default search; do
-    if [[ "$mode" == "search" ]]; then tool_mode="Search"; else tool_mode="default"; fi
+    # CRD enum for toolMode is {Code,CodeSearch,Search,Standard}; "Standard" is full-tool-list (default) mode.
+    if [[ "$mode" == "search" ]]; then tool_mode="Search"; else tool_mode="Standard"; fi
     kubectl apply -f- <<EOF
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
 kind: EnterpriseAgentgatewayBackend

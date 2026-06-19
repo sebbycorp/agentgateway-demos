@@ -12,3 +12,5 @@ server:
     enabled: false
   global:
     scrape_interval: 5s
+    # scrape_timeout must be <= scrape_interval (chart default timeout is 10s, which is invalid with a 5s interval)
+    scrape_timeout: 4s

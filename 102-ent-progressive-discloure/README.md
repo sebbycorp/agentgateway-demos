@@ -49,7 +49,7 @@ Tools (must be on `PATH`):
 | `kubectl` | Cluster interaction |
 | `helm` | Chart installs |
 | `docker` | Build + load the synthetic MCP server image |
-| `python3` | A/B harness (`test.sh` creates a venv automatically) |
+| `python3` (>= 3.10) | A/B harness (`test.sh` auto-selects the newest python3.x and creates a venv; the `mcp` client needs 3.10+) |
 
 Environment variables:
 

@@ -14,9 +14,26 @@ sleep 5
 
 echo "==> Running A/B sweep (RUNS=${RUNS:-5})..."
 cd "${SCRIPT_DIR}/harness"
-[[ -d .venv ]] || { python3 -m venv .venv; . .venv/bin/activate; pip -q install -r requirements.txt; }
-. .venv/bin/activate
-RUNS="${RUNS:-5}" python run_ab.py
+
+# The mcp client package requires Python >= 3.10. Pick the newest interpreter
+# available rather than assume bare `python3` (on many macs that is still 3.9).
+pick_python() {
+  for p in python3.13 python3.12 python3.11 python3.10 python3; do
+    if command -v "$p" >/dev/null 2>&1 && \
+       "$p" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,10) else 1)' 2>/dev/null; then
+      command -v "$p"; return 0
+    fi
+  done
+  echo "ERROR: need Python >= 3.10 for the 'mcp' package; none found." >&2
+  return 1
+}
+PYTHON="$(pick_python)"
+echo "    Using interpreter: ${PYTHON} ($(${PYTHON} --version 2>&1))"
+
+[[ -d .venv ]] || "${PYTHON}" -m venv .venv
+./.venv/bin/python -m pip install -q --upgrade pip
+./.venv/bin/python -m pip install -q -r requirements.txt
+RUNS="${RUNS:-5}" ./.venv/bin/python run_ab.py
 
 echo ""
 echo "==> Ground-truth data written to harness/results.csv"
