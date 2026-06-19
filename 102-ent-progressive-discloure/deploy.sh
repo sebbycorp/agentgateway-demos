@@ -10,7 +10,7 @@ set -euo pipefail
 # 4. OpenAI LLM backend + route
 # 5. Observability: Prometheus + Pushgateway + Grafana (provisioned dashboard)
 #
-# Prereqs: kind, kubectl, helm, docker; AGENTGATEWAY_LICENSE_KEY, OPENAI_API_KEY
+# Prereqs: kind, kubectl, helm, docker; AGENTGATEWAY_LICENSE_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 ##############################################################################
 
 CLUSTER_NAME="agw-progressive-disclosure"
@@ -28,6 +28,7 @@ for cmd in kind kubectl helm docker; do
 done
 [[ -n "${AGENTGATEWAY_LICENSE_KEY:-}" ]] || { echo "ERROR: AGENTGATEWAY_LICENSE_KEY not set." >&2; exit 1; }
 [[ -n "${OPENAI_API_KEY:-}" ]] || { echo "ERROR: OPENAI_API_KEY not set." >&2; exit 1; }
+[[ -n "${ANTHROPIC_API_KEY:-}" ]] || { echo "ERROR: ANTHROPIC_API_KEY not set." >&2; exit 1; }
 echo "    All prerequisites met."
 
 echo ""
@@ -168,9 +169,15 @@ spec:
     targetPort: 8000
 EOF
 
-  for mode in default search; do
-    # CRD enum for toolMode is {Code,CodeSearch,Search,Standard}; "Standard" is full-tool-list (default) mode.
-    if [[ "$mode" == "search" ]]; then tool_mode="Search"; else tool_mode="Standard"; fi
+  # All four progressive-disclosure modes (CRD enum: Standard|Search|Code|CodeSearch).
+  # standard=full tool list, search=get_tool+invoke_tool, code=run_code, codesearch=get_tool+run_code.
+  for mode in standard search code codesearch; do
+    case "$mode" in
+      standard)   tool_mode="Standard" ;;
+      search)     tool_mode="Search" ;;
+      code)       tool_mode="Code" ;;
+      codesearch) tool_mode="CodeSearch" ;;
+    esac
     kubectl apply -f- <<EOF
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
 kind: EnterpriseAgentgatewayBackend
@@ -222,6 +229,10 @@ done
 echo ""
 echo "==> Step 8: Configuring OpenAI LLM backend (/openai)..."
 sed "s|__OPENAI_API_KEY__|${OPENAI_API_KEY}|" "${SCRIPT_DIR}/k8s/openai.yaml" | kubectl apply -f-
+
+echo ""
+echo "==> Step 8b: Configuring Anthropic LLM backend (/anthropic)..."
+sed "s|__ANTHROPIC_API_KEY__|${ANTHROPIC_API_KEY}|" "${SCRIPT_DIR}/k8s/anthropic.yaml" | kubectl apply -f-
 
 echo ""
 echo "==> Step 9: Installing observability (Prometheus + Pushgateway + Grafana)..."
