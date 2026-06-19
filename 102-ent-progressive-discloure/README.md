@@ -1,15 +1,16 @@
-# 102 — Enterprise Progressive Disclosure (MCP Search Mode)
+# 102 — Enterprise Progressive Disclosure (MCP Tool Modes)
 
-AgentGateway's **MCP search mode** ("progressive disclosure") replaces the full tool
-catalog that a model sees on each call with exactly two meta-tools — `get_tool` and
-`invoke_tool`. Instead of injecting every upstream tool's JSON schema into the context
-on every request, the gateway lets the model look up only the tools it actually needs.
-This keeps the per-call tool-definition token cost flat regardless of how many tools
-the backend MCP server exposes, producing measurable savings in both prompt tokens and
-USD cost that scale with tool-catalog size. This demo proves those savings with live
-LLM calls: it runs an A/B sweep across default mode and search mode at 10, 50, and 100
-tools, captures real `prompt_tokens` from OpenAI's API, and surfaces the data in a
-pre-provisioned Grafana dashboard.
+AgentGateway's **MCP progressive disclosure** replaces the full tool catalog that a
+model sees on each call with meta-tools that let the model discover only what it
+needs. Instead of injecting every upstream tool's JSON schema into the context on
+every request, the gateway can expose two meta-tools (`get_tool` + `invoke_tool`),
+a single code-execution tool (`run_code`), or their combination — keeping the
+per-call tool-definition token cost flat regardless of how many tools the backend
+MCP server exposes. This produces measurable savings in prompt tokens and USD cost
+that scale with tool-catalog size. **v2 now compares all four tool modes (Standard,
+Search, Code, CodeSearch) across two frontier models — OpenAI gpt-4o-mini and
+Anthropic claude-sonnet-4-6 — with cache-aware costing and a business $/month
+projection.**
 
 ## Architecture
 
@@ -17,27 +18,28 @@ pre-provisioned Grafana dashboard.
                           kind: agw-progressive-disclosure
  ┌────────────────────────────────────────────────────────────────┐
  │  agentgateway-proxy (Gateway API)                                │
- │   ├─ /mcp/default  → EntBackend(toolMode: default) ┐             │
- │   ├─ /mcp/search   → EntBackend(toolMode: Search)  ┘→ synthetic  │
- │   │                                                  MCP server   │
- │   │                                                  (TOOL_COUNT  │
- │   │                                                   env knob)   │
- │   └─ /openai       → AgentgatewayBackend(OpenAI gpt-4o-mini)     │
- │                                                                   │
- │  AGW ──OTLP──▶ OTel Collector ──▶ Prometheus ──▶ Grafana         │
- │                                       ▲                           │
- │                              Pushgateway (harness gauges)         │
+ │   ├─ /mcp/standard-N   → EntBackend(toolMode: Standard)  ┐      │
+ │   ├─ /mcp/search-N     → EntBackend(toolMode: Search)    │→ synthetic
+ │   ├─ /mcp/code-N       → EntBackend(toolMode: Code)      │  MCP server
+ │   ├─ /mcp/codesearch-N → EntBackend(toolMode: CodeSearch)┘  (TOOL_COUNT
+ │   │                                                           env knob)  │
+ │   ├─ /openai       → AgentgatewayBackend(OpenAI gpt-4o-mini)            │
+ │   └─ /anthropic    → AgentgatewayBackend(Anthropic claude-sonnet-4-6)   │
+ │                                                                           │
+ │  AGW ──OTLP──▶ OTel Collector ──▶ Prometheus ──▶ Grafana                │
+ │                                       ▲                                   │
+ │                              Pushgateway (harness gauges)                 │
  └────────────────────────────────────────────────────────────────┘
                        ▲
-        Python A/B harness (MCP client + OpenAI SDK)
-        → results JSON/CSV  + pushes gauges to Prometheus
+        Python A/B harness (MCP client + OpenAI-compatible SDK)
+        → results CSV/JSON  + pushes gauges to Prometheus
 ```
 
-Three synthetic MCP server instances run concurrently with `TOOL_COUNT` set to 10, 50,
-and 100. For each instance two `EnterpriseAgentgatewayBackend` resources are deployed —
-one in default mode, one in search mode — each reachable at `/mcp/<mode>-<count>`
-(e.g. `/mcp/default-100`, `/mcp/search-100`). The OpenAI LLM backend is exposed at
-`/openai`.
+Three synthetic MCP server instances run concurrently with `TOOL_COUNT` set to 10,
+50, and 100. For each instance four `EnterpriseAgentgatewayBackend` resources are
+deployed — one per tool mode — each reachable at `/mcp/<mode>-<count>` (e.g.
+`/mcp/search-100`). The OpenAI LLM backend is at `/openai` and the Anthropic
+backend is at `/anthropic`.
 
 ## Prerequisites
 
@@ -57,87 +59,142 @@ Environment variables:
 |----------|-------------|
 | `AGENTGATEWAY_LICENSE_KEY` | Solo Enterprise license — https://www.solo.io/company/contact |
 | `OPENAI_API_KEY` | OpenAI key used by the A/B harness via the `/openai` gateway route |
+| `ANTHROPIC_API_KEY` | Anthropic key for the second model (claude-sonnet-4-6) via the `/anthropic` gateway route |
 
 ## Quick Start
 
 ```bash
 # 1. Copy and fill in the environment file
 cp .env.example .env
-# Edit .env and set AGENTGATEWAY_LICENSE_KEY and OPENAI_API_KEY, then:
+# Edit .env and set AGENTGATEWAY_LICENSE_KEY, OPENAI_API_KEY, and ANTHROPIC_API_KEY, then:
 set -a; . .env; set +a
 
 # 2. Deploy the full stack (kind cluster + AGW + MCP servers + observability)
 ./deploy.sh
 
-# 3. Run the A/B sweep (full 10/50/100 tool-count sweep, 5 runs each)
+# 3. Run the full A/B sweep (both providers x 4 modes x 3 counts x cold/warm, 3 runs each)
 # NOTE: test.sh self-manages the proxy (8080) and pushgateway (9091) port-forwards.
 # Do NOT start those manually — it would collide ("address already in use").
 ./test.sh
+
+# To run a targeted subset, scope it with env vars:
+# RUNS=1 PROVIDERS=openai MODES=standard,search TOOL_COUNTS=10 ./test.sh
 
 # 4. View the Grafana dashboard — this is the only forward you need to start manually:
 kubectl port-forward svc/grafana -n observability 3001:80
 # Open http://localhost:3001  (username: admin / password: admin)
 
-# 6. Tear everything down
+# 5. Tear everything down
 ./cleanup.sh
 ```
 
-`test.sh` writes `harness/results.csv` and `harness/results.json`, pushes labeled
-gauges to Prometheus, and prints a savings summary table directly in the terminal.
+`test.sh` runs `run_ab.py` then `projection.py`. It writes `harness/results.csv`,
+`harness/results.json`, and `harness/projection.csv`, pushes labeled gauges to
+Prometheus, and prints a savings summary table directly in the terminal.
+
+## Tool Modes
+
+| Mode | `toolMode` | Tools advertised | How the model works |
+|------|-----------|-----------------|---------------------|
+| Standard | `Standard` | all N | Receives the full schema of every tool upfront |
+| Search | `Search` | 2 | Gets `get_tool` + `invoke_tool`; looks up schemas by name on demand |
+| Code | `Code` | 1 | Gets `run_code`; writes JS that orchestrates tool calls |
+| CodeSearch | `CodeSearch` | 2 | Gets `get_tool` + `run_code`; looks up schemas then executes via code |
+
+Each mode is deployed at tool counts 10/50/100 → 12 MCP backends; routes are
+`/mcp/<mode>-<count>`.
+
+**Honest tradeoff note:** Code/CodeSearch trade fewer advertised tools for extra
+round-trips and code-gen tokens — at low tool counts they can cost MORE; they win
+as the catalog grows. The Deep-Dive dashboard shows this crossover.
 
 ## What the Data Proves
 
-The A/B harness writes one row per `(mode, tool_count, run)` to `harness/results.csv`.
-The columns are:
+The A/B harness writes one row per `(provider, model, mode, tool_count, run,
+cache_state)` to `harness/results.csv`. Each task is run COLD then WARM (back-to-
+back) to exercise prompt caching. The columns are:
 
 | Column | Description |
 |--------|-------------|
-| `mode` | `default` or `search` |
+| `provider` | LLM provider (`openai` or `anthropic`) |
+| `model` | Model name (`gpt-4o-mini` or `claude-sonnet-4-6`) |
+| `mode` | Tool mode (`standard`, `search`, `code`, or `codesearch`) |
 | `tool_count` | Backend tool count (10, 50, or 100) |
-| `run` | Run index within the sweep (1–5 by default) |
-| `advertised_tools` | Tools returned by MCP `list_tools` — 100/50/10 in default mode, always **2** in search mode |
-| `first_call_prompt_tokens` | Prompt tokens on the **first** LLM call — this is the cleanest measure of tool-definition overhead because it includes only the system context and the full tool list before any tool results are appended |
+| `run` | Run index within the sweep |
+| `cache_state` | `cold` (first call) or `warm` (repeat call to exercise caching) |
+| `advertised_tools` | Tools returned by MCP `list_tools` — N in standard, 2 in search, 1 in code, 2 in codesearch |
+| `first_call_prompt_tokens` | Prompt tokens on the first LLM call — cleanest measure of tool-definition overhead |
 | `total_prompt_tokens` | Cumulative prompt tokens across all turns (initial + tool results) |
 | `completion_tokens` | Total completion tokens across all turns |
+| `cached_tokens` | OpenAI cached tokens (from `prompt_tokens_details.cached_tokens`) |
+| `cache_write_tokens` | Anthropic cache creation tokens |
+| `cache_read_tokens` | Anthropic cache read tokens |
 | `total_tokens` | `total_prompt_tokens + completion_tokens` |
-| `usd_cost` | USD cost at gpt-4o-mini list prices (input + output) |
-| `task_ok` | Whether the model successfully called `tool_007` and returned the echo |
+| `llm_calls` | Number of LLM round-trips required to complete the task |
+| `latency_ms` | Wall-clock task latency in milliseconds |
+| `usd_cost_uncached` | USD cost at list prices with no cache discount applied |
+| `usd_cost_cached` | USD cost with real cache tokens applied (OpenAI) or modeled rates (Anthropic) |
+| `task_ok` | Whether the model successfully called both required tools and returned the echoed strings |
 
 `first_call_prompt_tokens` is the key isolation metric: it captures only the
-tool-schema injection cost without contamination from tool results. In default mode
-this grows linearly with the number of backend tools. In **search mode it stays
-flat** — always reflecting the token cost of the two meta-tools (`get_tool` and
-`invoke_tool`) regardless of whether 10 or 100 tools are behind the gateway.
+tool-schema injection cost without contamination from tool results. In standard
+mode this grows linearly with the number of backend tools. In **search/codesearch
+mode it stays flat** — always reflecting the token cost of the two meta-tools
+regardless of whether 10 or 100 tools are behind the gateway.
 
-The terminal summary printed by `test.sh` shows the percentage reduction at each
-tool count, for example:
+## Caching
 
-```
-=== Search-mode savings summary ===
-   10 tools: default  X,XXX tok -> search  XXX tok = XX.X% reduction
-   50 tools: default  X,XXX tok -> search  XXX tok = XX.X% reduction
-  100 tools: default  X,XXX tok -> search  XXX tok = XX.X% reduction
-```
+**OpenAI (gpt-4o-mini):** caches automatically for prompts of 1024+ tokens, with
+cached input priced at ~50% off list. The harness captures the real `cached_tokens`
+field from the API response. Note that search, code, and codesearch prompts are
+often shorter than the 1024-token cache floor so they may not cache — yet they are
+still cheaper in absolute terms due to fewer advertised tool schemas.
+
+**Anthropic (claude-sonnet-4-6):** a `promptCaching` policy
+(`cacheSystem`/`cacheMessages`/`cacheTools`) is applied in `k8s/anthropic.yaml`,
+but cache tokens were not observed through AGW v2026.6.1 during testing. As a
+result, Anthropic cache economics are **modeled** in `projection.py` using
+published rates (cache write 1.25× base input, cache read 0.1× base input). The
+policy is applied as the documented, forward-compatible enablement and will
+automatically reflect real savings when the gateway surfaces cache tokens.
+
+## Cost Projection
+
+`projection.py` (run automatically by `test.sh` after `run_ab.py`) reads
+`results.csv`, averages the cache-aware cost per `(provider, mode, cache_state)`,
+and projects $/day and $/month at three daily call volumes: **10k, 50k, and 200k
+agent calls/day**. It also computes $ saved per month vs Standard mode for each
+provider/mode/cache-state combination. Results are written to `harness/projection.csv`
+and pushed as Grafana metrics (`agw_proj_usd_per_month`,
+`agw_proj_usd_saved_per_month_vs_standard`) labeled by provider, mode, cache_state,
+and volume.
 
 ## Grafana Dashboard
 
-The provisioned dashboard "MCP Search Mode — Token & Cost Savings" has five panels:
+Two dashboards are provisioned.
 
-1. **Avg prompt tokens — DEFAULT mode** (stat, red): first-call tokens when all tools
-   are advertised.
-2. **Avg prompt tokens — SEARCH mode** (stat, green): first-call tokens with only
-   `get_tool` + `invoke_tool` advertised.
-3. **Prompt-token reduction** (stat, percent): headline savings metric,
-   green when above 50%.
-4. **Prompt tokens vs tool count — the aha curve** (time-series): default mode rises
-   with tool count; search mode stays flat — the gap is the saving.
-5. **Avg USD cost per task by mode & tool count** (bar gauge): real dollar cost at
-   gpt-4o-mini list prices; search bars are dramatically shorter.
+**"MCP Search Mode — Token & Cost Savings"** (headline): five panels showing avg
+prompt tokens in standard vs search mode, the percentage token reduction, the
+aha-curve time-series where standard rises with tool count and search stays flat,
+and avg USD cost per task by mode and tool count.
+
+**"MCP Progressive Disclosure — Deep Dive"**: five rows with `provider` and
+`cache_state` template variables:
+
+1. **Tool-definition footprint** — first-call prompt tokens by mode and tool count;
+   advertised tools per mode (standard=all, search=2, code=1, codesearch=2).
+2. **Tradeoffs (round-trips / latency / net tokens)** — avg LLM round-trips per
+   task, wall-clock latency by mode, and total tokens (prompt+completion) per task.
+3. **Caching economics** — per-task USD cached vs uncached by mode; cold vs warm
+   first-call token comparison.
+4. **Task success** — success rate by mode, confirming that progressive disclosure
+   preserves correctness.
+5. **Business projection ($/month)** — projected monthly LLM spend by mode at
+   10k/50k/200k calls/day, plus monthly $ saved vs Standard mode.
 
 ## Key Config
 
-The search-mode behavior is enabled by a single field on the
-`EnterpriseAgentgatewayBackend`:
+The tool mode is set by a single field on the `EnterpriseAgentgatewayBackend`:
 
 ```yaml
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
@@ -147,7 +204,7 @@ metadata:
   namespace: agentgateway-system
 spec:
   entMcp:
-    toolMode: Search          # <-- this is the only difference from default mode
+    toolMode: Search          # Standard | Search | Code | CodeSearch
     targets:
     - name: synthetic
       static:
@@ -156,12 +213,30 @@ spec:
         protocol: SSE
 ```
 
-Setting `toolMode: Search` causes the gateway to replace the upstream tool list with
-`get_tool` + `invoke_tool` on every `/list_tools` response. The upstream tools are
-still fully callable via `invoke_tool`; the model just discovers them on demand
-rather than receiving all definitions upfront.
+The Anthropic backend uses an `AgentgatewayBackend` (standard AGW CRD) with an
+`EnterpriseAgentgatewayPolicy` for prompt caching:
 
-Reference: https://docs.solo.io/agentgateway/latest/mcp/tool-mode/search-mode/
+```yaml
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: anthropic-prompt-caching
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - kind: AgentgatewayBackend
+    group: agentgateway.dev
+    name: anthropic
+  backend:
+    ai:
+      promptCaching:
+        cacheSystem: true
+        cacheMessages: true
+        cacheTools: true
+```
+
+References:
+- https://docs.solo.io/agentgateway/latest/mcp/tool-mode/search-mode/
 
 ## Tracing in the Solo Enterprise UI
 

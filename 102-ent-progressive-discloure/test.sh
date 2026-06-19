@@ -33,8 +33,17 @@ echo "    Using interpreter: ${PYTHON} ($(${PYTHON} --version 2>&1))"
 [[ -d .venv ]] || "${PYTHON}" -m venv .venv
 ./.venv/bin/python -m pip install -q --upgrade pip
 ./.venv/bin/python -m pip install -q -r requirements.txt
-RUNS="${RUNS:-5}" ./.venv/bin/python run_ab.py
+
+# Full sweep: both providers x 4 modes x 3 tool counts x cold/warm. Override any
+# of PROVIDERS / MODES / TOOL_COUNTS / RUNS to scope it down for a quick demo.
+RUNS="${RUNS:-3}" ./.venv/bin/python run_ab.py
 
 echo ""
-echo "==> Ground-truth data written to harness/results.csv"
-echo "==> View the dashboard: kubectl port-forward svc/grafana -n observability 3001:80  ->  http://localhost:3001"
+echo "==> Computing business cost projection..."
+./.venv/bin/python projection.py
+
+echo ""
+echo "==> Ground-truth data: harness/results.csv  +  harness/projection.csv"
+echo "==> Dashboards: kubectl port-forward svc/grafana -n observability 3001:80  ->  http://localhost:3001"
+echo "      - 'MCP Search Mode — Token & Cost Savings' (headline)"
+echo "      - 'MCP Progressive Disclosure — Deep Dive'  (modes, cache, latency, projection)"
