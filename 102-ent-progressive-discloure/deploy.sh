@@ -185,3 +185,7 @@ done
 for count in "${TOOL_COUNTS[@]}"; do
   kubectl rollout status deployment/mcp-server-${count} -n "${NAMESPACE}" --timeout=120s
 done
+
+echo ""
+echo "==> Step 8: Configuring OpenAI LLM backend (/openai)..."
+sed "s|__OPENAI_API_KEY__|${OPENAI_API_KEY}|" "${SCRIPT_DIR}/k8s/openai.yaml" | kubectl apply -f-
