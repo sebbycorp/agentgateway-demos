@@ -3,7 +3,7 @@
 **Demo:** `102-ent-tokenomics`
 **Date:** 2026-06-19
 **Environment:** local `kind` cluster `agw-progressive-disclosure`, Solo Enterprise for AgentGateway `v2026.6.1`
-**Run:** 2 providers × 3 tool modes × 6 tool counts × {cold, warm} × 2 runs = **144 task executions**
+**Run:** 2 providers × 3 tool modes × 6 tool counts (5/10/15/30/50/100) × {cold, warm} × 2 runs = **144 task executions**
 
 ## What was tested
 
@@ -22,7 +22,7 @@ The demo is **fully synthetic and self-contained**. All MCP servers run inside t
 kind cluster — no external MCP services, hosted endpoints, or third-party APIs are
 required. Two types of synthetic servers are deployed:
 
-- **Cost-sweep servers** — one per catalog size (10/15/20/30/50/100), tools named
+- **Cost-sweep servers** — one per catalog size (5/10/15/30/50/100), tools named
   `tool_NNN` (numeric naming), fronted at `/mcp/standard-N`, `/mcp/search-N`,
   `/mcp/codesearch-N`.
 - **RBAC server** — 20 semantically-named tools (`get_/list_/create_/update_/delete_resource_NNN`),
@@ -85,7 +85,8 @@ Search/CodeSearch modes are not free — discovery and code-gen add round-trips 
 
 **Key finding:** Search wins immediately at every catalog size. CodeSearch delivers
 comparable token savings but adds code-gen round-trips and latency. Use the
-Deep-Dive Grafana dashboard to find the crossover for your task and model.
+Executive Summary and Evaluation Framework Grafana dashboards to find the crossover
+for your task and model.
 
 ## 3. Caching economics
 
@@ -143,15 +144,14 @@ modes/models/sizes** in the comprehensive n=3 frontier sweep.
 
 - **Tracing:** an `EnterpriseAgentgatewayPolicy` exports GenAI spans to the Solo
   Enterprise UI (spans land in ClickHouse `platformdb.otel_traces_json`).
-- **Grafana** (3 provisioned dashboards, verified resolving live data):
-  - *MCP Progressive Disclosure — Executive Summary* (headline) — frames *Without
-    progressive disclosure* (Standard baseline) vs Search vs CodeSearch: monthly
-    LLM spend without disclosure, with Search, and monthly savings ($); tool-context
-    reduction % (Search vs baseline); task success rate; per-call tool context as the
-    catalog grows; projected monthly spend by approach. Template vars: `provider`
-    (model) + `volume` (agent calls/day).
-  - *MCP Progressive Disclosure — Deep Dive* (token footprint, tradeoffs, caching,
-    task success, business projection; `provider` + `cache_state` switches)
+- **Grafana** (2 provisioned dashboards, verified resolving live data; both render
+  the agentgateway logo in their header):
+  - *MCP Progressive Disclosure — Executive Summary* (headline, uid
+    `agw-progressive-disclosure`) — frames *Without disclosure* (Standard baseline)
+    vs Search vs CodeSearch: monthly LLM spend without Search vs with Search, and
+    monthly savings ($); tool-context reduction % (Search vs baseline); task success
+    rate; per-call tokens as the catalog grows; projected monthly spend by approach.
+    Template vars: `provider` (model) + `volume` (agent calls/day).
   - *MCP Progressive Disclosure — Evaluation Framework* (accuracy at scale,
     agentic-loop compounding, RBAC per-persona, projection)
 

@@ -74,7 +74,7 @@ catalog.
  ┌──────────────────────────────────────────────────────────────────────┐
  │  agentgateway-proxy  (Gateway API / EnterpriseAgentGateway)          │
  │                                                                      │
- │  Synthetic cost-sweep servers (10/15/20/30/50/100 tools each)        │
+ │  Synthetic cost-sweep servers (5/10/15/30/50/100 tools each)         │
  │   ├─ /mcp/standard-N    → EnterpriseAgentgatewayBackend toolMode: Standard   ┐ │
  │   ├─ /mcp/search-N      → EnterpriseAgentgatewayBackend toolMode: Search     │→ mcp-server-N
  │   └─ /mcp/codesearch-N  → EnterpriseAgentgatewayBackend toolMode: CodeSearch ┘  (TOOL_COUNT
@@ -97,7 +97,7 @@ catalog.
  │                   ├─▶ ClickHouse (Solo UI tracing view)              │
  │  Harness pushes gauges to:                                           │
  │  Prometheus ◀── Pushgateway ◀── Python eval harness                 │
- │      └──▶ Grafana (3 provisioned dashboards)                         │
+ │      └──▶ Grafana (2 provisioned dashboards)                         │
  └──────────────────────────────────────────────────────────────────────┘
                ▲
  Python eval harness (MCP client + OpenAI-compatible SDK)
@@ -116,7 +116,7 @@ inside the kind cluster:
 
 | Backend | Tools | Notes |
 |---------|------:|-------|
-| Synthetic cost-sweep (per size) | 10 / 15 / 20 / 30 / 50 / 100 | `TOOL_COUNT` env knob; numeric naming `tool_NNN`; 3 mode variants each |
+| Synthetic cost-sweep (per size) | 5 / 10 / 15 / 30 / 50 / 100 | `TOOL_COUNT` env knob; numeric naming `tool_NNN`; 3 mode variants each |
 | Synthetic RBAC server | 20 | `TOOL_NAMING=semantic`; semantically-named tools (`get_/list_/create_/update_/delete_resource_NNN`); fronted at `/mcp/rbac`; JWT RBAC enforced |
 
 Two frontier models are tested:
@@ -144,8 +144,8 @@ token-savings mechanism.
 
 **Honest tradeoff:** CodeSearch adds round-trips and code-gen tokens. Search wins
 immediately at every catalog size. CodeSearch follows a similar savings curve.
-Use the Deep-Dive Grafana dashboard to find the crossover for your specific task
-and model.
+Use the Executive Summary and Evaluation Framework Grafana dashboards to find the
+crossover for your specific task and model.
 
 ---
 
@@ -244,7 +244,7 @@ set -a; . .env; set +a
 
 # Full frontier run (all providers, modes, sizes, personas, loop depths):
 # PROVIDERS=openai,anthropic MODES=standard,search,codesearch \
-#   CATALOG_SIZES=10,15,20,30,50,100 PERSONAS=admin,team,readonly,none \
+#   CATALOG_SIZES=5,10,15,30,50,100 PERSONAS=admin,team,readonly,none \
 #   TASKS=two_tools,single_echo LOOP_KS=1,3 SAMPLES=3 ./test.sh
 
 # 4. Open dashboards
@@ -284,7 +284,7 @@ are importable independently; `eval.py` is the orchestrator.
 | `OPENAI_MODEL` | `gpt-5.5` | Override OpenAI model |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Override Anthropic model |
 | `MODES` | `standard,search,codesearch` | Tool modes to test |
-| `CATALOG_SIZES` | `10,15,20,30,50,100` | Synthetic catalog sizes |
+| `CATALOG_SIZES` | `5,10,15,30,50,100` | Synthetic catalog sizes |
 | `PERSONAS` | `none` | Comma-list: `admin`, `team`, `readonly`, `none` |
 | `TASKS` | `two_tools,single_echo` | Task IDs (see `tasks.py`) |
 | `LOOP_KS` | `0` | Agentic loop depths; `0` = single-shot tasks only |
@@ -322,15 +322,16 @@ gateway.
 
 ## Observability
 
-### Grafana dashboards (3 provisioned, auto-loaded)
+### Grafana dashboards (2 provisioned, auto-loaded)
+
+Both dashboards render the agentgateway logo in their header.
 
 | Dashboard | Key panels |
 |-----------|------------|
-| **MCP Progressive Disclosure — Executive Summary** (headline, uid `agw-progressive-disclosure`) | Frames the story as *Without progressive disclosure* (Standard baseline) vs Search vs CodeSearch: monthly LLM spend without disclosure (baseline), with Search, and monthly savings ($); tool-context reduction % (Search vs baseline); task success rate; per-call tool context as the catalog grows (Without vs Search bargauge); projected monthly spend by approach (Without / Search / CodeSearch) |
-| **MCP Progressive Disclosure — Deep Dive** | Tool footprint; round-trip / latency tradeoffs; caching economics; task success rate; $/month projection at 10k/50k/200k calls/day |
+| **MCP Progressive Disclosure — Executive Summary** (headline, uid `agw-progressive-disclosure`) | Frames the story as *Without disclosure* (Standard baseline) vs Search vs CodeSearch: monthly LLM spend without Search vs with Search, and monthly savings ($); tool-context reduction % (Search vs baseline); task success rate; per-call tokens as the catalog grows (Without vs Search bargauge); projected monthly spend by approach (Without / Search / CodeSearch) |
 | **MCP Progressive Disclosure — Evaluation Framework** | Accuracy at scale; agentic-loop compounding; RBAC per-persona tool visibility; $/month projection |
 
-Template variables on the Executive Summary dashboard: `provider` (Model: openai/anthropic) and `volume` (Agent calls/day: 10000/50000/200000). It reads `agw_eval_proj_usd_per_month`, `agw_eval_proj_saved_per_month_vs_standard`, `agw_v3_first_call_prompt_tokens`, and `agw_v3_task_ok`. Template variables on the Deep Dive dashboard: `provider`, `cache_state`.
+Template variables on the Executive Summary dashboard: `provider` (Model: openai/anthropic) and `volume` (Agent calls/day: 10000/50000/200000). It reads `agw_eval_proj_usd_per_month`, `agw_eval_proj_saved_per_month_vs_standard`, `agw_v3_first_call_prompt_tokens`, and `agw_v3_task_ok`.
 
 ### Solo Enterprise UI tracing
 
