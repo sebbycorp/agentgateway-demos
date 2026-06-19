@@ -1,45 +1,94 @@
 {
-  "title": "MCP Search Mode — Token & Cost Savings",
+  "title": "MCP Progressive Disclosure — Executive Summary",
   "uid": "agw-progressive-disclosure",
   "schemaVersion": 39,
-  "time": { "from": "now-6h", "to": "now" },
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "provider", "type": "custom", "label": "Model",
+        "query": "openai,anthropic", "current": { "text": "openai", "value": "openai" },
+        "options": [
+          { "text": "openai", "value": "openai", "selected": true },
+          { "text": "anthropic", "value": "anthropic", "selected": false }
+        ]
+      },
+      {
+        "name": "volume", "type": "custom", "label": "Agent calls/day",
+        "query": "10000,50000,200000", "current": { "text": "200000", "value": "200000" },
+        "options": [
+          { "text": "10000", "value": "10000", "selected": false },
+          { "text": "50000", "value": "50000", "selected": false },
+          { "text": "200000", "value": "200000", "selected": true }
+        ]
+      }
+    ]
+  },
   "panels": [
     {
-      "id": 1, "type": "stat", "title": "Avg prompt tokens — STANDARD mode (OpenAI, cold)",
-      "description": "Tool definitions sent to the model on the first call when ALL tools are advertised. Higher = more wasted context. (gpt-4o-mini, cold cache, averaged across tool counts.)",
-      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
-      "targets": [ { "expr": "avg(agw_first_call_prompt_tokens{provider=\"openai\",mode=\"standard\",cache_state=\"cold\"})", "legendFormat": "standard" } ]
+      "id": 1, "type": "stat",
+      "title": "Monthly LLM spend — WITHOUT progressive disclosure",
+      "description": "Projected monthly cost of the tool-definition overhead when the full tool catalog is sent on every call (Standard mode). This is the baseline bill before progressive disclosure.",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "red" } } },
+      "targets": [ { "expr": "avg(agw_eval_proj_usd_per_month{provider=\"$provider\",mode=\"standard\",volume=\"$volume\"})", "legendFormat": "Without disclosure" } ]
     },
     {
-      "id": 2, "type": "stat", "title": "Avg prompt tokens — SEARCH mode (OpenAI, cold)",
-      "description": "Tool definitions sent when only get_tool + invoke_tool are advertised. Stays flat regardless of backend tool count.",
-      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
-      "targets": [ { "expr": "avg(agw_first_call_prompt_tokens{provider=\"openai\",mode=\"search\",cache_state=\"cold\"})", "legendFormat": "search" } ]
+      "id": 2, "type": "stat",
+      "title": "Monthly LLM spend — WITH Search mode",
+      "description": "Same workload with progressive disclosure (Search): the model sees only get_tool + invoke_tool, so the per-call tool context stays tiny regardless of catalog size.",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [ { "expr": "avg(agw_eval_proj_usd_per_month{provider=\"$provider\",mode=\"search\",volume=\"$volume\"})", "legendFormat": "Search" } ]
     },
     {
-      "id": 3, "type": "stat", "title": "Prompt-token reduction (OpenAI, cold)",
-      "description": "How much smaller the model's tool context is with search mode vs standard. Bigger is better.",
-      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 50 } ] } } },
-      "targets": [ { "expr": "(1 - avg(agw_first_call_prompt_tokens{provider=\"openai\",mode=\"search\",cache_state=\"cold\"}) / avg(agw_first_call_prompt_tokens{provider=\"openai\",mode=\"standard\",cache_state=\"cold\"})) * 100" } ]
+      "id": 3, "type": "stat",
+      "title": "Monthly savings with Search",
+      "description": "Dollars saved per month by enabling Search mode versus sending the full catalog — at the selected model and daily call volume.",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [ { "expr": "avg(agw_eval_proj_saved_per_month_vs_standard{provider=\"$provider\",mode=\"search\",volume=\"$volume\"})", "legendFormat": "Saved/month" } ]
     },
     {
-      "id": 4, "type": "timeseries", "title": "Prompt tokens vs tool count (the aha curve)",
-      "description": "Standard rises as the backend exposes more tools; search stays flat. The gap is the saving. (OpenAI, cold.)",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "id": 4, "type": "stat",
+      "title": "Tool-context reduction (Search vs baseline)",
+      "description": "How much smaller the model's per-call tool context is with Search mode versus sending the full catalog. Higher is better.",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 75 } ] } } },
+      "targets": [ { "expr": "(1 - avg(agw_v3_first_call_prompt_tokens{provider=\"$provider\",mode=\"search\"}) / avg(agw_v3_first_call_prompt_tokens{provider=\"$provider\",mode=\"standard\"})) * 100" } ]
+    },
+    {
+      "id": 5, "type": "stat",
+      "title": "Task success rate (all approaches)",
+      "description": "Share of agent tasks completed correctly across approaches. Progressive disclosure preserves correctness — savings do not come at the cost of reliability.",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0.99 } ] } } },
+      "targets": [ { "expr": "avg(agw_v3_task_ok{provider=\"$provider\"})" } ]
+    },
+    {
+      "id": 6, "type": "bargauge",
+      "title": "Per-call tool context as the tool catalog grows",
+      "description": "Average tool-definition tokens per call by approach and catalog size. Without disclosure (Standard) balloons as you add tools; Search and CodeSearch stay flat — that widening gap is the saving.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient" },
       "targets": [
-        { "expr": "avg by (tool_count) (agw_first_call_prompt_tokens{provider=\"openai\",mode=\"standard\",cache_state=\"cold\"})", "legendFormat": "standard {{tool_count}} tools" },
-        { "expr": "avg by (tool_count) (agw_first_call_prompt_tokens{provider=\"openai\",mode=\"search\",cache_state=\"cold\"})", "legendFormat": "search {{tool_count}} tools" }
+        { "expr": "avg by (catalog_size) (agw_v3_first_call_prompt_tokens{provider=\"$provider\",mode=\"standard\"})", "legendFormat": "Without disclosure — {{catalog_size}} tools" },
+        { "expr": "avg by (catalog_size) (agw_v3_first_call_prompt_tokens{provider=\"$provider\",mode=\"search\"})", "legendFormat": "Search — {{catalog_size}} tools" }
       ]
     },
     {
-      "id": 5, "type": "bargauge", "title": "Avg USD cost per task by mode & tool count",
-      "description": "Real cache-aware dollar cost per agent task at gpt-4o-mini list prices (cold). Search bars are dramatically shorter. See the Deep-Dive dashboard for all modes, both models, and cold/warm cache.",
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 6 } },
-      "targets": [ { "expr": "avg by (mode, tool_count) (agw_usd_cost_cached{provider=\"openai\",cache_state=\"cold\"})", "legendFormat": "{{mode}} {{tool_count}}" } ]
+      "id": 7, "type": "bargauge",
+      "title": "Projected monthly LLM spend by approach",
+      "description": "Monthly cost at the selected model and daily volume: Without disclosure vs Search vs CodeSearch. Shorter bars are cheaper.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 12 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 0 } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient" },
+      "targets": [
+        { "expr": "avg(agw_eval_proj_usd_per_month{provider=\"$provider\",mode=\"standard\",volume=\"$volume\"})", "legendFormat": "Without disclosure" },
+        { "expr": "avg(agw_eval_proj_usd_per_month{provider=\"$provider\",mode=\"search\",volume=\"$volume\"})", "legendFormat": "Search" },
+        { "expr": "avg(agw_eval_proj_usd_per_month{provider=\"$provider\",mode=\"codesearch\",volume=\"$volume\"})", "legendFormat": "CodeSearch" }
+      ]
     }
   ]
 }
