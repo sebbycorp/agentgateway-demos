@@ -17,8 +17,10 @@ spec:
       containers:
         - name: bridge
           image: node:22
-          command: ["npx", "-y", "supergateway",
-                    "--stdio", "npx -y @modelcontextprotocol/server-everything",
+          # Pinned package versions (supply-chain hygiene). For stricter control,
+          # bake these into a digest-pinned custom image with a lockfile.
+          command: ["npx", "-y", "supergateway@3.4.3",
+                    "--stdio", "npx -y @modelcontextprotocol/server-everything@2026.1.26",
                     "--port", "8000", "--healthEndpoint", "/healthz"]
           ports: [{ containerPort: 8000, name: http }]
           readinessProbe:
@@ -63,6 +65,10 @@ spec:
           env:
             - { name: F5_HOST, value: "https://172.16.10.10" }
             - { name: F5_USERNAME, value: "admin" }
+            # SECURITY NOTE: TLS verification is disabled because this demo targets a
+            # lab BIG-IP with a self-signed mgmt cert. For production, set
+            # F5_VERIFY_SSL=true and mount the device CA bundle (Secret/ConfigMap)
+            # for the wrapper to trust, rather than disabling verification.
             - { name: F5_VERIFY_SSL, value: "false" }
             - { name: READ_ONLY, value: "true" }   # demo safety: block destructive F5 ops
             - name: F5_PASSWORD
