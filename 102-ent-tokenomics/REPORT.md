@@ -1,6 +1,6 @@
 # Progressive Disclosure — Test Report
 
-**Demo:** `102-ent-tokenomix-report`
+**Demo:** `102-ent-tokenomics`
 **Date:** 2026-06-19
 **Environment:** local `kind` cluster `agw-progressive-disclosure`, Solo Enterprise for AgentGateway `v2026.6.1`
 **Run:** 2 providers × 4 tool modes × 3 tool counts × {cold, warm} × 2 runs = **96 task executions**

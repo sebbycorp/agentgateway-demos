@@ -2,7 +2,7 @@
 
 > Implement task-by-task on branch `feat/102-v3-eval-framework`. Live cluster `agw-progressive-disclosure` is up; verification is LIVE. Front-load spikes.
 
-**Goal:** Turn demo `102-ent-tokenomix-report/` into a clean MCP progressive-disclosure **evaluation framework**: real MCP servers + GitHub, agentic loops (compounding savings), tool-selection accuracy at scale, 3-persona RBAC tool filtering, frontier models (gpt-5.5 + claude-opus-4-8), with the test and dashboards surfacing everything.
+**Goal:** Turn demo `102-ent-tokenomics/` into a clean MCP progressive-disclosure **evaluation framework**: real MCP servers + GitHub, agentic loops (compounding savings), tool-selection accuracy at scale, 3-persona RBAC tool filtering, frontier models (gpt-5.5 + claude-opus-4-8), with the test and dashboards surfacing everything.
 
 **Tech stack:** Enterprise AGW v2026.6.1; SSE-wrapped real MCP servers (supergateway) + synthetic padding; JWT auth + `mcp.authorization`; Python 3.13 eval framework; Prometheus/Grafana.
 
@@ -10,7 +10,7 @@
 - MCP backend targets are network-based: `static` (host/port/SSE) or `selector` (by label). stdio reference servers need an SSE wrapper (supergateway/mcp-proxy) container.
 - RBAC: `traffic.jwtAuthentication.providers[]` (JWT) + `backend.mcp.authorization` (`action`+`policy`) filters tools per identity.
 - Frontier models reachable via OpenAI-compat schema. **gpt-5.5 rejects `temperature:0`** (omit it). OpenAI cache floor ~1024 tok and best-effort.
-- Folder renamed to `102-ent-tokenomix-report/`; `.env` holds ANTHROPIC_API_KEY + GITHUB_TOKEN (gitignored, token verified).
+- Folder renamed to `102-ent-tokenomics/`; `.env` holds ANTHROPIC_API_KEY + GITHUB_TOKEN (gitignored, token verified).
 
 ## Global constraints
 - Cluster `agw-progressive-disclosure`, ns `agentgateway-system`, obs ns `observability`.

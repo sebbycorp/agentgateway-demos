@@ -265,7 +265,7 @@ kubectl exec -n agentgateway-system management-clickhouse-shard0-0 -c clickhouse
 
 | Demo | Cluster name | AGW version | Gateway API |
 |------|--------------|-------------|-------------|
-| 102-ent-tokenomix-report | `agw-progressive-disclosure` | `v2026.6.1` | `v1.5.0` |
+| 102-ent-tokenomics | `agw-progressive-disclosure` | `v2026.6.1` | `v1.5.0` |
 
 ## Cleanup
 

@@ -10,5 +10,18 @@
     "cache_write_per_1k": 0.00375,
     "cache_read_per_1k": 0.0003,
     "output_per_1k": 0.015
+  },
+  "gpt-5.5": {
+    "_TODO": "Verify against current OpenAI list prices — placeholder rates used here",
+    "input_per_1k": 0.005,
+    "cached_input_per_1k": 0.0025,
+    "output_per_1k": 0.015
+  },
+  "claude-opus-4-8": {
+    "_TODO": "Verify against current Anthropic list prices — placeholder rates used here",
+    "input_per_1k": 0.015,
+    "cache_write_per_1k": 0.01875,
+    "cache_read_per_1k": 0.0015,
+    "output_per_1k": 0.075
   }
 }
