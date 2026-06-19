@@ -1,0 +1,339 @@
+{
+  "title": "MCP Progressive Disclosure — Deep Dive",
+  "uid": "agw-progressive-disclosure-deepdive",
+  "schemaVersion": 39,
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "provider",
+        "label": "Provider",
+        "type": "custom",
+        "query": "openai,anthropic",
+        "current": { "text": "openai", "value": "openai" },
+        "options": [
+          { "text": "openai", "value": "openai", "selected": true },
+          { "text": "anthropic", "value": "anthropic", "selected": false }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "cache_state",
+        "label": "Cache State",
+        "type": "custom",
+        "query": "cold,warm",
+        "current": { "text": "cold", "value": "cold" },
+        "options": [
+          { "text": "cold", "value": "cold", "selected": true },
+          { "text": "warm", "value": "warm", "selected": false }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Tool-definition footprint",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "First-call prompt tokens by mode and tool count",
+      "description": "First-call prompt tokens by mode and tool count — standard grows with tools; search/codesearch stay small.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, tool_count) (agw_first_call_prompt_tokens{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "{{mode}} {{tool_count}}t"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "bargauge",
+      "title": "Advertised tools per mode",
+      "description": "Tools advertised to the model per mode (standard=all, search=2, code=1, codesearch=2).",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_advertised_tools{provider=\"$provider\"})",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "Tradeoffs (the cost of disclosure)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Avg LLM round-trips per task",
+      "description": "Avg LLM round-trips per task. Search/Code add discovery/codegen turns.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 6 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_llm_calls{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Wall-clock latency by mode (ms)",
+      "description": "Wall-clock latency per task by mode.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_latency_ms{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Total tokens per task by mode and tool count",
+      "description": "Net total tokens (prompt+completion) per task — the true token bill.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, tool_count) (agw_total_tokens{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "{{mode}} {{tool_count}}t"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Caching economics",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Per-task USD: cached vs uncached by mode",
+      "description": "Per-task USD with vs without prompt caching, by mode.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 6,
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_usd_cost_cached{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "cached {{mode}}"
+        },
+        {
+          "expr": "avg by (mode) (agw_usd_cost_uncached{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "uncached {{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Cold vs warm first-call tokens",
+      "description": "Cold vs warm first-call tokens — warm shows cache hits (OpenAI standard mode).",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_first_call_prompt_tokens{provider=\"$provider\",cache_state=\"cold\"})",
+          "legendFormat": "cold {{mode}}"
+        },
+        {
+          "expr": "avg by (mode) (agw_first_call_prompt_tokens{provider=\"$provider\",cache_state=\"warm\"})",
+          "legendFormat": "warm {{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Task success",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Task success rate by mode",
+      "description": "Task success rate by mode — does progressive disclosure preserve correctness?",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "green", "value": 0.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_task_ok{provider=\"$provider\",cache_state=\"$cache_state\"})",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Business projection ($/month)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 }
+    },
+    {
+      "id": 14,
+      "type": "bargauge",
+      "title": "Projected monthly LLM spend by mode and volume",
+      "description": "Projected monthly LLM spend by mode at 10k/50k/200k agent calls/day.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "agw_proj_usd_per_month{provider=\"$provider\",cache_state=\"$cache_state\"}",
+          "legendFormat": "{{mode}} @ {{volume}}/day"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "bargauge",
+      "title": "Monthly $ saved vs Standard mode at 200k calls/day",
+      "description": "Monthly $ saved vs Standard mode at 200k calls/day (negative = costs more).",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 37 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 100 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "agw_proj_usd_saved_per_month_vs_standard{provider=\"$provider\",cache_state=\"$cache_state\",volume=\"200000\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    }
+  ]
+}
