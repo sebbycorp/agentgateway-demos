@@ -19,7 +19,7 @@ AGW_VERSION="v2026.6.1"
 GATEWAY_API_VERSION="v1.5.0"
 UI_VERSION="0.3.19"
 MGMT_CLUSTER_NAME="mgmt-cluster"
-TOOL_COUNTS=(10 15 20 30 50 100)
+TOOL_COUNTS=(5 10 15 30 50 100)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==> Checking prerequisites..."
@@ -272,11 +272,6 @@ kubectl create configmap agw-dashboard -n observability \
   --from-file=dashboard.json="${SCRIPT_DIR}/observability/dashboard.json" \
   --dry-run=client -o yaml | kubectl apply -f-
 kubectl label configmap agw-dashboard -n observability grafana_dashboard=1 --overwrite
-
-kubectl create configmap agw-dashboard-deepdive -n observability \
-  --from-file=dashboard-deepdive.json="${SCRIPT_DIR}/observability/dashboard-deepdive.json" \
-  --dry-run=client -o yaml | kubectl apply -f-
-kubectl label configmap agw-dashboard-deepdive -n observability grafana_dashboard=1 --overwrite
 
 kubectl create configmap agw-dashboard-eval -n observability \
   --from-file=dashboard-eval.json="${SCRIPT_DIR}/observability/dashboard-eval.json" \

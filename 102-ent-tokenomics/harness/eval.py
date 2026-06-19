@@ -11,7 +11,7 @@ Env knobs (all optional; defaults give a cheap smoke run):
   OPENAI_MODEL      override OpenAI model       [gpt-5.5]
   ANTHROPIC_MODEL   override Anthropic model    [claude-opus-4-8]
   MODES             comma-list                  [standard,search,codesearch]
-  CATALOG_SIZES     comma-list (synthetic)      [10,15,20,30,50,100]
+  CATALOG_SIZES     comma-list (synthetic)      [5,10,15,30,50,100]
   PERSONAS          comma-list or "none"        [none]
   TASKS             comma-list of task IDs      [two_tools,single_echo]
   LOOP_KS           comma-list                  [0]   (0 = non-loop tasks only)
@@ -65,7 +65,7 @@ PUSHGATEWAY = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")
 PROVIDERS_ENV = os.environ.get("PROVIDERS", "openai,anthropic").split(",")
 MODES_ENV = os.environ.get("MODES", "standard,search,codesearch").split(",")
 CATALOG_SIZES_ENV = [
-    int(x) for x in os.environ.get("CATALOG_SIZES", "10,15,20,30,50,100").split(",")
+    int(x) for x in os.environ.get("CATALOG_SIZES", "5,10,15,30,50,100").split(",")
 ]
 PERSONAS_ENV = os.environ.get("PERSONAS", "none").split(",")
 TASKS_ENV = os.environ.get("TASKS", ",".join(SMOKE_TASKS)).split(",")

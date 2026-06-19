@@ -84,7 +84,7 @@ TOOL_SURFACE: Dict[str, Optional[int]] = {
 }
 
 # Valid synthetic catalog sizes — realistic gradient.
-SYNTHETIC_CATALOG_SIZES = (10, 15, 20, 30, 50, 100)
+SYNTHETIC_CATALOG_SIZES = (5, 10, 15, 30, 50, 100)
 
 # Non-synthetic targets. "rbac" is the dedicated semantic-tool server used for the
 # JWT RBAC demo (route /mcp/rbac, Standard mode, JWT-gated).

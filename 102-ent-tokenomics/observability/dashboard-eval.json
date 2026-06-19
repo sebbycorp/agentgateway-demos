@@ -1,8 +1,11 @@
 {
-  "title": "MCP Progressive Disclosure — Evaluation Framework",
+  "title": "MCP Progressive Disclosure \u2014 Evaluation Framework",
   "uid": "agw-progressive-disclosure-eval",
   "schemaVersion": 39,
-  "time": { "from": "now-6h", "to": "now" },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "templating": {
     "list": [
       {
@@ -10,10 +13,21 @@
         "label": "Provider",
         "type": "custom",
         "query": "openai,anthropic",
-        "current": { "text": "openai", "value": "openai" },
+        "current": {
+          "text": "openai",
+          "value": "openai"
+        },
         "options": [
-          { "text": "openai", "value": "openai", "selected": true },
-          { "text": "anthropic", "value": "anthropic", "selected": false }
+          {
+            "text": "openai",
+            "value": "openai",
+            "selected": true
+          },
+          {
+            "text": "anthropic",
+            "value": "anthropic",
+            "selected": false
+          }
         ],
         "hide": 0,
         "includeAll": false,
@@ -24,12 +38,31 @@
         "label": "Mode",
         "type": "custom",
         "query": "standard,search,code,codesearch",
-        "current": { "text": "search", "value": "search" },
+        "current": {
+          "text": "search",
+          "value": "search"
+        },
         "options": [
-          { "text": "standard", "value": "standard", "selected": false },
-          { "text": "search", "value": "search", "selected": true },
-          { "text": "code", "value": "code", "selected": false },
-          { "text": "codesearch", "value": "codesearch", "selected": false }
+          {
+            "text": "standard",
+            "value": "standard",
+            "selected": false
+          },
+          {
+            "text": "search",
+            "value": "search",
+            "selected": true
+          },
+          {
+            "text": "code",
+            "value": "code",
+            "selected": false
+          },
+          {
+            "text": "codesearch",
+            "value": "codesearch",
+            "selected": false
+          }
         ],
         "hide": 0,
         "includeAll": false,
@@ -39,18 +72,44 @@
   },
   "panels": [
     {
+      "id": 9000,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;align-items:center;height:100%\"><img src=\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgOTAiIGZvbnQtZmFtaWx5PSJJbnRlcixIZWx2ZXRpY2EsQXJpYWwsc2Fucy1zZXJpZiI+CiAgPCEtLSBhZ2VudGdhdGV3YXkgbWFyazogc3R5bGl6ZWQgZG90IHBhdHRlcm4gLS0+CiAgPGcgZmlsbD0iIzdjM2FlZCI+CiAgICA8cmVjdCB4PSI2IiAgeT0iMjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI1MCIgcng9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxMSIvPgogICAgPHJlY3QgeD0iNDAiIHk9IjE0IiB3aWR0aD0iMjAiIGhlaWdodD0iNDQiIHJ4PSIxMCIvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSI2NCIgcj0iMTEiLz4KICAgIDxyZWN0IHg9Ijc0IiB5PSIyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjUwIiByeD0iMTAiLz4KICAgIDxjaXJjbGUgY3g9Ijg0IiBjeT0iMTYiIHI9IjExIi8+CiAgICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjgwIiByPSI4Ii8+CiAgPC9nPgogIDx0ZXh0IHg9IjEyMCIgeT0iNjAiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiNlOGU2ZjAiPmFnZW50Z2F0ZXdheTwvdGV4dD4KPC9zdmc+Cg==\" style=\"height:46px\"/></div>"
+      }
+    },
+    {
       "id": 1,
       "type": "row",
       "title": "Tool-selection accuracy at scale",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      }
     },
     {
       "id": 2,
       "type": "timeseries",
       "title": "Accuracy by mode across catalog size (cheaper AND correct)",
       "description": "Top-1 tool-selection accuracy rate by mode as the catalog grows. Standard degrades as the model must choose from more tools; search stays high because the model only sees get_tool+invoke_tool regardless of catalog depth. This is the 'cheaper AND correct' story.",
-      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 4
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
@@ -63,9 +122,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.7 },
-              { "color": "green", "value": 0.9 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
             ]
           }
         }
@@ -82,26 +150,46 @@
       "type": "bargauge",
       "title": "Accuracy by mode (latest)",
       "description": "Current top-1 tool accuracy rate averaged across all catalog sizes, per mode. A green bar means the mode selects the right tool reliably despite a large backend catalog.",
-      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 1 },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 4
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "min": 0,
           "max": 1,
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.7 },
-              { "color": "green", "value": 0.9 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
             ]
           }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -115,7 +203,12 @@
       "type": "timeseries",
       "title": "Total tokens per task by mode across catalog size",
       "description": "Total tokens (prompt + completion) per task as catalog grows. Standard mode inflates the prompt with every extra tool definition; search mode's token bill is nearly flat because only 2 tools are ever advertised.",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -136,17 +229,28 @@
       "type": "bargauge",
       "title": "Per-task USD by mode across catalog size",
       "description": "Cache-aware USD cost per task broken out by mode and catalog size. A flat bar across catalog sizes confirms the cost advantage of progressive-disclosure modes does not degrade as the backend grows.",
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
           "decimals": 6,
-          "color": { "mode": "palette-classic" }
+          "color": {
+            "mode": "palette-classic"
+          }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -160,14 +264,24 @@
       "type": "row",
       "title": "Agentic-loop compounding",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      }
     },
     {
       "id": 7,
       "type": "timeseries",
       "title": "Cumulative total tokens by mode across loop depth (loop_k)",
       "description": "Total tokens per task at each agentic-loop depth (loop_k). Standard mode compounds: every additional loop iteration re-sends the full tool list, so the token bill rises steeply. Search/code/codesearch stay nearly flat because the context they carry per turn is tiny.",
-      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 20 },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 23
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -188,7 +302,12 @@
       "type": "timeseries",
       "title": "Cumulative cost per task by mode across loop depth (loop_k)",
       "description": "Cache-aware USD per task at increasing agentic-loop depths. The compounding cost of re-sending tool definitions in standard mode is visible as a steep curve; search and codesearch modes show a much flatter slope.",
-      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 20 },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 23
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
@@ -211,23 +330,43 @@
       "type": "bargauge",
       "title": "LLM round-trips per task by mode and loop depth",
       "description": "Average LLM calls needed to complete a task at each loop depth. Progressive-disclosure modes (search, code) add an initial discovery turn but avoid the spiral of repeated full-catalog prompts.",
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 29 },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 10 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
             ]
           }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -241,30 +380,55 @@
       "type": "row",
       "title": "RBAC per-persona",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      }
     },
     {
       "id": 11,
       "type": "bargauge",
       "title": "Advertised tools by persona",
       "description": "Number of tools advertised to the model per persona (readonly / team / admin). Admin sees the full catalog; readonly and team see a filtered view matching their RBAC scope. Fewer advertised tools = smaller prompt and better accuracy.",
-      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 39 },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 42
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 20 },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -277,27 +441,47 @@
       "id": 12,
       "type": "bargauge",
       "title": "Accuracy by persona",
-      "description": "Top-1 tool-selection accuracy rate per persona. Scoped personas (readonly/team) benefit from a shorter, more relevant tool list — accuracy should be equal to or better than admin even though admin has broader access.",
-      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 39 },
+      "description": "Top-1 tool-selection accuracy rate per persona. Scoped personas (readonly/team) benefit from a shorter, more relevant tool list \u2014 accuracy should be equal to or better than admin even though admin has broader access.",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 42
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "min": 0,
           "max": 1,
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.7 },
-              { "color": "green", "value": 0.9 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
             ]
           }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -310,16 +494,27 @@
       "id": 13,
       "type": "bargauge",
       "title": "Total tokens per task by persona",
-      "description": "Total tokens consumed per task broken down by persona. A narrower RBAC scope produces a shorter tool list, which directly reduces prompt size and cost — visible here as shorter bars for readonly vs admin.",
-      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 39 },
+      "description": "Total tokens consumed per task broken down by persona. A narrower RBAC scope produces a shorter tool list, which directly reduces prompt size and cost \u2014 visible here as shorter bars for readonly vs admin.",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 42
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" }
+          "color": {
+            "mode": "palette-classic"
+          }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -333,23 +528,39 @@
       "type": "row",
       "title": "Business projection",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      }
     },
     {
       "id": 15,
       "type": "bargauge",
       "title": "Projected monthly LLM spend by mode, loop depth, and volume",
       "description": "Projected USD/month at 10k / 50k / 200k agent calls per day, broken down by mode and loop_k. The loop-compounding effect is visible: standard at high loop_k dwarfs search at the same depth.",
-      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 49 },
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 52
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": { "mode": "palette-classic" }
+          "color": {
+            "mode": "palette-classic"
+          }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {
@@ -363,24 +574,44 @@
       "type": "bargauge",
       "title": "Monthly $ saved vs Standard at 200k calls/day",
       "description": "USD saved per month versus the standard (full-catalog) mode at 200k agent calls per day, by mode and loop depth. Taller bars confirm that progressive-disclosure pays off more as agents run deeper loops.",
-      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 49 },
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 52
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0 },
-              { "color": "green", "value": 500 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 500
+              }
             ]
           }
         }
       },
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "targets": [
         {

@@ -64,12 +64,12 @@ TASK_TWO_TOOLS = Task(
     prompt=(
         "Use the available tools to do BOTH of the following, then reply with the two "
         "returned strings joined by ' | ':\n"
-        "1) call the tool named tool_003 with text='alpha' and number=1\n"
-        "2) call the tool named tool_005 with text='beta' and number=2"
+        "1) call the tool named tool_001 with text='alpha' and number=1\n"
+        "2) call the tool named tool_003 with text='beta' and number=2"
     ),
-    expected_tools=["tool_003", "tool_005"],
+    expected_tools=["tool_001", "tool_003"],
     loop_steps=0,
-    description="Call tool_003 then tool_005 in one turn (matches run_ab.py v2 task)",
+    description="Call tool_001 then tool_003 in one turn (low indices so it works at catalog size 5)",
 )
 
 TASK_SINGLE_ECHO = Task(
