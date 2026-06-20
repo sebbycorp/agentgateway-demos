@@ -28,17 +28,18 @@ its description, so its first-call context is the largest.
 
 | Question | Standard | Search | Code |
 |----------|---------:|-------:|-----:|
-| pools     | $0.02597 | $0.02330 | $0.02204 |
-| virtuals  | $0.02358 | $0.01484 | $0.02169 |
-| system    | $0.01835 | $0.01162 | $0.03763 |
-| failover  | $0.01716 | $0.00852 | $0.02110 |
-| certs     | $0.07266 | $0.07097 | $0.02241 |
-| **average** | **$0.0315** | **$0.0259** | **$0.0250** |
+| pools     | $0.04607 | $0.04005 | $0.01340 |
+| virtuals  | $0.01779 | $0.01544 | $0.01317 |
+| system    | $0.01256 | $0.01075 | $0.02294 |
+| failover  | $0.01716 | $0.00844 | $0.01269 |
+| certs     | $0.05163 | $0.05926 | $0.01351 |
+| **average** | **$0.0290** | **$0.0268** | **$0.0151** |
 
-On single, short questions Search is ~18% cheaper than Standard on average (and up to
-~50% on simple lookups like `failover`). Code is steady (it batches tool calls into
-one script). The outlier is `certs` — a large result that inflates total tokens in
-Standard/Search but not Code (Code returns only the final summary).
+On single, short questions Search is ~8% cheaper than Standard on average (and up to
+~50% on simple lookups like `failover`). **Code is cheapest here ($0.0151, ~48% under
+Standard)** — it batches tool calls into one script and returns only the final summary,
+so a large result like `certs` (which inflates total tokens in Standard/Search) stays
+in the sandbox and never bloats the model's context.
 
 ---
 
@@ -50,22 +51,22 @@ History (and every F5 result) accumulates; the gateway re-sends tool defs each t
 
 | Turn | Standard | Search | Code |
 |-----:|---------:|-------:|-----:|
-| 1 | $0.0155 | $0.0347 | $0.0493 |
-| 2 | $0.0596 | $0.2339 | $0.0781 |
-| 3 | $0.0987 | $0.4354 | $0.1398 |
-| 4 | $0.1574 | $0.6618 | $0.2290 |
-| 5 | **$0.1844** | **$0.7204** | **$0.2528** |
+| 1 | $0.0184 | $0.0472 | $0.0377 |
+| 2 | $0.0637 | $0.3092 | $0.0910 |
+| 3 | $0.1033 | $0.5103 | $0.1399 |
+| 4 | $0.1725 | $0.8326 | $0.2214 |
+| 5 | **$0.1975** | **$0.9426** | **$0.2473** |
 
 **Cumulative totals after 5 turns:**
 
 | Mode | Total tokens | Cache-read tokens | Cost |
 |------|-------------:|------------------:|-----:|
-| **Standard** | 51,590 | 36,096 | **$0.184** |
-| Code | 67,160 | 49,664 | $0.253 |
-| **Search** | 231,414 | 199,680 | **$0.720** |
+| **Standard** | 51,640 | 31,360 | **$0.197** |
+| Code | 68,454 | 52,736 | $0.247 |
+| **Search** | 286,075 | 226,816 | **$0.943** |
 
 **The single-call story inverts.** Over a long, tool-heavy conversation **Search is
-~4× more expensive than Standard.** Search adds discovery round-trips
+~4.8× more expensive than Standard.** Search adds discovery round-trips
 (`get_tool`→`invoke_tool`, several per question) and **every extra round-trip
 re-sends the entire growing transcript** (full of F5 JSON). The flat per-call
 tool-context saving (367 vs 1,588) is swamped by re-processing accumulated history.
@@ -81,9 +82,9 @@ earlier turns) is served at the cached rate (~50% off):
 
 | Mode | Cache-read tokens (5-turn convo) | % of total |
 |------|---------------------------------:|-----------:|
-| Standard | 36,096 | 70% |
-| Code | 49,664 | 74% |
-| Search | 199,680 | 86% |
+| Standard | 31,360 | 61% |
+| Code | 52,736 | 77% |
+| Search | 226,816 | 79% |
 
 Search has the **highest** cache-read share — but that's because it generates the most
 re-sent context; caching softens, but does not reverse, its round-trip overhead. The
@@ -114,20 +115,20 @@ The headline cost uses a **50%-off** cached rate (an estimate). Because that rat
 biggest assumption, here is the 5-turn conversation cost recomputed from the **actual
 captured token splits** across the full range of cache discounts:
 
-Splits at turn 5 — Standard: uncached 13,824 · cached 36,096 · output 1,670;
-Search: uncached 25,480 · cached 199,680 · output 6,254.
+Splits at turn 5 — Standard: uncached 18,512 · cached 31,360 · output 1,768;
+Search: uncached 51,329 · cached 226,816 · output 7,930.
 
 | Cache discount | cached $/1K | Standard | Search | Search ÷ Standard |
 |----------------|------------:|---------:|-------:|------------------:|
-| 50% off (used in this report) | $0.00250 | $0.184 | $0.720 | 3.9× |
-| 75% off | $0.00125 | $0.139 | $0.471 | 3.4× |
-| 90% off | $0.00050 | $0.112 | $0.321 | 2.9× |
-| **100% (cache free)** | $0.00000 | $0.094 | $0.221 | **2.3×** |
+| 50% off (used in this report) | $0.00250 | $0.197 | $0.943 | 4.8× |
+| 75% off | $0.00125 | $0.158 | $0.659 | 4.2× |
+| 90% off | $0.00050 | $0.135 | $0.489 | 3.6× |
+| **100% (cache free)** | $0.00000 | $0.119 | $0.376 | **3.2×** |
 
-**Even if cached tokens were free, Search still costs ~2.3× more here.** Two reasons
+**Even if cached tokens were free, Search still costs ~3.2× more here.** Two reasons
 caching can't close the gap: (1) **output tokens are never cached** and Search emits
-~3.7× more of them (6,254 vs 1,670) from its extra round-trips; (2) Search also has more
-**uncached** prompt tokens (25,480 vs 13,824). Standard's "always send the tools" cost is
+~4.5× more of them (7,930 vs 1,768) from its extra round-trips; (2) Search also has more
+**uncached** prompt tokens (51,329 vs 18,512). Standard's "always send the tools" cost is
 itself mostly cached, so both sides benefit — Search just produces far more total
 throughput, and more of the un-cacheable kind.
 
@@ -141,7 +142,7 @@ across the whole cache-discount range.)*
 
 | Workload | Winner | Why |
 |----------|--------|-----|
-| Single call / short task, large catalog | **Search / CodeSearch** | ~77% smaller per-call tool context; ~18–50% cheaper |
+| Single call / short task, large catalog | **Search / Code** | ~77% smaller per-call tool context (Search); ~8–50% cheaper, Code lowest (~48% under Standard) |
 | Long agentic conversation, many tool results | **Standard or Code** | Search's extra round-trips re-send the growing transcript |
 | Multi-step workflow over many tools | **Code** | one `run_code` batches calls; only the final result returns |
 
