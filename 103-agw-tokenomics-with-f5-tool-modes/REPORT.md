@@ -1,7 +1,7 @@
 # F5 MCP Tool Modes — Test Report
 
 **Demo:** `103-agw-tokenomics-with-f5-tool-modes`
-**Date:** 2026-06-19
+**Date:** 2026-06-20
 **Backend:** real F5 BIG-IP (`172.16.10.10`) via the `f5-wrapper` MCP server (29 LTM tools), READ_ONLY
 **LLM:** `gpt-5.5` through the AgentGateway `/openai` route
 **Method:** 5 operator questions × 3 tool modes (Standard / Search / Code) = 15 live runs
@@ -34,29 +34,30 @@ context is *not* smaller — Code mode's value is workflow batching, not context
 
 ## Full per-question results (gpt-5.5)
 
-| Question | Mode | first-call tok | total tok | LLM calls | cost (est) | ok |
-|----------|------|---------------:|----------:|----------:|-----------:|:--:|
-| pools | standard | 1,592 | 9,135 | 3 | $0.0507 | ✅ |
-| pools | search | 371 | 6,339 | 4 | $0.0390 | ✅ |
-| pools | code | 1,943 | 4,143 | 2 | $0.0220 | ✅ |
-| virtuals | standard | 1,586 | 4,533 | 2 | $0.0236 | ✅ |
-| virtuals | search | 365 | 2,791 | 3 | $0.0165 | ✅ |
-| virtuals | code | 1,937 | 4,098 | 2 | $0.0217 | ✅ |
-| system | standard | 1,588 | 3,486 | 2 | $0.0184 | ✅ |
-| system | search | 367 | 1,583 | 3 | $0.0091 | ✅ |
-| system | code | 1,939 | 4,790 | 2 | $0.0282 | ✅ |
-| failover | standard | 1,588 | 3,329 | 2 | $0.0172 | ✅ |
-| failover | search | 367 | 1,474 | 3 | $0.0086 | ✅ |
-| failover | code | 1,939 | 4,081 | 2 | $0.0212 | ✅ |
-| certs | standard | 1,585 | 8,555 | 3 | $0.0467 | ✅ |
-| certs | search | 364 | 12,617 | 6 | $0.0701 | ✅ |
-| certs | code | 1,936 | 4,174 | 2 | $0.0224 | ✅ |
+| Question | Mode | first-call tok | total tok | cached tok | LLM calls | cost (est) | ok |
+|----------|------|---------------:|----------:|-----------:|----------:|-----------:|:--:|
+| pools | standard | 1,592 | 9,465 | 3,840 | 3 | $0.0461 | ✅ |
+| pools | search | 371 | 7,135 | 4,352 | 4 | $0.0401 | ✅ |
+| pools | code | 1,943 | 4,114 | 3,328 | 2 | $0.0134 | ✅ |
+| virtuals | standard | 1,586 | 4,591 | 2,688 | 2 | $0.0178 | ✅ |
+| virtuals | search | 365 | 2,722 | 0 | 3 | $0.0154 | ✅ |
+| virtuals | code | 1,937 | 4,088 | 3,328 | 2 | $0.0132 | ✅ |
+| system | standard | 1,588 | 3,484 | 2,304 | 2 | $0.0126 | ✅ |
+| system | search | 367 | 1,694 | 0 | 3 | $0.0108 | ✅ |
+| system | code | 1,939 | 4,678 | 1,664 | 2 | $0.0229 | ✅ |
+| failover | standard | 1,588 | 3,329 | 0 | 2 | $0.0172 | ✅ |
+| failover | search | 367 | 1,465 | 0 | 3 | $0.0084 | ✅ |
+| failover | code | 1,939 | 4,071 | 3,328 | 2 | $0.0127 | ✅ |
+| certs | standard | 1,585 | 14,246 | 9,216 | 4 | $0.0516 | ✅ |
+| certs | search | 364 | 12,705 | 4,864 | 6 | $0.0593 | ✅ |
+| certs | code | 1,936 | 4,122 | 3,328 | 2 | $0.0135 | ✅ |
 
-**Averages (per task):** Standard $0.0313 · **Search $0.0286** · Code $0.0231.
+**Averages (per task):** Standard $0.0290 · **Search $0.0268** · **Code $0.0151**.
 Avg first-call tool tokens — Standard 1,588 · **Search 367 (−77%)** · Code 1,939.
-(Costs are gpt-5.5 list-price estimates; see `harness/f5_questions.py`. Search/Code
-totals vary with how many round-trips the model chooses — e.g. `certs` in Search took
-6 turns. First-call tool context is the deterministic, always-smaller win.)
+(Costs are gpt-5.5 list-price, cache-aware estimates; see `harness/f5_questions.py`.
+Search/Code totals vary with how many round-trips the model chooses — e.g. `certs` in
+Search took 6 turns. First-call tool context is the deterministic, always-smaller win;
+Code was cheapest end-to-end here by batching calls and returning only the summary.)
 
 ## What the data shows (honest read)
 
@@ -65,13 +66,14 @@ totals vary with how many round-trips the model chooses — e.g. `certs` in Sear
   model's context window and the dominant cost in long/agentic sessions.
 - **Total task tokens are noisier.** On simple lookups (system, failover) Search is
   cheapest end-to-end. On questions where the model chose many `invoke_tool` round-trips
-  (virtuals = 5 calls, certs = 6), Search's total can exceed Standard's because each
-  discovery/invoke is a turn. This is the documented trade: progressive disclosure
-  trades round-trips for a tiny per-call context.
-- **Code mode is steady and batches well:** it answered most questions in 2 calls by
-  doing the work in one `run_code` script, giving the lowest *average* cost here — but
-  its first-call context is large (all signatures inlined) and it requires a capable
-  model to write correct JavaScript (gpt-5.5 handled it; gpt-4o-mini struggled).
+  (certs = 6 calls), Search's total can exceed Standard's because each discovery/invoke
+  is a turn. This is the documented trade: progressive disclosure trades round-trips for
+  a tiny per-call context.
+- **Code mode is steady and batches well:** it answered every question in 2 calls by
+  doing the work in one `run_code` script and returning only the summary, giving the
+  lowest *average* cost here ($0.0151, ~48% under Standard) — but its first-call context
+  is large (all signatures inlined) and it requires a capable model to write correct
+  JavaScript (gpt-5.5 handled it; gpt-4o-mini struggled).
 
 **Bottom line:** Search mode cuts the F5 per-call tool context ~77% with no loss of
 success — the bigger the tool catalog and the longer the agent runs, the more that
@@ -88,9 +90,9 @@ tool definitions on every turn. gpt-5.5 prompt caching is captured (cache reads)
 
 | Mode | cum. total tokens | cache-read tokens | cum. cost (cache-aware) |
 |------|------------------:|------------------:|------------------------:|
-| **Standard** | 55,389 | 42,624 | **$0.186** |
-| Code | 70,813 | 56,704 | $0.254 |
-| **Search** | 221,502 | 173,696 | **$0.755** |
+| **Standard** | 51,640 | 31,360 | **$0.197** |
+| Code | 68,454 | 52,736 | $0.247 |
+| **Search** | 286,075 | 226,816 | **$0.943** |
 
 **This flips the single-call story — and it's the key insight.** In a long,
 tool-heavy conversation **Search costs *more*, not less.** Why: Search adds discovery
@@ -100,7 +102,7 @@ JSON). The per-call tool-definition saving (367 vs 1,588) is real but small next
 re-processing a growing transcript many times. Standard pays a fixed 29-tool catalog
 tax per turn but takes fewer round-trips. Code batches tool calls into one `run_code`
 and lands in between. Prompt caching is heavy in every mode (gpt-5.5 served
-40k–170k tokens from cache) but does not reverse Search's round-trip overhead.
+31k–227k tokens from cache) but does not reverse Search's round-trip overhead.
 
 **Rule of thumb:**
 - **Large catalog + short task / single call →** Search/CodeSearch: ~77% smaller tool
