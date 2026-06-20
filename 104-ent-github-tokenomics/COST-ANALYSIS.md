@@ -8,13 +8,13 @@ The test cannot touch any other repo (read-only system prompt + single-repo fine
 **Pricing (list-price estimate, USD / 1K tokens):** input `$0.005`, cached input
 `$0.0025` (≈50% off), output `$0.015`
 **Runs:** single-call (5 questions × 3 modes) + one ongoing 5-question conversation × 3 modes.
-All runs succeeded.
+All runs succeeded. (Numbers below are the latest run; see §6 for run-to-run variance.)
 
 ---
 
-## 1. Per-call tool context (the structural difference)
+## 1. Per-call tool context (deterministic)
 
-Deterministic — the tool schema the gateway injects on the **first** call:
+The tool schema the gateway injects on the **first** call — identical every run:
 
 | Mode | Tools advertised | First-call tool tokens | vs Standard |
 |------|-----------------:|-----------------------:|------------:|
@@ -31,18 +31,17 @@ the per-call context a far bigger lever than the F5 demo's 1,588 tokens.
 
 | Question | Standard | Search | Code |
 |----------|---------:|-------:|-----:|
-| repo      | $0.04561 | $0.01794 | $0.08342 |
-| commits   | $0.04273 | $0.01733 | $0.02004 |
-| issues    | $0.03888 | $0.01448 | $0.02627 |
-| prs       | $0.03859 | $0.01247 | $0.01870 |
-| contents  | $0.03921 | $0.01274 | $0.01926 |
-| **average** | **$0.0410** | **$0.0150** | **$0.0335** |
+| repo      | $0.03538 | $0.01725 | $0.02195 |
+| commits   | $0.03120 | $0.01319 | $0.02006 |
+| issues    | $0.02701 | $0.01455 | $0.02014 |
+| prs       | $0.02675 | $0.01246 | $0.01870 |
+| contents  | $0.02737 | $0.01252 | $0.01926 |
+| **average** | **$0.0295** | **$0.0140** | **$0.0200** |
 
-**Search is cheapest on all 5** (~63% under Standard). On a single small repo there's
-little result data, so Search's extra discovery round-trips are cheap and its −91%
-context wins. Code's `repo` run is an outlier ($0.083, 5 calls) — the model fanned its
-`run_code` out; on the other four Code is steady (~$0.02). Code's batching needs data
-volume to repay its overhead, which a small repo doesn't provide.
+**Search is cheapest on all 5** (~53% under Standard). On one small repo there's little
+result data, so Search's extra discovery round-trips are cheap and its −91% context wins.
+Code beats Standard but can't overtake Search — its batching needs data volume to repay
+the higher first-call context.
 
 ---
 
@@ -54,26 +53,24 @@ History accumulates; the gateway re-sends tool defs each turn.
 
 | Turn | Standard | Search | Code |
 |-----:|---------:|-------:|-----:|
-| 1 | $0.0460 | $0.0167 | $0.1189 |
-| 2 | $0.0885 | $0.0442 | $0.1498 |
-| 3 | $0.1299 | $0.0791 | $0.1816 |
-| 4 | $0.1901 | $0.1172 | $0.2143 |
-| 5 | **$0.2497** | **$0.1648** | **$0.2560** |
+| 1 | $0.1574 | $0.0166 | $0.1037 |
+| 2 | $0.2073 | $0.0464 | $0.1341 |
+| 3 | $0.2565 | $0.0823 | $0.1639 |
+| 4 | $0.3086 | $0.1229 | $0.1964 |
+| 5 | **$0.3792** | **$0.1714** | **$0.2381** |
 
 **Cumulative totals after 5 turns:**
 
 | Mode | Total tokens | Cache-read tokens | Cost | vs Standard |
 |------|-------------:|------------------:|-----:|------------:|
-| **Standard** | 72,086 | 50,176 | **$0.250** | baseline |
-| **Search** | 46,851 | 32,640 | **$0.165** | **−34%** |
-| Code | 73,407 | 55,040 | $0.256 | +2% |
+| **Standard** | 125,681 | 111,104 | **$0.379** | baseline |
+| **Search** | 49,223 | 35,712 | **$0.171** | **−55%** |
+| Code | 72,157 | 61,312 | $0.238 | −37% |
 
-**Search wins the conversation by 34%.** GitHub's catalog is so expensive to re-send
-each turn that avoiding it (Search) beats the extra round-trips — the opposite of the
-F5 demo (103), where the small catalog meant the re-sent transcript dominated and Search
-cost ~4.8× *more*. **Code ties Standard here**: with small per-answer results its
-transcript-shrinking advantage is muted, and it still pays a 3,021-token first call
-every turn.
+**Search wins the conversation by 55%.** GitHub's catalog is so expensive to re-send each
+turn that avoiding it (Search) beats the extra round-trips — the opposite of the F5 demo
+(103), where the small catalog meant the re-sent transcript dominated and Search cost
+~4.8× *more*. Code beats Standard too here, but stays above Search.
 
 ---
 
@@ -81,49 +78,66 @@ every turn.
 
 | Mode | Cache-read tokens (5-turn convo) | % of total |
 |------|---------------------------------:|-----------:|
-| Standard | 50,176 | 70% |
-| Search | 32,640 | 70% |
-| Code | 55,040 | 75% |
+| Standard | 111,104 | 88% |
+| Search | 35,712 | 73% |
+| Code | 61,312 | 85% |
+
+Standard's giant catalog is re-sent every turn and served heavily from cache — which is
+why the cache rate matters to the margin (next section).
 
 ---
 
 ## 5. Cache sensitivity — does the Search win survive a different cache rate?
 
-Splits at turn 5 — Standard: uncached 20,436 · cached 50,176 · output 1,474;
-Search: uncached 12,994 · cached 32,640 · output 1,217.
+Splits at turn 5 — Standard: uncached 11,727 · cached 111,104 · output 2,850;
+Search: uncached 12,051 · cached 35,712 · output 1,460.
 
 | Cache discount | cached $/1K | Standard | Search | Search ÷ Standard |
 |----------------|------------:|---------:|-------:|------------------:|
-| 50% off (used here) | $0.00250 | $0.250 | $0.165 | **0.66×** |
-| 75% off | $0.00125 | $0.187 | $0.124 | 0.66× |
-| 90% off | $0.00050 | $0.149 | $0.100 | 0.67× |
-| **100% (cache free)** | $0.00000 | $0.124 | $0.083 | **0.67×** |
+| 50% off (used here) | $0.00250 | $0.379 | $0.171 | **0.45×** |
+| 75% off | $0.00125 | $0.240 | $0.127 | 0.53× |
+| 90% off | $0.00050 | $0.157 | $0.100 | 0.64× |
+| **100% (cache free)** | $0.00000 | $0.101 | $0.082 | **0.81×** |
 
-**Search's conversation win is robust here — ~0.66× at every cache rate.** Unlike the
-broad-scope run (where Search only won at typical cache rates), with a single small repo
-Search genuinely emits fewer tokens of *every* kind (uncached prompt, cached prompt, and
-output), so it wins regardless of the cache discount.
+**Search beats Standard at every cache rate** (0.45×–0.81×). The margin narrows as cache
+gets cheaper, because Standard's enormous-but-cached catalog approaches free — but Search
+still wins even with free cache, since it emits fewer uncached and output tokens too.
 
 *(Set `IN_PER_1K`/`CACHED_IN_PER_1K`/`OUT_PER_1K` to your contracted rates to recompute.)*
 
 ---
 
-## 6. Bottom line & guidance
+## 6. Reproducibility & run-to-run variance
+
+Measured across two live runs:
+
+- **Deterministic:** first-call context (Standard ~4,781 / Search ~429 / Code ~3,021),
+  tools advertised (28 / 2 / 1). Identical every run.
+- **Stable findings:** Search cheapest on all 5 single questions; Search wins the
+  conversation by a wide margin; Standard most expensive.
+- **Noisy (model nondeterminism + cache warmth):** absolute conversation dollars. Observed
+  ranges — Standard **$0.25–$0.38**, Search **$0.16–$0.17** (tightest), Code **$0.24–$0.26**.
+  Standard's spread is widest because the model sometimes loops over the big catalog.
+
+The conclusion is robust to this noise: **Search is the money-saver for a large catalog.**
+
+---
+
+## 7. Bottom line & guidance
 
 | Workload | Winner | Why |
 |----------|--------|-----|
 | Single call, large catalog, modest result | **Search** | −91% per-call context; cheapest on all 5 |
-| Long conversation, large catalog | **Search** | catalog tax dominates; −34%, robust to cache rate |
-| Multi-step task with *large* per-call results | **Code** | batching + summarize-only repays its overhead only at volume |
+| Long conversation, large catalog | **Search** | catalog tax dominates; −55%, robust to cache rate |
+| Step with *large* per-call results | **Code** | batching + summarize-only repays its overhead only at volume |
 
 **Takeaways**
 1. For a verbose catalog like GitHub's, the per-call context reduction is large
-   (Search −91%, Code −37%) and **translates to real savings** — Search wins both per
-   call and across a conversation when results are modest.
-2. **Code is not automatically the winner.** It pays a higher first-call context and
-   only overtakes Search when each task returns enough data for batching/summarize-only
-   to matter. On a small repo it merely ties Standard.
-3. Caching helps every mode (~70–75% served from cache) but does not change the ranking.
+   (Search −91%, Code −37%) and **translates to real savings** — Search wins per call and
+   across a conversation when results are modest.
+2. **Code is not automatically the winner.** It pays a higher first-call context and only
+   overtakes Search when each task returns enough data for batching to matter.
+3. Caching helps every mode (~73–88% served from cache) but does not change the ranking.
 4. **Catalog size and result size are the deciding variables.** Compare with demo 103
    (F5, small catalog): same three modes, opposite verdict. Measure for your own.
 

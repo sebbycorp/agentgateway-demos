@@ -136,31 +136,31 @@ sequenceDiagram
 
 | Question | Standard | Search | Code |
 |----------|---------:|-------:|-----:|
-| repo      | $0.0456 | **$0.0179** | $0.0834 |
-| commits   | $0.0427 | **$0.0173** | $0.0200 |
-| issues    | $0.0389 | **$0.0145** | $0.0263 |
-| prs       | $0.0386 | **$0.0125** | $0.0187 |
-| contents  | $0.0392 | **$0.0127** | $0.0193 |
-| **average** | **$0.0410** | **$0.0150** | **$0.0335** |
+| repo      | $0.0354 | **$0.0173** | $0.0220 |
+| commits   | $0.0312 | **$0.0132** | $0.0201 |
+| issues    | $0.0270 | **$0.0146** | $0.0201 |
+| prs       | $0.0268 | **$0.0125** | $0.0187 |
+| contents  | $0.0274 | **$0.0125** | $0.0193 |
+| **average** | **$0.0295** | **$0.0140** | **$0.0200** |
 
 First-call tool context: **Standard 4,781 · Search 429 (−91%) · Code 3,021 (−37%)**.
 
-- **Search is cheapest on all 5** (~63% under Standard). Little result data means its
+- **Search is cheapest on all 5** (~53% under Standard). Little result data means its
   extra round-trips are cheap, so the −91% context wins outright.
-- **Code is mid-pack with one outlier** (`repo`, 5 calls, $0.083). Its batching pays off
-  only when each task returns enough data — a small repo doesn't provide it.
+- **Code beats Standard but not Search.** Its batching pays off only when each task
+  returns enough data — a small repo doesn't provide it.
 
 ### Part B — a 5-question conversation
 
 | Mode | cum. total tokens | cum. cost | vs Standard |
 |------|------------------:|----------:|------------:|
-| **Standard** | 72,086 | $0.250 | baseline |
-| **Search** | 46,851 | **$0.165** | **−34%** |
-| Code | 73,407 | $0.256 | +2% |
+| **Standard** | 125,681 | $0.379 | baseline |
+| **Search** | 49,223 | **$0.171** | **−55%** |
+| Code | 72,157 | $0.238 | −37% |
 
-In demo 103 (F5) Search cost ~4.8× *more* over a conversation. **Here Search is 34%
-cheaper** — and robust across cache rates (it emits fewer tokens of every kind). Why the
-flip? ⤵
+In demo 103 (F5) Search cost ~4.8× *more* over a conversation. **Here Search is 55%
+cheaper** — and robust across cache rates. (Absolute conversation dollars vary run-to-run;
+the Search win does not — see [`REPORT.md`](./REPORT.md) §Reproducibility.) Why the flip? ⤵
 
 ### Flow 4 — why GitHub flips the F5 verdict: catalog size
 
@@ -178,8 +178,8 @@ catalog tax dominates, so Search — which avoids re-sending it — wins.
 ### When does Code overtake Search?
 
 Code wins only when each task returns **large** results: it returns just a summary, so
-the transcript stays small. On this sandbox repo results are tiny, so Code merely ties
-Standard. Reach for Code when a single step pulls a lot of GitHub JSON.
+the transcript stays small. On this sandbox repo results are tiny, so Code beats Standard
+but stays above Search. Reach for Code when a single step pulls a lot of GitHub JSON.
 
 ---
 
