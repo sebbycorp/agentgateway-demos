@@ -51,7 +51,7 @@ async def run(path, question, client):
             ot = to_openai(tools)
             msgs = [{"role": "user", "content": question}]
             first = None
-            total_prompt = completion = calls = 0
+            total_prompt = completion = cached = calls = 0
             answered = False
             for _ in range(MAX_TURNS):
                 body = {"model": "", "messages": msgs, "tools": ot}
@@ -63,6 +63,7 @@ async def run(path, question, client):
                 p = u.get("prompt_tokens", 0)
                 total_prompt += p
                 completion += u.get("completion_tokens", 0)
+                cached += (u.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
                 first = first if first is not None else p
                 msg = resp["choices"][0]["message"]
                 msgs.append(msg)
@@ -79,10 +80,12 @@ async def run(path, question, client):
                     except Exception as e:
                         text = f"tool error: {e}"
                     msgs.append({"role": "tool", "tool_call_id": tc["id"], "content": text[:4000]})
-            cost = total_prompt * IN_PER_TOK + completion * OUT_PER_TOK
+            # cache-aware cost: cached prompt at the cached rate, rest at full input.
+            cached_rate = float(os.environ.get("CACHED_IN_PER_1K", "0.0025")) / 1000
+            cost = (total_prompt - cached) * IN_PER_TOK + cached * cached_rate + completion * OUT_PER_TOK
             return {
                 "advertised": len(tools), "first": first or 0, "total": total_prompt + completion,
-                "calls": calls, "cost": cost, "ok": answered,
+                "cached": cached, "calls": calls, "cost": cost, "ok": answered,
             }
 
 
@@ -95,9 +98,10 @@ async def main():
     g_cost = Gauge("agw_f5q_usd_cost", "USD cost per task", labels, registry=reg)
     g_ok = Gauge("agw_f5q_task_ok", "task answered", labels, registry=reg)
     g_adv = Gauge("agw_f5q_advertised_tools", "tools advertised", labels, registry=reg)
+    g_cached = Gauge("agw_f5q_cached_tokens", "cache-read tokens per task", labels, registry=reg)
 
     async with httpx.AsyncClient(timeout=120) as client:
-        print(f"{'question':<10}{'mode':<10}{'adv':>5}{'first':>8}{'total':>8}{'calls':>7}{'cost':>11}{'ok':>5}")
+        print(f"{'question':<10}{'mode':<10}{'adv':>5}{'first':>8}{'total':>8}{'cached':>8}{'calls':>7}{'cost':>11}{'ok':>5}")
         for qid, qtext in QUESTIONS:
             for mode, path in MODES.items():
                 try:
@@ -106,7 +110,7 @@ async def main():
                     print(f"{qid:<10}{mode:<10}  ERROR {type(e).__name__}: {str(e)[:50]}")
                     continue
                 print(f"{qid:<10}{mode:<10}{m['advertised']:>5}{m['first']:>8}{m['total']:>8}"
-                      f"{m['calls']:>7}{m['cost']:>11.5f}{('Y' if m['ok'] else 'n'):>5}")
+                      f"{m['cached']:>8}{m['calls']:>7}{m['cost']:>11.5f}{('Y' if m['ok'] else 'n'):>5}")
                 lbl = {"question": qid, "mode": mode}
                 g_first.labels(**lbl).set(m["first"])
                 g_total.labels(**lbl).set(m["total"])
@@ -114,6 +118,7 @@ async def main():
                 g_cost.labels(**lbl).set(m["cost"])
                 g_ok.labels(**lbl).set(1 if m["ok"] else 0)
                 g_adv.labels(**lbl).set(m["advertised"])
+                g_cached.labels(**lbl).set(m["cached"])
 
     try:
         delete_from_gateway(PUSHGATEWAY, job="agw_f5_questions")

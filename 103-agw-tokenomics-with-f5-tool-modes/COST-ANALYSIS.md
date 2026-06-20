@@ -89,9 +89,55 @@ Search has the **highest** cache-read share — but that's because it generates 
 re-sent context; caching softens, but does not reverse, its round-trip overhead. The
 cost figures above are already cache-aware.
 
+### When does caching actually apply?
+
+Caching is on the **input/prompt only** (output/completion is never cached). The
+provider caches the longest **stable prefix** it has seen recently and bills it at the
+cached rate; only the new suffix pays full price. Conditions: the repeated prefix must
+be **≥ ~1,024 tokens**, reused within the **~5–10 min TTL**, and match exactly from the
+start. A request is `[tools block] + [conversation so far] + [new message]` — the first
+two parts are stable, so caching kicks in **from the 2nd LLM call onward** (within one
+agentic task *and* across conversation turns).
+
+| Mode | What's cacheable | Cold first call |
+|------|------------------|-----------------|
+| Standard | 29-tool block (~1,588 tok) is itself > 1,024 → caches on its own | tool block cached from call 2 |
+| Search | 2 meta-tools (~367 tok) are **below the 1,024 floor** → only the accumulated **history** caches | **no cache** on a short first call (we saw `cached=0` on single-call Search) |
+| Code | `run_code` description (~1,900 tok) > 1,024 → caches like Standard, plus history | description cached from call 2 |
+
+This is why single-call Search often shows **0 cached tokens** (nothing big enough to
+cache yet), while in a long conversation Search caches the most (its re-sent history).
+
+## 5. Cache sensitivity — does cheaper/free cache change the verdict?
+
+The headline cost uses a **50%-off** cached rate (an estimate). Because that rate is the
+biggest assumption, here is the 5-turn conversation cost recomputed from the **actual
+captured token splits** across the full range of cache discounts:
+
+Splits at turn 5 — Standard: uncached 13,824 · cached 36,096 · output 1,670;
+Search: uncached 25,480 · cached 199,680 · output 6,254.
+
+| Cache discount | cached $/1K | Standard | Search | Search ÷ Standard |
+|----------------|------------:|---------:|-------:|------------------:|
+| 50% off (used in this report) | $0.00250 | $0.184 | $0.720 | 3.9× |
+| 75% off | $0.00125 | $0.139 | $0.471 | 3.4× |
+| 90% off | $0.00050 | $0.112 | $0.321 | 2.9× |
+| **100% (cache free)** | $0.00000 | $0.094 | $0.221 | **2.3×** |
+
+**Even if cached tokens were free, Search still costs ~2.3× more here.** Two reasons
+caching can't close the gap: (1) **output tokens are never cached** and Search emits
+~3.7× more of them (6,254 vs 1,670) from its extra round-trips; (2) Search also has more
+**uncached** prompt tokens (25,480 vs 13,824). Standard's "always send the tools" cost is
+itself mostly cached, so both sides benefit — Search just produces far more total
+throughput, and more of the un-cacheable kind.
+
+*(Pricing is gpt-5.5 list-price estimate. Set `IN_PER_1K`/`CACHED_IN_PER_1K`/`OUT_PER_1K`
+to your contracted rates to recompute; the ratios above show the conclusion is robust
+across the whole cache-discount range.)*
+
 ---
 
-## 5. Bottom line & guidance
+## 6. Bottom line & guidance
 
 | Workload | Winner | Why |
 |----------|--------|-----|
