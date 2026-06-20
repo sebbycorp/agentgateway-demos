@@ -30,12 +30,18 @@ CACHED_IN = float(os.environ.get("CACHED_IN_PER_1K", "0.0025")) / 1000   # ~50% 
 OUT = float(os.environ.get("OUT_PER_1K", "0.015")) / 1000
 MAX_SUBTURNS = 8
 
+# Everything is pinned to ONE dedicated sandbox repo (see README); pair with a
+# fine-grained read-only PAT scoped to only this repo for a hard guarantee.
+REPO = os.environ.get("GH_REPO", "sebbycorp/agw-tokenomics-sandbox")
+SYSTEM = (f"You are a read-only GitHub assistant. You may ONLY access the repository "
+          f"{REPO}. Never query, search, or reference any other repository.")
+
 CONVERSATION = [
-    "Who am I on GitHub — login, name, and public repo count?",
-    "Now list my 5 most recently updated repositories.",
-    "For the most recently updated one, show its 5 latest commits.",
-    "Do I have any open pull requests or issues assigned to me right now?",
-    "Summarize my current GitHub activity in a short status report.",
+    f"Give me an overview of the {REPO} repository — description, default branch, language.",
+    f"List the 5 most recent commits on {REPO}.",
+    f"What open issues does {REPO} have, with their titles?",
+    f"Are there any open pull requests in {REPO}?",
+    f"Summarize the current state of {REPO} in a short status report.",
 ]
 
 
@@ -57,7 +63,7 @@ async def converse(path, client):
         async with ClientSession(r, w) as s:
             await s.initialize()
             ot = to_openai((await s.list_tools()).tools)
-            messages = []
+            messages = [{"role": "system", "content": SYSTEM}]
             cum_prompt = cum_cached = cum_completion = 0
             cum_cost = 0.0
             per_turn = []

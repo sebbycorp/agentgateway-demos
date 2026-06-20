@@ -52,8 +52,8 @@ panels = [
          0, 9, 8, 'avg(agw_ghq_advertised_tools{mode="standard"})', color="red"),
     stat(5, "Questions answered successfully", "Share of the 5 GitHub questions completed across all modes.",
          8, 9, 8, 'avg(agw_ghq_task_ok) * 100', unit="percent"),
-    stat(6, "Avg cost per task — Code", "Average USD per GitHub question in Code mode (gpt-5.5 list-price estimate) — the overall winner here.",
-         16, 9, 8, 'avg(agw_ghq_usd_cost{mode="code"})', unit="currencyUSD", color="green", dec=4),
+    stat(6, "Avg cost per task — Search", "Average USD per GitHub question in Search mode (gpt-5.5 list-price estimate) — cheapest on all 5 questions.",
+         16, 9, 8, 'avg(agw_ghq_usd_cost{mode="search"})', unit="currencyUSD", color="green", dec=4),
 
     bars(10, "First-call tool tokens by question, by mode", "Per GitHub question: tool-definition tokens the model carries. Standard (28 tools) vs Search (2) vs Code (1). Shorter is better.",
          0, 15, 12, 9,
@@ -78,9 +78,10 @@ panels = [
 
     # ----- Multi-turn conversation row (from harness/gh_conversation.py) -----
     bars(20, "Conversation cost after 5 turns, by mode (cumulative, cache-aware)",
-         "ONE ongoing 5-question GitHub conversation. With GitHub's large catalog the "
-         "per-turn catalog tax dominates, so Search (-23%) and Code (-72%) BOTH beat "
-         "Standard — the opposite of the F5 demo. Code wins biggest.",
+         "ONE ongoing 5-question conversation against the sandbox repo. GitHub's large "
+         "catalog makes the per-turn catalog tax dominate, so Search beats Standard by "
+         "~34% — the opposite of the F5 demo (where Search cost ~4.8x MORE). Code ties "
+         "Standard here (small results, so its summarize-only trick is muted).",
          0, 33, 12, 8,
          [{"expr": 'agw_ghconv_cum_cost{turn="5"}', "legendFormat": "{{mode}}"}],
          unit="currencyUSD", dec=4),
@@ -98,23 +99,24 @@ panels = [
     {"id": 23, "type": "text", "title": "Single call vs conversation — and vs the F5 demo",
      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 41},
      "options": {"mode": "markdown", "content":
-        "**GitHub's catalog is large (~4,721 tok), and that decides everything:**\n\n"
-        "- **Per call** — Search shrinks tool context **~92%** (369 vs 4,721); Code **~37%**. "
-        "Code is cheapest on 4 of 5 questions.\n\n"
+        "**GitHub's catalog is large (~4,781 tok), and that decides everything:**\n\n"
+        "- **Per call** — Search shrinks tool context **~91%** (429 vs 4,781); Code **~37%**. "
+        "Search is cheapest on all 5 questions.\n\n"
         "- **Long conversation** — unlike F5 (demo 103, small catalog, where Search cost "
-        "~4.8x MORE), here the catalog tax is so big that **Search (-23%) and Code (-72%) "
-        "both beat Standard**. Code wins biggest — only summaries return.\n\n"
-        "**Catalog size is the deciding variable.** Measure for your own catalog."}},
+        "~4.8x MORE), here the catalog tax is so big that **Search beats Standard by ~34%**. "
+        "Code ties Standard (small results mute its summarize-only advantage).\n\n"
+        "**Catalog size and result size are the deciding variables.** Measure for your own."}},
 
-    {"id": 14, "type": "text", "title": "The 5 GitHub questions asked",
+    {"id": 14, "type": "text", "title": "The 5 questions asked (all against the sandbox repo)",
      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 49},
      "options": {"mode": "markdown", "content":
-        "Each question is asked through **Standard**, **Search**, and **Code** mode against the external GitHub MCP (read-only):\n"
-        "1. My login, name, public repos, and follower count.\n"
-        "2. My 10 most recently updated repositories with their primary language.\n"
-        "3. The open pull requests I have authored.\n"
-        "4. Open issues assigned to me, with titles and repos.\n"
-        "5. My most recently updated repository and its 5 most recent commits."}},
+        "Each question is asked through **Standard**, **Search**, and **Code** mode against "
+        "**sebbycorp/agw-tokenomics-sandbox** via the external GitHub MCP (read-only):\n"
+        "1. Describe the repo: description, default branch, primary language.\n"
+        "2. List the 5 most recent commits with their messages.\n"
+        "3. List the open issues with their titles.\n"
+        "4. List the open pull requests with their titles.\n"
+        "5. List the files in the src/ directory."}},
 ]
 
 dash = {

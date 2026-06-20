@@ -32,6 +32,10 @@ ROUTES = {"standard": "/mcp/gh-std", "search": "/mcp/gh-search", "code": "/mcp/g
 IN_PER_TOK = float(os.environ.get("IN_PER_1K", "0.005")) / 1000
 OUT_PER_TOK = float(os.environ.get("OUT_PER_1K", "0.015")) / 1000
 MAX_TURNS = 8
+# Pin to one dedicated sandbox repo (see README). Set GH_REPO to point elsewhere.
+REPO = os.environ.get("GH_REPO", "sebbycorp/agw-tokenomics-sandbox")
+SYSTEM = (f"You are a read-only GitHub assistant. You may ONLY access the repository "
+          f"{REPO}. Never query, search, or reference any other repository.")
 
 
 def to_openai(tools):
@@ -51,7 +55,8 @@ def short(v, n=160):
 
 
 async def ask(session, openai_tools, question, client):
-    messages = [{"role": "user", "content": question}]
+    messages = [{"role": "system", "content": SYSTEM},
+                {"role": "user", "content": question}]
     first = None
     total_prompt = completion = calls = 0
     while calls < MAX_TURNS:

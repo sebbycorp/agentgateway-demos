@@ -30,13 +30,21 @@ OUT_PER_TOK = float(os.environ.get("OUT_PER_1K", "0.015")) / 1000
 NO_TEMP = bool(os.environ.get("LLM_NO_TEMPERATURE"))
 MAX_TURNS = 10
 
-# 5 read-only questions a developer would actually ask about their GitHub.
+# All questions are pinned to ONE dedicated sandbox repo so the test can never
+# touch anything else. For a hard guarantee, also use a fine-grained read-only PAT
+# scoped to only this repo (see README).
+REPO = os.environ.get("GH_REPO", "sebbycorp/agw-tokenomics-sandbox")
+SYSTEM = (f"You are a read-only GitHub assistant. You may ONLY access the repository "
+          f"{REPO}. Never query, search, or reference any other repository or the "
+          f"user's other repositories. If a request would require another repo, refuse.")
+
+# 5 read-only questions, all scoped to the single sandbox repo.
 QUESTIONS = [
-    ("me",       "What is my GitHub login, full name, number of public repos, and follower count?"),
-    ("repos",    "List my 10 most recently updated repositories with their primary language."),
-    ("prs",      "List the open pull requests I have authored."),
-    ("issues",   "List open issues assigned to me, with their titles and repositories."),
-    ("commits",  "Find my most recently updated repository and show its 5 most recent commits."),
+    ("repo",     f"Describe the repository {REPO}: its description, default branch, and primary language."),
+    ("commits",  f"List the 5 most recent commits on {REPO} with their messages."),
+    ("issues",   f"List the open issues in {REPO} with their titles."),
+    ("prs",      f"List the open pull requests in {REPO} with their titles."),
+    ("contents", f"List the files in the src/ directory of {REPO}."),
 ]
 
 
@@ -53,7 +61,8 @@ async def run(path, question, client):
             await s.initialize()
             tools = (await s.list_tools()).tools
             ot = to_openai(tools)
-            msgs = [{"role": "user", "content": question}]
+            msgs = [{"role": "system", "content": SYSTEM},
+                    {"role": "user", "content": question}]
             first = None
             total_prompt = completion = cached = calls = 0
             answered = False
