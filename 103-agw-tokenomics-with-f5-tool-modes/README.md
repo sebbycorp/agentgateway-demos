@@ -109,7 +109,7 @@ sequenceDiagram
     S-->>G: final result only
     G-->>M: result
     M->>M: compose answer
-    Note over M,S: N tool calls collapse to 1 LLM round-trip; raw JSON stays in the sandbox
+    Note over M,S: N tool calls collapse to 1 LLM round-trip — raw JSON stays in the sandbox
 ```
 
 ---
