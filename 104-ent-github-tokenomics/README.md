@@ -136,31 +136,36 @@ sequenceDiagram
 
 | Question | Standard | Search | Code |
 |----------|---------:|-------:|-----:|
-| repo      | $0.0354 | **$0.0173** | $0.0220 |
-| commits   | $0.0312 | **$0.0132** | $0.0201 |
-| issues    | $0.0270 | **$0.0146** | $0.0201 |
-| prs       | $0.0268 | **$0.0125** | $0.0187 |
-| contents  | $0.0274 | **$0.0125** | $0.0193 |
-| **average** | **$0.0295** | **$0.0140** | **$0.0200** |
+| repo      | $0.0324 | **$0.0135** | $0.0233 |
+| commits   | $0.0313 | **$0.0173** | $0.0202 |
+| issues    | $0.0271 | **$0.0145** | $0.0199 |
+| prs       | $0.0386 | **$0.0074** | $0.0187 |
+| contents  | $0.0392 | **$0.0125** | $0.0191 |
+| **average** | **$0.0337** | **$0.0130** | **$0.0202** |
 
 First-call tool context: **Standard 4,781 · Search 429 (−91%) · Code 3,021 (−37%)**.
 
-- **Search is cheapest on all 5** (~53% under Standard). Little result data means its
-  extra round-trips are cheap, so the −91% context wins outright.
-- **Code beats Standard but not Search.** Its batching pays off only when each task
+- **Search is cheapest on all 5** (~61% under Standard) — and was cheapest on all 5 in
+  *every one of three runs*. Little result data means its round-trips are cheap, so the
+  −91% context wins outright.
+- **Code beats Standard but not Search here.** Its batching pays off only when each task
   returns enough data — a small repo doesn't provide it.
 
-### Part B — a 5-question conversation
+### Part B — a 5-question conversation (3 runs)
 
-| Mode | cum. total tokens | cum. cost | vs Standard |
-|------|------------------:|----------:|------------:|
-| **Standard** | 125,681 | $0.379 | baseline |
-| **Search** | 49,223 | **$0.171** | **−55%** |
-| Code | 72,157 | $0.238 | −37% |
+Cumulative cost after 5 turns, each of three runs:
 
-In demo 103 (F5) Search cost ~4.8× *more* over a conversation. **Here Search is 55%
-cheaper** — and robust across cache rates. (Absolute conversation dollars vary run-to-run;
-the Search win does not — see [`REPORT.md`](./REPORT.md) §Reproducibility.) Why the flip? ⤵
+| Run | Standard | Search | Code |
+|----:|---------:|-------:|-----:|
+| 1 | $0.250 | $0.165 | $0.256 |
+| 2 | $0.379 | $0.171 | $0.238 |
+| 3 | $0.233 | $0.175 | $0.159 |
+| **range** | **$0.233–0.379** | **$0.165–0.175** | **$0.159–0.256** |
+
+In demo 103 (F5) Search cost ~4.8× *more* over a conversation. **Here both Search and Code
+beat Standard in every run** (−25% to −55%). Search is the most predictable (~$0.17);
+Standard is the most expensive and the noisiest (it can loop over the big catalog). Which of
+Search/Code wins flips run-to-run — but Standard never wins. Why the flip vs F5? ⤵
 
 ### Flow 4 — why GitHub flips the F5 verdict: catalog size
 
@@ -168,7 +173,7 @@ the Search win does not — see [`REPORT.md`](./REPORT.md) §Reproducibility.) W
 flowchart TD
     A[Long conversation, history accumulates] --> B{How big is the<br/>tool catalog re-sent each turn?}
     B -->|"F5: ~1,588 tok (small)"| C[Re-sent transcript dominates<br/>Search's round-trips lose<br/>→ Standard wins]
-    B -->|"GitHub: ~4,781 tok (large)"| D[Catalog tax dominates<br/>avoiding it beats round-trips<br/>→ Search wins, -34%]
+    B -->|"GitHub: ~4,781 tok (large)"| D[Catalog tax dominates<br/>avoiding it beats round-trips<br/>→ Search & Code both beat Standard]
 ```
 
 With a small catalog (F5) the accumulated transcript is the dominant cost, so re-sending
@@ -177,9 +182,9 @@ catalog tax dominates, so Search — which avoids re-sending it — wins.
 
 ### When does Code overtake Search?
 
-Code wins only when each task returns **large** results: it returns just a summary, so
-the transcript stays small. On this sandbox repo results are tiny, so Code beats Standard
-but stays above Search. Reach for Code when a single step pulls a lot of GitHub JSON.
+Code's edge grows when each task returns **large** results: it returns just a summary, so
+the transcript stays small. On this small sandbox repo Search and Code trade places
+run-to-run (both beating Standard); reach for Code when a single step pulls a lot of GitHub JSON.
 
 ---
 
