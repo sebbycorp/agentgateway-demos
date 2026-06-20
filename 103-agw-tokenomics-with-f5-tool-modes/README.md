@@ -85,14 +85,22 @@ The model writes JavaScript that calls *several* F5 tools in one sandboxed
 `run_code` execution. Many tool calls collapse into **one** LLM round-trip, and
 only the final summarized result returns to the model (not every raw F5 JSON blob).
 
+The single `run_code` call the model emits looks like:
+
+```js
+const pools = await list_pools();
+const virtuals = await list_virtuals();
+return summarize(pools, virtuals);
+```
+
 ```mermaid
 sequenceDiagram
     participant M as LLM
     participant G as AgentGateway
     participant S as run_code sandbox
     participant F as F5 BIG-IP (29 tools)
-    Note over M,G: tools/list → run_code only (signatures inlined, ~1,939 tok)
-    M->>G: run_code("const p = await list_pools(); const v = await list_virtuals(); return summarize(p,v)")
+    Note over M,G: tools/list returns run_code only (signatures inlined, ~1,939 tok)
+    M->>G: run_code with the script above
     G->>S: execute script
     S->>F: list_pools
     F-->>S: pools
@@ -101,7 +109,7 @@ sequenceDiagram
     S-->>G: final result only
     G-->>M: result
     M->>M: compose answer
-    Note over M,S: N tool calls → 1 LLM round-trip; raw JSON stays in the sandbox
+    Note over M,S: N tool calls collapse to 1 LLM round-trip; raw JSON stays in the sandbox
 ```
 
 ---
