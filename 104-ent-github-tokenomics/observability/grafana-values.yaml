@@ -1,0 +1,15 @@
+adminUser: admin
+adminPassword: admin
+service: { type: ClusterIP }
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - { name: Prometheus, type: prometheus, access: proxy, url: http://prometheus-server.observability.svc.cluster.local, isDefault: true }
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - { name: github, orgId: 1, folder: "", type: file, options: { path: /var/lib/grafana/dashboards/github } }
+dashboardsConfigMaps:
+  github: agw-dashboard-github

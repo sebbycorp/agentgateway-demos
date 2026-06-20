@@ -34,6 +34,11 @@ Each deploy script pins its own versions and **its own cluster name** (clusters 
 | 05-content-based | `agw-content-based` | v1.1.0 |
 | 06-virtual-mcp | `agw-series-demo` | v1.1.0 |
 | 09-k8s-langfuse | `agw-k8s-langfuse` | v1.1.0 |
+| 103-agw-tokenomics-with-f5-tool-modes | `agw-f5-tool-modes` | v2026.6.1 |
+| 104-ent-github-tokenomics | `agw-github-tokenomics` | v2026.6.1 |
+
+Demos `103` and `104` use the **Enterprise** AgentGateway (`EnterpriseAgentgatewayBackend`,
+`entMcp.toolMode` Standard/Search/Code) from `oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/`, not the OSS charts above. `104` fronts an **external** MCP server (GitHub's hosted `api.githubcopilot.com/mcp`) — no in-cluster MCP pod.
 
 Gateway API CRDs are `v1.5.0` everywhere. Namespace is `agentgateway-system`. Helm charts come from `oci://cr.agentgateway.dev/charts/` (`agentgateway-crds` + `agentgateway`).
 
