@@ -1,0 +1,424 @@
+{
+  "title": "F5 BIG-IP \u2014 MCP Tool Modes",
+  "uid": "agw-f5-tool-modes",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 9000,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;align-items:center;height:100%\"><img src=\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgOTAiIGZvbnQtZmFtaWx5PSJJbnRlcixIZWx2ZXRpY2EsQXJpYWwsc2Fucy1zZXJpZiI+CiAgPCEtLSBhZ2VudGdhdGV3YXkgbWFyazogc3R5bGl6ZWQgZG90IHBhdHRlcm4gLS0+CiAgPGcgZmlsbD0iIzdjM2FlZCI+CiAgICA8cmVjdCB4PSI2IiAgeT0iMjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI1MCIgcng9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxMSIvPgogICAgPHJlY3QgeD0iNDAiIHk9IjE0IiB3aWR0aD0iMjAiIGhlaWdodD0iNDQiIHJ4PSIxMCIvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSI2NCIgcj0iMTEiLz4KICAgIDxyZWN0IHg9Ijc0IiB5PSIyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjUwIiByeD0iMTAiLz4KICAgIDxjaXJjbGUgY3g9Ijg0IiBjeT0iMTYiIHI9IjExIi8+CiAgICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjgwIiByPSI4Ii8+CiAgPC9nPgogIDx0ZXh0IHg9IjEyMCIgeT0iNjAiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiNlOGU2ZjAiPmFnZW50Z2F0ZXdheTwvdGV4dD4KPC9zdmc+Cg==\" style=\"height:46px\"/><span style=\"margin-left:16px;font-size:20px;color:#b9b3c7\">F5 BIG-IP via MCP tool modes</span></div>"
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Avg first-call tool tokens \u2014 STANDARD",
+      "description": "All 29 F5 tools sent to the model every call.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_f5q_first_call_tokens{mode=\"standard\"})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Avg first-call tool tokens \u2014 SEARCH",
+      "description": "Only get_tool + invoke_tool sent; the model discovers tools on demand.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_f5q_first_call_tokens{mode=\"search\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Tool-context reduction (Search vs Standard)",
+      "description": "How much smaller the per-call F5 tool context is with Search mode.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "(1 - avg(agw_f5q_first_call_tokens{mode=\"search\"}) / avg(agw_f5q_first_call_tokens{mode=\"standard\"})) * 100"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Tools advertised \u2014 Standard (full F5 catalog)",
+      "description": "F5 tools the model sees in Standard mode (Search=2, Code=1 \u2014 see the by-mode bar panel).",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_f5q_advertised_tools{mode=\"standard\"})"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Questions answered successfully",
+      "description": "Share of the 5 F5 questions completed across all modes.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_f5q_task_ok) * 100"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Avg cost per task \u2014 Search",
+      "description": "Average USD per F5 question in Search mode (gpt-5.5 list-price estimate).",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_f5q_usd_cost{mode=\"search\"})"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "bargauge",
+      "title": "First-call tool tokens by question \u2014 Standard vs Search",
+      "description": "Per F5 question: tool-definition tokens the model carries. Standard (29 tools) vs Search (2). Shorter is better.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5q_first_call_tokens{mode=\"standard\"}",
+          "legendFormat": "{{question}} \u2014 standard"
+        },
+        {
+          "expr": "agw_f5q_first_call_tokens{mode=\"search\"}",
+          "legendFormat": "{{question}} \u2014 search"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "Tools advertised to the model, by mode",
+      "description": "Standard exposes the full F5 catalog; Search and Code keep it tiny.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_f5q_advertised_tools)",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Total tokens per question, by mode (the full picture)",
+      "description": "Total prompt+completion tokens incl. the extra Search/Code round-trips. Search isn't always lowest total on tiny tasks, but its per-call context is.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5q_total_tokens{mode=\"standard\"}",
+          "legendFormat": "{{question}} \u2014 standard"
+        },
+        {
+          "expr": "agw_f5q_total_tokens{mode=\"search\"}",
+          "legendFormat": "{{question}} \u2014 search"
+        },
+        {
+          "expr": "agw_f5q_total_tokens{mode=\"code\"}",
+          "legendFormat": "{{question}} \u2014 code"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "bargauge",
+      "title": "Cost per task by question & mode",
+      "description": "USD per F5 question by mode (gpt-5.5 list-price estimate).",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 5
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5q_usd_cost{mode=\"standard\"}",
+          "legendFormat": "{{question}} \u2014 standard"
+        },
+        {
+          "expr": "agw_f5q_usd_cost{mode=\"search\"}",
+          "legendFormat": "{{question}} \u2014 search"
+        },
+        {
+          "expr": "agw_f5q_usd_cost{mode=\"code\"}",
+          "legendFormat": "{{question}} \u2014 code"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "bargauge",
+      "title": "Conversation cost after 5 turns, by mode (cumulative, cache-aware)",
+      "description": "ONE ongoing 5-question F5 conversation. Search adds discovery round-trips and each re-sends the growing history, so over a long conversation Search can cost MORE than Standard. The per-call tool-context win is real; total conversation cost depends on round-trips.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5conv_cum_cost{turn=\"5\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "bargauge",
+      "title": "Conversation tokens after 5 turns, by mode (cumulative)",
+      "description": "Cumulative total tokens across the 5-question conversation. Standard re-sends 29 tool schemas each turn but takes fewer round-trips; Search's extra hops re-process accumulated F5 results.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5conv_cum_total_tokens{turn=\"5\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "bargauge",
+      "title": "Cache-read tokens after 5 turns, by mode (cumulative)",
+      "description": "gpt-5.5 prompt caching: tokens served from cache over the conversation (stable prefix = system + tools + earlier turns). Applies to all modes.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_f5conv_cum_cached_tokens{turn=\"5\"}",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "text",
+      "title": "Single call vs full conversation \u2014 read this",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Two different stories:**\n\n- **Per call / short task** \u2014 Search shrinks the tool context **~77%** (367 vs 1,588 tokens) and is cheaper. Best for a large catalog + short task.\n\n- **Long conversation (3\u20135+ turns, tool-heavy)** \u2014 Search's extra discovery round-trips each re-send the accumulated history, so cumulative cost can exceed Standard. Standard pays a fixed catalog tax per turn but uses fewer round-trips; Code batches tool calls in one `run_code` and lands in between.\n\nMatch the mode to the workload."
+      }
+    },
+    {
+      "id": 14,
+      "type": "text",
+      "title": "The 5 F5 questions asked",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Each question is asked through **Standard**, **Search**, and **Code** mode against the real F5 BIG-IP:\n1. How many LTM pools are in Common, and list their names?\n2. List the LTM virtual servers and their destinations.\n3. What is the BIG-IP version, hostname, and platform?\n4. What is the HA failover status?\n5. List the SSL certificates and their expiration dates."
+      }
+    }
+  ]
+}

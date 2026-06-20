@@ -53,8 +53,9 @@ async def ask(session, openai_tools, question, client):
     total_prompt = completion = calls = 0
     while calls < MAX_TURNS:
         body = {"model": "", "messages": messages, "tools": openai_tools}
-        # gpt-5.* rejects temperature != 1; only send temperature for other models.
-        if not os.environ.get("LLM_NO_TEMPERATURE"):
+        # gpt-5.* (this demo's backend) rejects temperature != 1; omit it when
+        # LLM_NO_TEMPERATURE is truthy. Set LLM_NO_TEMPERATURE=0 for models that allow 0.
+        if os.environ.get("LLM_NO_TEMPERATURE", "").lower() not in ("1", "true", "yes"):
             body["temperature"] = 0
         resp = (await client.post(LLM, json=body)).json()
         calls += 1
