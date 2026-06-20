@@ -6,7 +6,7 @@ set -euo pipefail
 ##############################################################################
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE="agentgateway-system"
-QUESTION="${GH_TASK:-What is my GitHub login, name, and how many public repos do I have?}"
+QUESTION="${GH_TASK:-Describe the repository sebbycorp/agw-tokenomics-sandbox: its description, default branch, open issues, and open pull requests.}"
 
 echo "==> Port-forwarding proxy (8080)..."
 kubectl port-forward deployment/agentgateway-proxy -n "${NAMESPACE}" 8080:80 >/tmp/pf-gh.log 2>&1 &

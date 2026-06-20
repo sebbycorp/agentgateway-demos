@@ -150,8 +150,8 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Avg cost per task \u2014 Code",
-      "description": "Average USD per GitHub question in Code mode (gpt-5.5 list-price estimate) \u2014 the overall winner here.",
+      "title": "Avg cost per task \u2014 Search",
+      "description": "Average USD per GitHub question in Search mode (gpt-5.5 list-price estimate) \u2014 cheapest on all 5 questions.",
       "gridPos": {
         "h": 6,
         "w": 8,
@@ -170,7 +170,7 @@
       },
       "targets": [
         {
-          "expr": "avg(agw_ghq_usd_cost{mode=\"code\"})"
+          "expr": "avg(agw_ghq_usd_cost{mode=\"search\"})"
         }
       ]
     },
@@ -314,7 +314,7 @@
       "id": 20,
       "type": "bargauge",
       "title": "Conversation cost after 5 turns, by mode (cumulative, cache-aware)",
-      "description": "ONE ongoing 5-question GitHub conversation. With GitHub's large catalog the per-turn catalog tax dominates, so Search (-23%) and Code (-72%) BOTH beat Standard \u2014 the opposite of the F5 demo. Code wins biggest.",
+      "description": "ONE ongoing 5-question conversation against the sandbox repo. GitHub's large catalog makes the per-turn catalog tax dominate, so Search beats Standard by ~34% \u2014 the opposite of the F5 demo (where Search cost ~4.8x MORE). Code ties Standard here (small results, so its summarize-only trick is muted).",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -406,13 +406,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**GitHub's catalog is large (~4,721 tok), and that decides everything:**\n\n- **Per call** \u2014 Search shrinks tool context **~92%** (369 vs 4,721); Code **~37%**. Code is cheapest on 4 of 5 questions.\n\n- **Long conversation** \u2014 unlike F5 (demo 103, small catalog, where Search cost ~4.8x MORE), here the catalog tax is so big that **Search (-23%) and Code (-72%) both beat Standard**. Code wins biggest \u2014 only summaries return.\n\n**Catalog size is the deciding variable.** Measure for your own catalog."
+        "content": "**GitHub's catalog is large (~4,781 tok), and that decides everything:**\n\n- **Per call** \u2014 Search shrinks tool context **~91%** (429 vs 4,781); Code **~37%**. Search is cheapest on all 5 questions.\n\n- **Long conversation** \u2014 unlike F5 (demo 103, small catalog, where Search cost ~4.8x MORE), here the catalog tax is so big that **Search beats Standard by ~34%**. Code ties Standard (small results mute its summarize-only advantage).\n\n**Catalog size and result size are the deciding variables.** Measure for your own."
       }
     },
     {
       "id": 14,
       "type": "text",
-      "title": "The 5 GitHub questions asked",
+      "title": "The 5 questions asked (all against the sandbox repo)",
       "gridPos": {
         "h": 5,
         "w": 24,
@@ -421,7 +421,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Each question is asked through **Standard**, **Search**, and **Code** mode against the external GitHub MCP (read-only):\n1. My login, name, public repos, and follower count.\n2. My 10 most recently updated repositories with their primary language.\n3. The open pull requests I have authored.\n4. Open issues assigned to me, with titles and repos.\n5. My most recently updated repository and its 5 most recent commits."
+        "content": "Each question is asked through **Standard**, **Search**, and **Code** mode against **sebbycorp/agw-tokenomics-sandbox** via the external GitHub MCP (read-only):\n1. Describe the repo: description, default branch, primary language.\n2. List the 5 most recent commits with their messages.\n3. List the open issues with their titles.\n4. List the open pull requests with their titles.\n5. List the files in the src/ directory."
       }
     }
   ]
