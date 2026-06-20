@@ -20,7 +20,7 @@ one ongoing 5-question conversation × 3 modes. **All runs succeeded (100%).**
 4. List the open pull requests with their titles.
 5. List the files in the `src/` directory.
 
-## Headline: per-call tool-definition context
+## Headline: per-call tool-definition context (deterministic)
 
 | Mode | Tools advertised | Avg first-call tokens | vs Standard |
 |------|-----------------:|----------------------:|------------:|
@@ -30,40 +30,39 @@ one ongoing 5-question conversation × 3 modes. **All runs succeeded (100%).**
 
 GitHub's 28 read-only tools carry verbose schemas (~4,781 tokens). Search collapses
 them to `get_tool`+`invoke_tool` for a **−91%** per-call context; Code's single
-`run_code` (signatures inlined) is **−37%** smaller than the full catalog.
+`run_code` (signatures inlined) is **−37%** smaller than the full catalog. These
+numbers are deterministic — they don't vary run to run.
 
 ## Full per-question results (gpt-5.5)
 
 | Question | Mode | first-call tok | total tok | cached tok | LLM calls | cost (est) | ok |
 |----------|------|---------------:|----------:|-----------:|----------:|-----------:|:--:|
-| repo     | standard | 4,784 | 10,988 | 4,736 | 2 | $0.0456 | ✅ |
-| repo     | search   | 432   | 3,214  | 0     | 3 | $0.0179 | ✅ |
-| repo     | code     | 3,024 | 19,144 | 9,088 | 5 | $0.0834 | ✅ |
-| commits  | standard | 4,782 | 10,675 | 4,736 | 2 | $0.0427 | ✅ |
-| commits  | search   | 430   | 3,141  | 0     | 3 | $0.0173 | ✅ |
-| commits  | code     | 3,022 | 6,359  | 5,376 | 2 | $0.0200 | ✅ |
-| issues   | standard | 4,779 | 9,953  | 4,736 | 2 | $0.0389 | ✅ |
-| issues   | search   | 427   | 2,651  | 0     | 3 | $0.0145 | ✅ |
-| issues   | code     | 3,019 | 6,319  | 2,688 | 2 | $0.0263 | ✅ |
-| prs      | standard | 4,780 | 9,954  | 4,736 | 2 | $0.0386 | ✅ |
-| prs      | search   | 428   | 2,261  | 0     | 3 | $0.0125 | ✅ |
+| repo     | standard | 4,784 | 11,097 | 9,472 | 2 | $0.0354 | ✅ |
+| repo     | search   | 432   | 3,168  | 0     | 3 | $0.0173 | ✅ |
+| repo     | code     | 3,024 | 6,522  | 5,376 | 2 | $0.0220 | ✅ |
+| commits  | standard | 4,782 | 10,696 | 9,472 | 2 | $0.0312 | ✅ |
+| commits  | search   | 430   | 3,142  | 1,664 | 3 | $0.0132 | ✅ |
+| commits  | code     | 3,022 | 6,362  | 5,376 | 2 | $0.0201 | ✅ |
+| issues   | standard | 4,779 | 9,951  | 9,472 | 2 | $0.0270 | ✅ |
+| issues   | search   | 427   | 2,656  | 0     | 3 | $0.0146 | ✅ |
+| issues   | code     | 3,019 | 6,367  | 5,376 | 2 | $0.0201 | ✅ |
+| prs      | standard | 4,780 | 9,954  | 9,472 | 2 | $0.0268 | ✅ |
+| prs      | search   | 428   | 2,260  | 0     | 3 | $0.0125 | ✅ |
 | prs      | code     | 3,020 | 6,234  | 5,376 | 2 | $0.0187 | ✅ |
-| contents | standard | 4,780 | 10,101 | 4,736 | 2 | $0.0392 | ✅ |
-| contents | search   | 428   | 2,286  | 0     | 3 | $0.0127 | ✅ |
+| contents | standard | 4,780 | 10,101 | 9,472 | 2 | $0.0274 | ✅ |
+| contents | search   | 428   | 2,271  | 0     | 3 | $0.0125 | ✅ |
 | contents | code     | 3,020 | 6,302  | 5,376 | 2 | $0.0193 | ✅ |
 
-**Averages (per task):** Standard $0.0410 · **Search $0.0150** · Code $0.0335.
+**Averages (per task):** Standard $0.0295 · **Search $0.0140** · Code $0.0200.
 
 ## What the data shows (honest read)
 
-- **Search is cheapest on every single question** — about **63% under Standard** on
-  average. With a single small repo there is little result data to re-process, so
-  Search's extra discovery round-trips are cheap and its −91% per-call context wins
-  outright.
-- **Code is mid-pack here, with one outlier.** On `repo` the model wrote a `run_code`
-  that fanned out over 5 calls ($0.083); on the other four it was steady (~$0.02).
-  Code's batching + summarize-only advantage needs *data volume* to pay off — on a
-  small repo its larger first-call context and JS overhead aren't repaid.
+- **Search is cheapest on every single question** (~53% under Standard). With one small
+  repo there is little result data to re-process, so Search's extra discovery round-trips
+  are cheap and its −91% per-call context wins outright.
+- **Code beats Standard but not Search here** (~$0.020 avg). Its batching + summarize-only
+  advantage needs *data volume* to pay off; a small repo doesn't provide it, so it can't
+  overtake Search.
 - **Standard pays a flat catalog tax** — 4,781 tokens of tool schema on every call.
 
 ## Multi-turn conversation (5 questions deep)
@@ -72,33 +71,43 @@ One ongoing 5-question chat per mode against the sandbox repo. Cumulative after 
 
 | Mode | cum. total tokens | cache-read tokens | cum. cost (cache-aware) | vs Standard |
 |------|------------------:|------------------:|------------------------:|------------:|
-| **Standard** | 72,086 | 50,176 | **$0.250** | baseline |
-| **Search** | 46,851 | 32,640 | **$0.165** | **−34%** |
-| Code | 73,407 | 55,040 | $0.256 | +2% |
+| **Standard** | 125,681 | 111,104 | **$0.379** | baseline |
+| **Search** | 49,223 | 35,712 | **$0.171** | **−55%** |
+| Code | 72,157 | 61,312 | $0.238 | −37% |
 
-**Search wins the conversation too (−34%)**, and unlike the broad-scope run this win is
-robust across cache rates (Search has fewer tokens of *every* kind here). **Code lands
-level with Standard** — its transcript-shrinking trick doesn't help when each answer is
-already small, and it pays the higher first-call context every turn.
+**Search wins the conversation decisively (−55%).** GitHub's catalog is so expensive to
+re-send each turn that avoiding it (Search) beats the extra round-trips — the opposite of
+the F5 demo (103), where the small catalog meant the re-sent transcript dominated and
+Search cost ~4.8× *more*. Code also beats Standard here (−37%) but stays above Search.
+
+## Reproducibility & run-to-run variance
+
+This was measured across two live runs. Splitting what is stable from what is noisy:
+
+- **Deterministic (identical every run):** first-call tool context — Standard ~4,781,
+  Search ~429 (−91%), Code ~3,021 (−37%); tools advertised (28 / 2 / 1).
+- **Stable qualitative findings (both runs):** Search is cheapest on all 5 single
+  questions; Search wins the conversation by a wide margin; Standard is the most expensive.
+- **Noisy (varies with model nondeterminism + cache warmth):** absolute conversation
+  dollars. Across runs we saw Standard **$0.25–$0.38**, Search **$0.16–$0.17** (most
+  stable), Code **$0.24–$0.26**. Standard's spread is the largest because the model can
+  loop over the big catalog — itself a reason to avoid Standard for a large catalog.
 
 ## The contrast with demo 103 (F5)
 
-Same three modes, opposite conversation verdict from F5:
-
 | | F5 (103), ~1,588-tok catalog | GitHub (104), ~4,781-tok catalog |
 |---|---|---|
-| Search, single call | −18% vs Standard | **−63%** vs Standard |
-| Search, 5-turn convo | **+380% (≈4.8× worse)** | **−34% (better)** |
+| Search, single call | ~−18% vs Standard | **~−53%** vs Standard |
+| Search, 5-turn convo | **+380% (≈4.8× worse)** | **−55% (better)** |
 
-**Catalog size is the deciding variable.** F5's catalog is small, so in a conversation
-the re-sent transcript dominates and Search's extra round-trips lose. GitHub's catalog
-is ~3× larger, so the per-turn catalog tax dominates and avoiding it (Search) wins.
+**Catalog size is the deciding variable.** F5's catalog is small, so the re-sent
+transcript dominates and Search loses in conversation. GitHub's catalog is ~3× larger,
+so the per-turn catalog tax dominates and Search wins.
 
 **Bottom line:** for a large, verbose catalog like GitHub's, **Search is the clear
-money-saver** — both per call and across a conversation — when individual results are
-modest in size. Code only overtakes Search when there's enough per-task data for its
-batching/summarize-only behavior to repay its overhead (see the broad-scope numbers in
-demo history). Measure for your catalog *and* your result sizes.
+money-saver** — per call and across a conversation — when results are modest. Code only
+overtakes Search when a single step returns large results. Measure for your catalog *and*
+your result sizes.
 
 ## Reproduce
 
