@@ -1,0 +1,118 @@
+# GitHub's official REMOTE MCP server (api.githubcopilot.com/mcp), fronted by
+# AgentGateway in three tool modes (Standard / Search / Code) so you can A/B the
+# token cost of progressive disclosure on a large, real tool catalog.
+#
+# This is the "external MCP server" pattern: there is NO MCP pod in-cluster. Each
+# EnterpriseAgentgatewayBackend has a `static` target pointing at GitHub's hosted
+# MCP over TLS, and the gateway injects your PAT as a `Authorization: Bearer <PAT>`
+# header (from the gitignored Secret) on every upstream call.
+#
+# SAFETY: the upstream path is /mcp/readonly — GitHub's read-only MCP surface
+# (28 get_/list_/search_ tools, zero write tools), so the model can never mutate
+# your repos even though the PAT itself has write scopes. (The /mcp/all/readonly
+# path is NOT read-only — it leaks create_/delete_ tools — so do not use it.)
+#
+# Apply with the PAT substituted from the gitignored .env:
+#   sed "s|__GITHUB_PAT__|${GITHUB_PAT}|" k8s/github.yaml | kubectl apply -f-
+apiVersion: v1
+kind: Secret
+metadata: { name: github-pat, namespace: agentgateway-system }
+type: Opaque
+stringData:
+  # AgentGateway reads this key and injects it as the upstream auth header value.
+  Authorization: "__GITHUB_PAT__"
+---
+# Standard mode: all 28 read-only GitHub tools advertised to the model.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata: { name: gh-std, namespace: agentgateway-system }
+spec:
+  entMcp:
+    toolMode: Standard
+    targets:
+      - name: github
+        static:
+          host: api.githubcopilot.com
+          port: 443
+          protocol: StreamableHTTP
+          path: /mcp/readonly
+          policies:
+            tls: {}
+            auth:
+              secretRef: { name: github-pat }
+              location:
+                header: { name: Authorization, prefix: "Bearer " }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: gh-std, namespace: agentgateway-system }
+spec:
+  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp/gh-std } }]
+      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
+      backendRefs: [{ name: gh-std, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
+---
+# Search mode: only get_tool + invoke_tool advertised; gateway discovers + dispatches.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata: { name: gh-search, namespace: agentgateway-system }
+spec:
+  entMcp:
+    toolMode: Search
+    targets:
+      - name: github
+        static:
+          host: api.githubcopilot.com
+          port: 443
+          protocol: StreamableHTTP
+          path: /mcp/readonly
+          policies:
+            tls: {}
+            auth:
+              secretRef: { name: github-pat }
+              location:
+                header: { name: Authorization, prefix: "Bearer " }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: gh-search, namespace: agentgateway-system }
+spec:
+  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp/gh-search } }]
+      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
+      backendRefs: [{ name: gh-search, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
+---
+# Code mode: only run_code advertised; the model writes JavaScript that calls the
+# GitHub tools in a sandbox. Only the final result returns to the model.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata: { name: gh-code, namespace: agentgateway-system }
+spec:
+  entMcp:
+    toolMode: Code
+    codeMode: { timeout: 10s }
+    targets:
+      - name: github
+        static:
+          host: api.githubcopilot.com
+          port: 443
+          protocol: StreamableHTTP
+          path: /mcp/readonly
+          policies:
+            tls: {}
+            auth:
+              secretRef: { name: github-pat }
+              location:
+                header: { name: Authorization, prefix: "Bearer " }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: gh-code, namespace: agentgateway-system }
+spec:
+  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp/gh-code } }]
+      filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /mcp } } }]
+      backendRefs: [{ name: gh-code, group: enterpriseagentgateway.solo.io, kind: EnterpriseAgentgatewayBackend }]
