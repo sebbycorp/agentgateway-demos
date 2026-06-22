@@ -36,9 +36,10 @@ Each deploy script pins its own versions and **its own cluster name** (clusters 
 | 09-k8s-langfuse | `agw-k8s-langfuse` | v1.1.0 |
 | 103-agw-tokenomics-with-f5-tool-modes | `agw-f5-tool-modes` | v2026.6.1 |
 | 104-ent-github-tokenomics | `agw-github-tokenomics` | v2026.6.1 |
+| 105-ent-headroom-comp-tokenomics | `agw-headroom-comp` | v2026.6.1 |
 
-Demos `103` and `104` use the **Enterprise** AgentGateway (`EnterpriseAgentgatewayBackend`,
-`entMcp.toolMode` Standard/Search/Code) from `oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/`, not the OSS charts above. `104` fronts an **external** MCP server (GitHub's hosted `api.githubcopilot.com/mcp`) — no in-cluster MCP pod.
+Demos `103`, `104`, and `105` use the **Enterprise** AgentGateway (`EnterpriseAgentgatewayBackend`,
+`entMcp.toolMode` Standard/Search/Code) from `oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/`, not the OSS charts above. `104` and `105` front an **external** MCP server (GitHub's hosted `api.githubcopilot.com/mcp`) — no in-cluster MCP pod. `105` forks `104` and adds a second knob: a local **Headroom** compression proxy (https://github.com/headroomlabs-ai/headroom) the harness routes the LLM call through (`HEADROOM=on` + `LLM_URL`), to test whether AGW's catalog savings and Headroom's payload compression *stack*. Headroom defaults to compression OFF — `105`'s `run_matrix.sh`/`test.sh` launch it with compression explicitly enabled.
 
 Gateway API CRDs are `v1.5.0` everywhere. Namespace is `agentgateway-system`. Helm charts come from `oci://cr.agentgateway.dev/charts/` (`agentgateway-crds` + `agentgateway`).
 

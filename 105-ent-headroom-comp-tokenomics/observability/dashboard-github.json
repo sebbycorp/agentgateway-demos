@@ -1,6 +1,6 @@
 {
-  "title": "GitHub \u2014 MCP Tool Modes",
-  "uid": "agw-github-tool-modes",
+  "title": "AGW Tool Modes + Headroom",
+  "uid": "agw-headroom-comparison",
   "schemaVersion": 39,
   "time": {
     "from": "now-6h",
@@ -20,14 +20,14 @@
       },
       "options": {
         "mode": "html",
-        "content": "<div style=\"display:flex;align-items:center;height:100%\"><img src=\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgOTAiIGZvbnQtZmFtaWx5PSJJbnRlcixIZWx2ZXRpY2EsQXJpYWwsc2Fucy1zZXJpZiI+CiAgPCEtLSBhZ2VudGdhdGV3YXkgbWFyazogc3R5bGl6ZWQgZG90IHBhdHRlcm4gLS0+CiAgPGcgZmlsbD0iIzdjM2FlZCI+CiAgICA8cmVjdCB4PSI2IiAgeT0iMjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI1MCIgcng9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxMSIvPgogICAgPHJlY3QgeD0iNDAiIHk9IjE0IiB3aWR0aD0iMjAiIGhlaWdodD0iNDQiIHJ4PSIxMCIvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSI2NCIgcj0iMTEiLz4KICAgIDxyZWN0IHg9Ijc0IiB5PSIyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjUwIiByeD0iMTAiLz4KICAgIDxjaXJjbGUgY3g9Ijg0IiBjeT0iMTYiIHI9IjExIi8+CiAgICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjgwIiByPSI4Ii8+CiAgPC9nPgogIDx0ZXh0IHg9IjEyMCIgeT0iNjAiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiNlOGU2ZjAiPmFnZW50Z2F0ZXdheTwvdGV4dD4KPC9zdmc+Cg==\" style=\"height:46px\"/><span style=\"margin-left:16px;font-size:20px;color:#b9b3c7\">GitHub (external MCP) via tool modes</span></div>"
+        "content": "<div style=\"display:flex;align-items:center;height:100%\"><img src=\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgOTAiIGZvbnQtZmFtaWx5PSJJbnRlcixIZWx2ZXRpY2EsQXJpYWwsc2Fucy1zZXJpZiI+CiAgPCEtLSBhZ2VudGdhdGV3YXkgbWFyazogc3R5bGl6ZWQgZG90IHBhdHRlcm4gLS0+CiAgPGcgZmlsbD0iIzdjM2FlZCI+CiAgICA8cmVjdCB4PSI2IiAgeT0iMjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI1MCIgcng9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxMSIvPgogICAgPHJlY3QgeD0iNDAiIHk9IjE0IiB3aWR0aD0iMjAiIGhlaWdodD0iNDQiIHJ4PSIxMCIvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSI2NCIgcj0iMTEiLz4KICAgIDxyZWN0IHg9Ijc0IiB5PSIyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjUwIiByeD0iMTAiLz4KICAgIDxjaXJjbGUgY3g9Ijg0IiBjeT0iMTYiIHI9IjExIi8+CiAgICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjgwIiByPSI4Ii8+CiAgPC9nPgogIDx0ZXh0IHg9IjEyMCIgeT0iNjAiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiNlOGU2ZjAiPmFnZW50Z2F0ZXdheTwvdGV4dD4KPC9zdmc+Cg==\" style=\"height:46px\"/><span style=\"margin-left:16px;font-size:20px;color:#b9b3c7\">AGW tool modes + Headroom \u2014 do the savings stack?</span></div>"
       }
     },
     {
       "id": 1,
       "type": "stat",
-      "title": "Avg first-call tool tokens \u2014 STANDARD",
-      "description": "All 28 read-only GitHub tools sent to the model every call.",
+      "title": "Avg cost/task \u2014 Search, Headroom OFF",
+      "description": "AGW Search alone (no compression). Lower is better.",
       "gridPos": {
         "h": 6,
         "w": 8,
@@ -36,127 +36,30 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "currencyUSD",
           "color": {
             "mode": "fixed",
-            "fixedColor": "red"
+            "fixedColor": "orange"
           },
-          "decimals": 0
+          "decimals": 4
         }
       },
       "targets": [
         {
-          "expr": "avg(agw_ghq_first_call_tokens{mode=\"standard\"})"
+          "expr": "avg(agw_hr_usd_cost{mode=\"search\",headroom=\"off\"})"
         }
       ]
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "Avg first-call tool tokens \u2014 SEARCH",
-      "description": "Only get_tool + invoke_tool sent; the model discovers tools on demand.",
+      "title": "Avg cost/task \u2014 Search, Headroom ON",
+      "description": "AGW Search + Headroom payload compression (the stacked cell).",
       "gridPos": {
         "h": 6,
         "w": 8,
         "x": 8,
         "y": 3
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "green"
-          },
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "avg(agw_ghq_first_call_tokens{mode=\"search\"})"
-        }
-      ]
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Tool-context reduction (Search vs Standard)",
-      "description": "How much smaller the per-call GitHub tool context is with Search mode.",
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
-        "y": 3
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "(1 - avg(agw_ghq_first_call_tokens{mode=\"search\"}) / avg(agw_ghq_first_call_tokens{mode=\"standard\"})) * 100"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "type": "stat",
-      "title": "Tools advertised \u2014 Standard (full GitHub catalog)",
-      "description": "GitHub tools the model sees in Standard mode (Search=2, Code=1 \u2014 see the by-mode bar panel).",
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 0,
-        "y": 9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "red"
-          },
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "avg(agw_ghq_advertised_tools{mode=\"standard\"})"
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "type": "stat",
-      "title": "Questions answered successfully",
-      "description": "Share of the 5 GitHub questions completed across all modes.",
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 8,
-        "y": 9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "avg(agw_ghq_task_ok) * 100"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "type": "stat",
-      "title": "Avg cost per task \u2014 Search",
-      "description": "Average USD per GitHub question in Search mode (gpt-5.5 list-price estimate) \u2014 cheapest on all 5 questions.",
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
-        "y": 9
       },
       "fieldConfig": {
         "defaults": {
@@ -170,120 +73,43 @@
       },
       "targets": [
         {
-          "expr": "avg(agw_ghq_usd_cost{mode=\"search\"})"
+          "expr": "avg(agw_hr_usd_cost{mode=\"search\",headroom=\"on\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Stacked saving (Search: ON vs OFF)",
+      "description": "How much Headroom adds on top of AGW Search. Positive = Headroom helps.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "(1 - avg(agw_hr_usd_cost{mode=\"search\",headroom=\"on\"}) / avg(agw_hr_usd_cost{mode=\"search\",headroom=\"off\"})) * 100"
         }
       ]
     },
     {
       "id": 10,
       "type": "bargauge",
-      "title": "First-call tool tokens by question, by mode",
-      "description": "Per GitHub question: tool-definition tokens the model carries. Standard (28 tools) vs Search (2) vs Code (1). Shorter is better.",
+      "title": "Avg cost/task by AGW mode \u2014 Headroom OFF vs ON",
+      "description": "Each AGW mode with compression off then on. The gap between the two bars is what Headroom adds.",
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 15
-      },
-      "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "agw_ghq_first_call_tokens{mode=\"standard\"}",
-          "legendFormat": "{{question}} \u2014 standard"
-        },
-        {
-          "expr": "agw_ghq_first_call_tokens{mode=\"search\"}",
-          "legendFormat": "{{question}} \u2014 search"
-        },
-        {
-          "expr": "agw_ghq_first_call_tokens{mode=\"code\"}",
-          "legendFormat": "{{question}} \u2014 code"
-        }
-      ]
-    },
-    {
-      "id": 11,
-      "type": "bargauge",
-      "title": "Tools advertised to the model, by mode",
-      "description": "Standard exposes the full GitHub catalog; Search and Code keep it tiny.",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 15
-      },
-      "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "avg by (mode) (agw_ghq_advertised_tools)",
-          "legendFormat": "{{mode}}"
-        }
-      ]
-    },
-    {
-      "id": 12,
-      "type": "bargauge",
-      "title": "Total tokens per question, by mode (the full picture)",
-      "description": "Total prompt+completion tokens incl. the extra Search/Code round-trips. The 'prs' question explodes in Standard; Code stays flat.",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "agw_ghq_total_tokens{mode=\"standard\"}",
-          "legendFormat": "{{question}} \u2014 standard"
-        },
-        {
-          "expr": "agw_ghq_total_tokens{mode=\"search\"}",
-          "legendFormat": "{{question}} \u2014 search"
-        },
-        {
-          "expr": "agw_ghq_total_tokens{mode=\"code\"}",
-          "legendFormat": "{{question}} \u2014 code"
-        }
-      ]
-    },
-    {
-      "id": 13,
-      "type": "bargauge",
-      "title": "Cost per task by question & mode",
-      "description": "USD per GitHub question by mode (gpt-5.5 list-price estimate). Code is cheapest on 4 of 5.",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 24
+        "y": 9
       },
       "options": {
         "orientation": "horizontal",
@@ -297,29 +123,133 @@
       },
       "targets": [
         {
-          "expr": "agw_ghq_usd_cost{mode=\"standard\"}",
-          "legendFormat": "{{question}} \u2014 standard"
-        },
+          "expr": "avg by (mode, headroom) (agw_hr_usd_cost)",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "Avg total tokens/task by AGW mode \u2014 OFF vs ON",
+      "description": "Total prompt+completion tokens per task. Headroom should shrink the payload-heavy cells most.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
         {
-          "expr": "agw_ghq_usd_cost{mode=\"search\"}",
-          "legendFormat": "{{question}} \u2014 search"
-        },
+          "expr": "avg by (mode, headroom) (agw_hr_total_tokens)",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Avg cost/task by repo & Headroom state",
+      "description": "Small (sandbox) vs large repo. Hypothesis: Headroom helps more on the large repo (heavier JSON payloads).",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 5
+        }
+      },
+      "targets": [
         {
-          "expr": "agw_ghq_usd_cost{mode=\"code\"}",
-          "legendFormat": "{{question}} \u2014 code"
+          "expr": "avg by (repo, headroom) (agw_hr_usd_cost)",
+          "legendFormat": "{{repo}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "bargauge",
+      "title": "First-call tool tokens by AGW mode (Headroom-independent)",
+      "description": "AGW-side catalog tax: Standard (28 tools) vs Search (2) vs Code (1). Headroom doesn't touch this layer.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_hr_first_call_tokens)",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "bargauge",
+      "title": "Answer quality (0-5) by mode & Headroom \u2014 vs Standard/OFF baseline",
+      "description": "LLM-judge score. ON bars near 5 = compression preserved the answer. A low ON bar with a low cost = cheaper-but-WORSE; do not celebrate it.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, headroom) (agw_hr_quality_score)",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}}"
         }
       ]
     },
     {
       "id": 20,
       "type": "bargauge",
-      "title": "Conversation cost after 5 turns, by mode (cumulative, cache-aware)",
-      "description": "ONE ongoing 5-question conversation against the sandbox repo. GitHub's large catalog makes the per-turn catalog tax dominate, so Search beats Standard by ~34% \u2014 the opposite of the F5 demo (where Search cost ~4.8x MORE). Code ties Standard here (small results, so its summarize-only trick is muted).",
+      "title": "Conversation cost after 5 turns \u2014 by mode & Headroom (cumulative)",
+      "description": "One ongoing 5-question conversation. Over turns the payload accumulates, so Headroom's compression should matter more here than in single calls.",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 33
+        "y": 36
       },
       "options": {
         "orientation": "horizontal",
@@ -333,21 +263,21 @@
       },
       "targets": [
         {
-          "expr": "agw_ghconv_cum_cost{turn=\"5\"}",
-          "legendFormat": "{{mode}}"
+          "expr": "agw_hrconv_cum_cost{turn=\"5\"}",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}} \u2014 {{repo}}"
         }
       ]
     },
     {
       "id": 21,
       "type": "bargauge",
-      "title": "Conversation tokens after 5 turns, by mode (cumulative)",
-      "description": "Cumulative total tokens across the 5-question conversation. Code keeps the transcript ~4x smaller (only summaries return), Standard re-sends 28 verbose schemas each turn.",
+      "title": "Conversation tokens after 5 turns \u2014 by mode & Headroom (cumulative)",
+      "description": "Cumulative total tokens across the conversation, OFF vs ON.",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 33
+        "y": 36
       },
       "options": {
         "orientation": "horizontal",
@@ -361,67 +291,24 @@
       },
       "targets": [
         {
-          "expr": "agw_ghconv_cum_total_tokens{turn=\"5\"}",
-          "legendFormat": "{{mode}}"
+          "expr": "agw_hrconv_cum_total_tokens{turn=\"5\"}",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}} \u2014 {{repo}}"
         }
       ]
     },
     {
-      "id": 22,
-      "type": "bargauge",
-      "title": "Cache-read tokens after 5 turns, by mode (cumulative)",
-      "description": "gpt-5.5 prompt caching: tokens served from cache over the conversation (stable prefix = system + tools + earlier turns). Standard's giant catalog caches heavily.",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 41
-      },
-      "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0
-        }
-      },
-      "targets": [
-        {
-          "expr": "agw_ghconv_cum_cached_tokens{turn=\"5\"}",
-          "legendFormat": "{{mode}}"
-        }
-      ]
-    },
-    {
-      "id": 23,
+      "id": 30,
       "type": "text",
-      "title": "Single call vs conversation \u2014 and vs the F5 demo",
+      "title": "How to read this dashboard",
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 41
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**GitHub's catalog is large (~4,781 tok), and that decides everything:**\n\n- **Per call** \u2014 Search shrinks tool context **~91%** (429 vs 4,781); Code **~37%**. Search is cheapest on all 5 questions.\n\n- **Long conversation** \u2014 unlike F5 (demo 103, small catalog, where Search cost ~4.8x MORE), here the catalog tax is so big that **Search beats Standard by ~34%**. Code ties Standard (small results mute its summarize-only advantage).\n\n**Catalog size and result size are the deciding variables.** Measure for your own."
-      }
-    },
-    {
-      "id": 14,
-      "type": "text",
-      "title": "The 5 questions asked (all against the sandbox repo)",
-      "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 44
       },
       "options": {
         "mode": "markdown",
-        "content": "Each question is asked through **Standard**, **Search**, and **Code** mode against **sebbycorp/agw-tokenomics-sandbox** via the external GitHub MCP (read-only):\n1. Describe the repo: description, default branch, primary language.\n2. List the 5 most recent commits with their messages.\n3. List the open issues with their titles.\n4. List the open pull requests with their titles.\n5. List the files in the src/ directory."
+        "content": "**Two knobs, different layers.** AGW tool modes shrink the **tool catalog** (panel 13 \u2014 Headroom can't change it). Headroom shrinks the **payload** (the gap between `hr=off` and `hr=on` bars in panels 10\u201312, 20\u201321).\n\n**Do they stack?** Compare `hr=on` vs `hr=off` *within the same AGW mode*. A real stacked win shows the ON bar clearly below the OFF bar \u2014 especially for Search on the large repo.\n\n**Fairness gate (panel 14).** A cheaper ON cell only counts if its quality bar stays near the baseline (5). Cheaper-but-lower-quality is a regression, not a saving.\n\n_Run `./run_matrix.sh` to populate; numbers are list-price gpt-5.5 estimates._"
       }
     }
   ]
