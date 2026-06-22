@@ -1,0 +1,315 @@
+{
+  "title": "AGW Tool Modes + Headroom",
+  "uid": "agw-headroom-comparison",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 9000,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;align-items:center;height:100%\"><img src=\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgOTAiIGZvbnQtZmFtaWx5PSJJbnRlcixIZWx2ZXRpY2EsQXJpYWwsc2Fucy1zZXJpZiI+CiAgPCEtLSBhZ2VudGdhdGV3YXkgbWFyazogc3R5bGl6ZWQgZG90IHBhdHRlcm4gLS0+CiAgPGcgZmlsbD0iIzdjM2FlZCI+CiAgICA8cmVjdCB4PSI2IiAgeT0iMjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI1MCIgcng9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxMSIvPgogICAgPHJlY3QgeD0iNDAiIHk9IjE0IiB3aWR0aD0iMjAiIGhlaWdodD0iNDQiIHJ4PSIxMCIvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSI2NCIgcj0iMTEiLz4KICAgIDxyZWN0IHg9Ijc0IiB5PSIyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjUwIiByeD0iMTAiLz4KICAgIDxjaXJjbGUgY3g9Ijg0IiBjeT0iMTYiIHI9IjExIi8+CiAgICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjgwIiByPSI4Ii8+CiAgPC9nPgogIDx0ZXh0IHg9IjEyMCIgeT0iNjAiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiNlOGU2ZjAiPmFnZW50Z2F0ZXdheTwvdGV4dD4KPC9zdmc+Cg==\" style=\"height:46px\"/><span style=\"margin-left:16px;font-size:20px;color:#b9b3c7\">AGW tool modes + Headroom \u2014 do the savings stack?</span></div>"
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Avg cost/task \u2014 Search, Headroom OFF",
+      "description": "AGW Search alone (no compression). Lower is better.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_hr_usd_cost{mode=\"search\",headroom=\"off\"})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Avg cost/task \u2014 Search, Headroom ON",
+      "description": "AGW Search + Headroom payload compression (the stacked cell).",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(agw_hr_usd_cost{mode=\"search\",headroom=\"on\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Stacked saving (Search: ON vs OFF)",
+      "description": "How much Headroom adds on top of AGW Search. Positive = Headroom helps.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 3
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "(1 - avg(agw_hr_usd_cost{mode=\"search\",headroom=\"on\"}) / avg(agw_hr_usd_cost{mode=\"search\",headroom=\"off\"})) * 100"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "bargauge",
+      "title": "Avg cost/task by AGW mode \u2014 Headroom OFF vs ON",
+      "description": "Each AGW mode with compression off then on. The gap between the two bars is what Headroom adds.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 5
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, headroom) (agw_hr_usd_cost)",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "Avg total tokens/task by AGW mode \u2014 OFF vs ON",
+      "description": "Total prompt+completion tokens per task. Headroom should shrink the payload-heavy cells most.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, headroom) (agw_hr_total_tokens)",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Avg cost/task by repo & Headroom state",
+      "description": "Small (sandbox) vs large repo. Hypothesis: Headroom helps more on the large repo (heavier JSON payloads).",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 5
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (repo, headroom) (agw_hr_usd_cost)",
+          "legendFormat": "{{repo}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "bargauge",
+      "title": "First-call tool tokens by AGW mode (Headroom-independent)",
+      "description": "AGW-side catalog tax: Standard (28 tools) vs Search (2) vs Code (1). Headroom doesn't touch this layer.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode) (agw_hr_first_call_tokens)",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "bargauge",
+      "title": "Answer quality (0-5) by mode & Headroom \u2014 vs Standard/OFF baseline",
+      "description": "LLM-judge score. ON bars near 5 = compression preserved the answer. A low ON bar with a low cost = cheaper-but-WORSE; do not celebrate it.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (mode, headroom) (agw_hr_quality_score)",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}}"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "bargauge",
+      "title": "Conversation cost after 5 turns \u2014 by mode & Headroom (cumulative)",
+      "description": "One ongoing 5-question conversation. Over turns the payload accumulates, so Headroom's compression should matter more here than in single calls.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_hrconv_cum_cost{turn=\"5\"}",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}} \u2014 {{repo}}"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "bargauge",
+      "title": "Conversation tokens after 5 turns \u2014 by mode & Headroom (cumulative)",
+      "description": "Cumulative total tokens across the conversation, OFF vs ON.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "agw_hrconv_cum_total_tokens{turn=\"5\"}",
+          "legendFormat": "{{mode}} \u2014 hr={{headroom}} \u2014 {{repo}}"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "text",
+      "title": "How to read this dashboard",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Two knobs, different layers.** AGW tool modes shrink the **tool catalog** (panel 13 \u2014 Headroom can't change it). Headroom shrinks the **payload** (the gap between `hr=off` and `hr=on` bars in panels 10\u201312, 20\u201321).\n\n**Do they stack?** Compare `hr=on` vs `hr=off` *within the same AGW mode*. A real stacked win shows the ON bar clearly below the OFF bar \u2014 especially for Search on the large repo.\n\n**Fairness gate (panel 14).** A cheaper ON cell only counts if its quality bar stays near the baseline (5). Cheaper-but-lower-quality is a regression, not a saving.\n\n_Run `./run_matrix.sh` to populate; numbers are list-price gpt-5.5 estimates._"
+      }
+    }
+  ]
+}
