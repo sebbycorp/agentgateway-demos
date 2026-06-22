@@ -11,9 +11,8 @@ MODE="${MODE:-search}"
 QUESTION="${GH_TASK:-Describe the repository sebbycorp/agw-tokenomics-sandbox: its description, default branch, open issues, and open pull requests.}"
 
 HR_PORT="${HR_PORT:-8787}"
-HEADROOM_PROXY_UPSTREAM="${HEADROOM_PROXY_UPSTREAM:-http://localhost:8080/openai}"
-HEADROOM_PROXY_COMPRESSION="${HEADROOM_PROXY_COMPRESSION:-1}"   # ON (NOT Headroom's default)
-HEADROOM_PROXY_COMPRESSION_MODE="${HEADROOM_PROXY_COMPRESSION_MODE:-on}"
+OPENAI_TARGET_API_URL="${OPENAI_TARGET_API_URL:-http://localhost:8080/openai}"  # Headroom upstream = AGW /openai
+HEADROOM_MODE="${HEADROOM_MODE:-token}"   # token mode maximises compression (ON by default)
 
 echo "==> Port-forwarding proxy (8080)..."
 kubectl port-forward deployment/agentgateway-proxy -n "${NAMESPACE}" 8080:80 >/tmp/pf-gh.log 2>&1 &
@@ -48,17 +47,18 @@ HEADROOM=off ./.venv/bin/python gh_chat.py "$MODE" "$QUESTION" || true
 echo ""
 echo "==> Launching Headroom proxy on :${HR_PORT} (compression=${HEADROOM_PROXY_COMPRESSION})..."
 if [[ -x ./.venv/bin/headroom ]]; then
-  HEADROOM_PROXY_LISTEN="0.0.0.0:${HR_PORT}" \
-  HEADROOM_PROXY_UPSTREAM="${HEADROOM_PROXY_UPSTREAM}" \
-  HEADROOM_PROXY_COMPRESSION="${HEADROOM_PROXY_COMPRESSION}" \
-  HEADROOM_PROXY_COMPRESSION_MODE="${HEADROOM_PROXY_COMPRESSION_MODE}" \
-    ./.venv/bin/headroom proxy --port "${HR_PORT}" >/tmp/hr-proxy.log 2>&1 &
+  # --no-cache / --no-ccr-*: keep Headroom a clean compression-only proxy so it
+  # doesn't corrupt the Search/Code tool-orchestration flow (see run_matrix.sh).
+  OPENAI_TARGET_API_URL="${OPENAI_TARGET_API_URL}" \
+    ./.venv/bin/headroom proxy --port "${HR_PORT}" --mode "${HEADROOM_MODE}" --stateless \
+    --no-cache --no-ccr-inject-tool --no-ccr-marker \
+    --log-file /tmp/hr-req.jsonl >/tmp/hr-proxy.log 2>&1 &
   HR_PID=$!
   echo "${HR_PID}" > /tmp/headroom-proxy.pid
-  sleep 6
+  sleep 8
   echo ""
   echo "######################## Headroom ON (${MODE} mode) ########################"
-  HEADROOM=on LLM_URL="http://localhost:${HR_PORT}/openai" \
+  HEADROOM=on LLM_URL="http://localhost:${HR_PORT}/v1/chat/completions" \
     ./.venv/bin/python gh_chat.py "$MODE" "$QUESTION" || true
 else
   echo "WARN: ./.venv/bin/headroom not found — run ./deploy.sh first (Step 7 installs it)."

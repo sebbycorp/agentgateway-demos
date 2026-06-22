@@ -1,45 +1,51 @@
-# 105 — Cost & quality matrix
+# 105 — Cost & quality matrix (measured)
 
-> **🚧 NUMBERS PENDING A LIVE RUN.** The tables below are empty skeletons. Fill them from
-> `harness/results.jsonl` + the `run_matrix.sh` console output + the `judge.py` mean-quality
-> lines. Do **not** invent values — every number here must come from a measured run on your
-> cluster (gpt-5.5 list-price, cache-aware; override the `*_PER_1K` env vars for your rates).
+Measured on a live `agw-headroom-comp` kind cluster, gpt-5.5 list-price, cache-aware.
+Single run, 5 questions per cell. `Δ% cost` is the Headroom **saving** (ON vs OFF):
+**positive = ON cheaper, negative = ON more expensive.** Raw rows: `harness/results.jsonl`.
 
-## Method
+## Per-cell averages (5 questions each)
 
-- Workload: the 5 single-question tasks from demo 104 (`repo`, `commits`, `issues`, `prs`,
-  `contents`), run per AGW tool mode.
-- Two knobs: AGW `toolMode` ∈ {Standard, Search, Code} × Headroom ∈ {OFF, ON}.
-- Two repos: `REPO_SMALL` (104 sandbox) and `REPO_LARGE` (heavy payloads).
-- Cost = `(prompt−cached)·IN + cached·CACHED_IN + completion·OUT`, summed over a task's
-  round-trips. Quality = `judge.py` 0–5 vs the Standard/OFF answer for the same question.
+### Small repo — `sebbycorp/agw-tokenomics-sandbox`
 
-## Per-cell averages (across the 5 questions)
+| AGW mode | OFF cost $ | ON cost $ | Δ% cost | OFF tok | ON tok | OFF qual /5 | ON qual /5 |
+|----------|-----------:|----------:|--------:|--------:|-------:|------------:|-----------:|
+| Standard | 0.0289 | 0.0432 | **−49.3%** | 10318 | 12943 | 5.00 | 5.00 |
+| Search   | 0.0149 | 0.0138 | +7.3% | 2702 | 2638 | 5.00 | 4.20 |
+| Code     | 0.0315 | 0.0204 | +35.4% | 8848 | 6384 | 5.00 | 4.80 |
 
-### Small repo — `REPO_SMALL`
+### Large repo — `sebbycorp/k8s-iceman`
 
-| AGW mode | OFF cost $ | ON cost $ | Δ% (ON vs OFF) | OFF quality /5 | ON quality /5 |
-|----------|-----------:|----------:|---------------:|---------------:|--------------:|
-| Standard |  _TBD_ | _TBD_ | _TBD_ | _(baseline=5)_ | _TBD_ |
-| Search   |  _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| Code     |  _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
+| AGW mode | OFF cost $ | ON cost $ | Δ% cost | OFF tok | ON tok | OFF qual /5 | ON qual /5 |
+|----------|-----------:|----------:|--------:|--------:|-------:|------------:|-----------:|
+| Standard | 0.0424 | 0.0391 | +7.8% | 13504 | 13355 | 5.00 | 4.20 |
+| Search   | 0.0269 | 0.0173 | **+35.8%** | 5148 | 3030 | 4.80 | 4.40 |
+| Code     | 0.0623 | 0.0233 | **+62.6%** | 16934 | 7180 | 3.40 | 4.60 |
 
-### Large repo — `REPO_LARGE`
+## First-call tool context (AGW-side, Headroom-independent)
 
-| AGW mode | OFF cost $ | ON cost $ | Δ% (ON vs OFF) | OFF quality /5 | ON quality /5 |
-|----------|-----------:|----------:|---------------:|---------------:|--------------:|
-| Standard |  _TBD_ | _TBD_ | _TBD_ | _(baseline=5)_ | _TBD_ |
-| Search   |  _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| Code     |  _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
+Confirmed from the run: **Standard ~4,780 tok · Search ~428 (−91%) · Code ~3,020 (−37%)** —
+exactly the 104 catalog-tax picture. Headroom does not touch this layer.
 
-## First-call tool context (tokens, from AGW — independent of Headroom)
+## Stacking read-out
 
-Carried over from 104 as the AGW-side reference: **Standard ~4,781 · Search ~429 (−91%) ·
-Code ~3,021 (−37%)**. Confirm in your run.
+- **Headroom stacks on top of AGW — but only when payloads are big.** On the large repo it
+  adds savings to **every** AGW mode: Code **−63%**, Search **−36%**, Standard −8%.
+- **Biggest stacked win:** large repo, **Code + Headroom = $0.0233** (−63% vs Code OFF) and
+  **Search + Headroom = $0.0173** (−36%, and the cheapest *reliable* cell overall).
+- **Small repo: Headroom does not help and hurts Standard (+49% cost).** Compression rewrites
+  the prompt every turn, busting gpt-5.5's prefix cache — which otherwise serves the big stable
+  28-tool catalog cheaply. With little result payload to compress, the lost cache > the saving.
+- **Quality flag:** the `commits` question repeatedly scored **2/5** under Headroom ON — text
+  compression mangles high-entropy **commit SHA hashes**. Cheaper is not free for
+  exact-identifier tasks.
 
-## Stacking read-out (fill after the run)
+## Compatibility caveat (had to be worked around)
 
-- **Does Headroom add savings on top of AGW Search?** small: _TBD_ · large: _TBD_
-- **Where is the biggest stacked win?** _TBD_ (hypothesis: Search + ON, large repo)
-- **Code + Headroom overlap?** _TBD_ (hypothesis: diminishing — Code already summarizes)
-- **Any cell where ON is cheaper but quality drops?** _TBD_ — flag it explicitly.
+Out of the box, Headroom's **semantic cache** and **CCR tool-injection** corrupted the
+Search/Code tool-orchestration flow — every Search/Code ON task failed with an MCP TaskGroup
+error until the proxy was launched with `--no-cache --no-ccr-inject-tool --no-ccr-marker`. It is
+**not** a safe drop-in in front of an MCP tool-calling agent without those flags.
+
+> Single run — treat ±a few points as noise (see demo 104's 3-run variance note). Re-run
+> `./run_matrix.sh` 3× for ranges before quoting these as firm.

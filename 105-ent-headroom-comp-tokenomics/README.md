@@ -19,10 +19,13 @@ JSON results, files, and conversation history — before they reach the LLM.
 | **AGW tool modes** | tool-catalog tax + round-trips | Search: 28 tools → 2 meta-tools (−91% catalog). Code: N calls → 1 round-trip, summary-only |
 | **Headroom** | content/result payload + history | ML/AST/JSON compressors (SmartCrusher, CodeCompressor, Kompress model), reversible |
 
-> **⚠️ Results status:** the harness, matrix driver, and quality judge are built and
-> run-ready, but **the numbers in [`REPORT.md`](./REPORT.md) and [`COST-ANALYSIS.md`](./COST-ANALYSIS.md)
-> are PENDING a live run** — they require your license + OpenAI spend on a live cluster.
-> Run `./run_matrix.sh` (below) to fill them in. Nothing in this repo fabricates measured costs.
+> **✅ Measured (single run, gpt-5.5).** Headline: **they stack — but only when payloads are
+> big.** On the large repo, Headroom adds savings to every AGW mode (Code **−63%**, Search
+> **−36%**); on the small catalog-dominated repo it barely helps and *raises* Standard cost
+> +49% (it busts gpt-5.5's prefix cache). It also mangles commit-SHA answers and needs
+> `--no-cache --no-ccr-*` to not break MCP tool-calling. Full numbers + caveats in
+> [`REPORT.md`](./REPORT.md) and [`COST-ANALYSIS.md`](./COST-ANALYSIS.md). Re-run `./run_matrix.sh`
+> 3× for firm ranges (single-run variance is real — see demo 104).
 
 ---
 
@@ -53,14 +56,18 @@ The catalog effect is independent of which LLM URL is used: the harness bakes th
 catalog into the request body from the MCP `tools/list` response, so the two knobs stay
 orthogonal.
 
-> **Headroom integration (verified from the source):** the proxy forwards verbatim to a
-> required `--upstream` / `HEADROOM_PROXY_UPSTREAM`, so we point it at AGW `/openai`
-> (outcome A — AGW tracing still sees every call). **Compression is OFF by default**
-> (`--compression` / `HEADROOM_PROXY_COMPRESSION`, `--compression-mode` default `off`) — so
-> `run_matrix.sh` and `test.sh` launch it with compression **explicitly enabled**. Without
-> that, the ON column would equal OFF and the comparison would be meaningless. If your
-> installed build's flags differ, confirm with `harness/.venv/bin/headroom proxy --help` and
-> override `HEADROOM_PROXY_*` in `.env`.
+> **Headroom integration (verified live against `headroom proxy --help`):** the proxy is
+> OpenAI-compatible at `http://localhost:8787/v1/chat/completions`, and its upstream is set
+> with `OPENAI_TARGET_API_URL` — we point that at AGW `/openai`, so AGW supplies the model
+> (`gpt-5.5`) + key and still traces every call. Optimization (compression) is **ON by
+> default**; `--mode token` maximises it.
+>
+> **Mandatory flags for MCP tool-calling:** `run_matrix.sh`/`test.sh` launch Headroom with
+> `--no-cache --no-ccr-inject-tool --no-ccr-marker`. Without them, Headroom's semantic cache
+> and CCR tool-injection **corrupt the Search/Code tool-orchestration flow** and every
+> Search/Code ON task fails with an MCP `TaskGroup` error. (Standard mode survives, but the
+> comparison would be incomplete.) Measured proof a single payload is compressed end-to-end:
+> identical 29 KB tool-result blob = **10,859 → 9,772 prompt tokens** through the proxy.
 
 ---
 

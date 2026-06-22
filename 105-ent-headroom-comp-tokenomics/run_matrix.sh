@@ -26,16 +26,15 @@ HR_BIN="${SCRIPT_DIR}/harness/.venv/bin/headroom"
 REPO_SMALL="${REPO_SMALL:-sebbycorp/agw-tokenomics-sandbox}"
 REPO_LARGE="${REPO_LARGE:?set REPO_LARGE=owner/name to a LARGE read-only repo (heavy JSON gives Headroom something to compress)}"
 
-# Headroom proxy wiring. The proxy forwards verbatim to --upstream after
-# compressing the body; we point it at the AGW /openai route so AGW tracing still
-# sees every call. Override the launch command via HEADROOM_CMD if your installed
-# build differs (confirm flags with: harness/.venv/bin/headroom proxy --help).
+# Headroom proxy wiring (verified against headroom-ai's `headroom proxy --help`):
+#   - it exposes an OpenAI-compatible endpoint at /v1/chat/completions
+#   - its OpenAI upstream is set with OPENAI_TARGET_API_URL -> we point it at the
+#     AGW /openai route, so AGW still supplies the model (gpt-5.5) + key and traces it
+#   - optimization (compression) is ON by default; --mode token maximises it
 HR_PORT="${HR_PORT:-8787}"
-HEADROOM_PROXY_UPSTREAM="${HEADROOM_PROXY_UPSTREAM:-http://localhost:8080/openai}"
-HEADROOM_PROXY_COMPRESSION="${HEADROOM_PROXY_COMPRESSION:-1}"       # 1 = ON (NOT the default!)
-HEADROOM_PROXY_COMPRESSION_MODE="${HEADROOM_PROXY_COMPRESSION_MODE:-on}"
-export HEADROOM_OUTPUT_SHAPER="${HEADROOM_OUTPUT_SHAPER:-1}"        # also trim output tokens
-LLM_URL_ON="${LLM_URL_ON:-http://localhost:${HR_PORT}/openai}"
+OPENAI_TARGET_API_URL="${OPENAI_TARGET_API_URL:-http://localhost:8080/openai}"
+HEADROOM_MODE="${HEADROOM_MODE:-token}"
+LLM_URL_ON="${LLM_URL_ON:-http://localhost:${HR_PORT}/v1/chat/completions}"
 
 export LLM_NO_TEMPERATURE="${LLM_NO_TEMPERATURE:-1}"
 export RESULTS_FILE="${SCRIPT_DIR}/harness/results.jsonl"
@@ -47,14 +46,18 @@ PF1=$!
 kubectl port-forward svc/prometheus-prometheus-pushgateway -n observability 9091:9091 >/tmp/pf-hr-pg.log 2>&1 &
 PF2=$!
 
-echo "==> Launching Headroom proxy on :${HR_PORT} (upstream ${HEADROOM_PROXY_UPSTREAM}, compression=${HEADROOM_PROXY_COMPRESSION})..."
+echo "==> Launching Headroom proxy on :${HR_PORT} (upstream ${OPENAI_TARGET_API_URL}, mode=${HEADROOM_MODE})..."
 HR_PID=""
 if [[ -x "${HR_BIN}" ]]; then
-  HEADROOM_PROXY_LISTEN="0.0.0.0:${HR_PORT}" \
-  HEADROOM_PROXY_UPSTREAM="${HEADROOM_PROXY_UPSTREAM}" \
-  HEADROOM_PROXY_COMPRESSION="${HEADROOM_PROXY_COMPRESSION}" \
-  HEADROOM_PROXY_COMPRESSION_MODE="${HEADROOM_PROXY_COMPRESSION_MODE}" \
-    "${HR_BIN}" proxy --port "${HR_PORT}" >/tmp/hr-proxy.log 2>&1 &
+  # --no-cache: Headroom's semantic cache can serve a wrong cached response across
+  #   the many near-identical GitHub requests, corrupting Search/Code tool calls.
+  # --no-ccr-inject-tool/--no-ccr-marker: don't inject the headroom_retrieve tool or
+  #   CCR markers — they break the MCP-driven Search/Code tool-orchestration flow.
+  # Without these three, every Search/Code ON task fails with an MCP TaskGroup error.
+  OPENAI_TARGET_API_URL="${OPENAI_TARGET_API_URL}" \
+    "${HR_BIN}" proxy --port "${HR_PORT}" --mode "${HEADROOM_MODE}" --stateless \
+    --no-cache --no-ccr-inject-tool --no-ccr-marker \
+    --log-file /tmp/hr-req.jsonl >/tmp/hr-proxy.log 2>&1 &
   HR_PID=$!
   echo "${HR_PID}" > /tmp/headroom-proxy.pid
 else

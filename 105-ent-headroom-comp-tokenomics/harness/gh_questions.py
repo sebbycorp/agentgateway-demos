@@ -96,8 +96,11 @@ async def run(path, question, client):
                     break
                 for tc in tcs:
                     fn = tc["function"]["name"]
-                    args = json.loads(tc["function"]["arguments"] or "{}")
                     try:
+                        # json.loads is inside the try: if compression corrupts the
+                        # tool-call arguments, treat it as a tool error rather than
+                        # letting it blow up the whole MCP session (TaskGroup error).
+                        args = json.loads(tc["function"]["arguments"] or "{}")
                         res = await s.call_tool(fn, arguments=args)
                         text = res.content[0].text if res.content else ""
                     except Exception as e:
@@ -125,7 +128,8 @@ async def main():
     g_cached = Gauge("agw_hr_cached_tokens", "cache-read tokens per task", labels, registry=reg)
 
     print(f"# repo={REPO}  headroom={HR}  llm={LLM}")
-    async with httpx.AsyncClient(timeout=120) as client, open(RESULTS_FILE, "a") as out:
+    out = open(RESULTS_FILE, "a")
+    async with httpx.AsyncClient(timeout=120) as client:
         print(f"{'question':<10}{'mode':<10}{'adv':>5}{'first':>8}{'total':>8}{'cached':>8}{'calls':>7}{'cost':>11}{'ok':>5}")
         for qid, qtext in QUESTIONS:
             for mode, path in MODES.items():
@@ -153,6 +157,7 @@ async def main():
                     "calls": m["calls"], "ok": m["ok"], "answer": m.get("answer", ""),
                 }) + "\n")
                 out.flush()
+    out.close()
 
     # Push grouped per (headroom, repo) so OFF/ON and small/large runs don't
     # overwrite each other (delete_from_gateway wipes the whole grouping).
