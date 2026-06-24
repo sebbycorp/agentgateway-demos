@@ -13,7 +13,10 @@ config:
 llm:
   port: 4000
   policies:
-    cors:
+    cors:                             # demo-only: wildcard CORS lets any browser
+                                      # origin call the proxy. Safe because the
+                                      # port is loopback-bound (see setup.sh).
+                                      # Restrict allowOrigins for any real exposure.
       allowOrigins: ["*"]
       allowHeaders: ["*"]
       allowMethods: ["GET", "POST", "OPTIONS"]

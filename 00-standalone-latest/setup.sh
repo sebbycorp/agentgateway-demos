@@ -97,7 +97,10 @@ config:
 llm:
   port: 4000
   policies:
-    cors:
+    cors:                             # demo-only: wildcard CORS lets any browser
+                                      # origin call the proxy. Safe because the
+                                      # port is loopback-bound (see docker run).
+                                      # Restrict allowOrigins for any real exposure.
       allowOrigins: ["*"]
       allowHeaders: ["*"]
       allowMethods: ["GET", "POST", "OPTIONS"]
@@ -141,12 +144,15 @@ docker cp "$DIR/data/data.db" "$SEED_CID:/data/data.db"
 docker rm "$SEED_CID" >/dev/null
 
 say "Starting agentgateway"
+# Ports are published to 127.0.0.1 only: the LLM proxy (:4000) is unauthenticated
+# and carries your OPENAI_API_KEY, so we keep it off the LAN. Drop the 127.0.0.1
+# prefixes if you intentionally need to reach the demo from another machine.
 # --user 0:0: the image runs as UID 65532 (distroless nonroot), but the seeded
 # DB and volume dir are root-owned, so the gateway needs root to create the
 # SQLite WAL/journal files and append live request logs.
 docker run -d --name "$CONTAINER" \
   --user 0:0 \
-  -p 4000:4000 -p 15000:15000 \
+  -p 127.0.0.1:4000:4000 -p 127.0.0.1:15000:15000 \
   -e OPENAI_API_KEY \
   -v "$DIR/config.yaml:/config.yaml" \
   -v "$DIR/base-costs.json:/base-costs.json" \
