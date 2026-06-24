@@ -1,0 +1,4 @@
+# Generated / fetched by setup.sh
+data/
+*.db
+gen-mock-logs.py
