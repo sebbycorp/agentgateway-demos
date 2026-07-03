@@ -1,0 +1,17 @@
+binds:
+- port: 4000
+  listeners:
+  - protocol: HTTP
+    routes:
+    - name: openai-route
+      matches:
+      - path:
+          pathPrefix: /v1
+      policies:
+        backendAuth:
+          key: "$OPENAI_API_KEY"
+      backends:
+      - ai:
+          name: openai
+          provider:
+            openAI: {}

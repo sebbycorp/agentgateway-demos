@@ -1,0 +1,30 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: f5-guardrails
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: option-c
+  backend:
+    ai:
+      promptGuard:
+        request:
+        - webhook:
+            backendRef:
+              kind: Service
+              name: f5-guardrails-adapter
+              port: 8000
+            failureMode: FailClosed
+          response:
+            message: "Blocked by F5 AI Guardrails"
+            statusCode: 403
+        response:
+        - webhook:
+            backendRef:
+              kind: Service
+              name: f5-guardrails-adapter
+              port: 8000
+            failureMode: FailClosed

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openai-secret
+  namespace: agentgateway-system
+type: Opaque
+stringData:
+  Authorization: "__OPENAI_API_KEY__"
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: openai-direct
+  namespace: agentgateway-system
+spec:
+  ai:
+    provider:
+      openai:
+        model: "__OPTION_C_MODEL__"
+  policies:
+    auth:
+      secretRef:
+        name: openai-secret

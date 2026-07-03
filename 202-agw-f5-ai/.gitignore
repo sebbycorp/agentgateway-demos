@@ -1,0 +1,8 @@
+adapter/.venv/
+adapter/__pycache__/
+adapter/.pytest_cache/
+.pytest_cache/
+harness/.venv/
+harness/__pycache__/
+harness/.pytest_cache/
+harness/results.jsonl

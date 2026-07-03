@@ -5,8 +5,6 @@
 # writes the same request_logs schema, so the dashboard is pre-populated.
 config:
   adminAddr: "0.0.0.0:15000"        # admin UI + dashboards (reachable from host)
-  database:
-    url: "sqlite:///data/data.db"   # /data is the mounted ./data dir in the container
   modelCatalog:
     - file: /base-costs.json        # per-model rates so every request is priced
 

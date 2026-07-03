@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: calypsoai-token
+  namespace: agentgateway-system
+type: Opaque
+stringData:
+  Authorization: "__F5_AISEC_TOKEN__"
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: f5-guardrails-inline
+  namespace: agentgateway-system
+spec:
+  ai:
+    provider:
+      openai:
+        model: "__OPTION_A_MODEL__"
+      host: "__F5_AISEC_HOST__"
+      port: 443
+      path: "/openai/__F5_AISEC_INLINE_PROVIDER__/chat/completions"
+  policies:
+    auth:
+      secretRef:
+        name: calypsoai-token
+    tls:
+      sni: "__F5_AISEC_HOST__"
