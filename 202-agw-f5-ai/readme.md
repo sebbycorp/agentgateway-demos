@@ -20,6 +20,10 @@ The point of the lab is to prove both models with real traffic:
 - a custom SSN regex scanner redacts request content on Option C
 - response-phase scanning on Option C masks blocked assistant output
 
+The `test.sh` traffic flow looks like this:
+
+![Animated traffic flow for test.sh showing Option A inline F5 Guardrails traffic and Option C out-of-band ScanAPI traffic through agentgateway webhooks](docs/images/agw-f5-traffic-flow.gif)
+
 ## Product Boundaries
 
 F5 AI Guardrails, formerly CalypsoAI, is the AI security layer. It scans prompts
