@@ -6,3 +6,4 @@ harness/.venv/
 harness/__pycache__/
 harness/.pytest_cache/
 harness/results.jsonl
+harness/results-*.jsonl

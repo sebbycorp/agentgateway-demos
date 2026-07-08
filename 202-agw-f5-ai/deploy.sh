@@ -3,8 +3,10 @@ set -euo pipefail
 
 CLUSTER_NAME="${CLUSTER_NAME:-agw-f5-guardrails}"
 NAMESPACE="agentgateway-system"
-AGW_VERSION="v2026.6.1"
+AGW_VERSION="v2026.6.3"
 GATEWAY_API_VERSION="v1.5.0"
+SOLO_UI_VERSION="${SOLO_UI_VERSION:-0.4.8}"
+ENABLE_COST_MANAGEMENT="${ENABLE_COST_MANAGEMENT:-true}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 load_env() {
@@ -47,6 +49,63 @@ resolve_project() {
   CAI_PROJECT="$selected"
 }
 
+install_agentgateway_ui() {
+  [[ "${ENABLE_AGENTGATEWAY_UI:-true}" == "true" ]] || return 0
+
+  local oidc_issuer="${SOLO_UI_OIDC_ISSUER:-}"
+  local backend_client_id="${SOLO_UI_BACKEND_CLIENT_ID:-kagent-backend}"
+  local frontend_client_id="${SOLO_UI_FRONTEND_CLIENT_ID:-kagent-ui}"
+  local backend_secret_ref="${SOLO_UI_BACKEND_SECRET_REF:-solo-enterprise-backend-secret}"
+  local cluster="${SOLO_UI_CLUSTER:-mgmt-cluster}"
+  local kagent_namespace="${KAGENT_NAMESPACE:-kagent}"
+
+  if [[ -n "${oidc_issuer}" ]]; then
+    require_env SOLO_UI_BACKEND_CLIENT_SECRET
+    kubectl create secret generic "${backend_secret_ref}" \
+      -n "${NAMESPACE}" \
+      --from-literal=clientSecret="${SOLO_UI_BACKEND_CLIENT_SECRET}" \
+      --dry-run=client -o yaml | kubectl apply -f-
+  fi
+
+  echo "==> Solo UI ${SOLO_UI_VERSION}"
+
+  helm upgrade -i management \
+    oci://us-docker.pkg.dev/solo-public/solo-enterprise-helm/charts/management \
+    -n "${NAMESPACE}" --version "${SOLO_UI_VERSION}" \
+    --set-string licensing.licenseKey="${AGENTGATEWAY_LICENSE_KEY}" \
+    --set management-crds.enabled=false \
+    -f - <<EOF
+cluster: ${cluster}
+products:
+  kagent:
+    enabled: true
+    namespace: ${kagent_namespace}
+  agentgateway:
+    enabled: true
+    namespace: ${NAMESPACE}
+    features:
+      # Surfaces PRODUCT_AGENTGATEWAY_FEATURES_COST_MANAGEMENT_ENABLED on the
+      # ui-frontend container, turning on the Cost Management UI tab.
+      cost-management: ${ENABLE_COST_MANAGEMENT}
+oidc:
+  issuer: "${oidc_issuer}"
+service:
+  type: ClusterIP
+ui:
+  backend:
+    oidc:
+      clientId: ${backend_client_id}
+      secretRef: ${backend_secret_ref}
+  frontend:
+    enableMockUI: false
+    oidc:
+      clientId: ${frontend_client_id}
+EOF
+
+  kubectl rollout status deployment/solo-enterprise-ui -n "${NAMESPACE}" --timeout=300s
+  kubectl apply -f "${SCRIPT_DIR}/manifests/agentgateway-tracing.yaml"
+}
+
 load_env
 for c in kind kubectl helm docker curl jq; do command -v "$c" >/dev/null || { echo "ERROR: '$c' required." >&2; exit 1; }; done
 for v in AGENTGATEWAY_LICENSE_KEY OPENAI_API_KEY F5_AISEC_URL F5_AISEC_TOKEN; do require_env "$v"; done
@@ -66,7 +125,7 @@ echo "==> Gateway API CRDs ${GATEWAY_API_VERSION}"
 kubectl apply --server-side --force-conflicts \
   -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
 
-echo "==> Enterprise AgentGateway ${AGW_VERSION}"
+echo "==> Enterprise agentgateway ${AGW_VERSION}"
 helm upgrade -i enterprise-agentgateway-crds \
   oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/enterprise-agentgateway-crds \
   --create-namespace --namespace "${NAMESPACE}" --version "${AGW_VERSION}"
@@ -75,17 +134,19 @@ helm upgrade -i enterprise-agentgateway \
   -n "${NAMESPACE}" --version "${AGW_VERSION}" \
   --set-string licensing.licenseKey="${AGENTGATEWAY_LICENSE_KEY}"
 kubectl rollout status deployment/enterprise-agentgateway -n "${NAMESPACE}" --timeout=180s
+install_agentgateway_ui
 
 echo "==> Build and load Guardrails adapter"
 docker build -t f5-guardrails-adapter:local "${SCRIPT_DIR}/adapter"
 kind load docker-image f5-guardrails-adapter:local --name "${CLUSTER_NAME}"
 
-echo "==> Apply AgentGateway resources"
+echo "==> Apply agentgateway resources"
 kubectl apply -f "${SCRIPT_DIR}/manifests/gateway.yaml"
 kubectl wait --for=condition=Available deployment/agentgateway-proxy -n "${NAMESPACE}" --timeout=300s
 for file in \
   option-a-backend.yaml option-a-route.yaml \
-  option-c-backend.yaml adapter.yaml option-c-route.yaml option-c-promptguard.yaml; do
+  option-c-backend.yaml adapter.yaml option-c-route.yaml option-c-promptguard.yaml \
+  agw-enterprise-native.yaml; do
   render "${SCRIPT_DIR}/manifests/${file}" | kubectl apply -f-
 done
 kubectl rollout status deployment/f5-guardrails-adapter -n "${NAMESPACE}" --timeout=180s
@@ -93,5 +154,10 @@ kubectl rollout status deployment/f5-guardrails-adapter -n "${NAMESPACE}" --time
 echo "==> Guardrails lab ready"
 echo "Port-forward:"
 echo "  kubectl port-forward -n ${NAMESPACE} svc/agentgateway-proxy 8080:80"
+if [[ "${ENABLE_AGENTGATEWAY_UI:-true}" == "true" ]]; then
+  echo "agentgateway UI:"
+  echo "  kubectl port-forward -n ${NAMESPACE} svc/solo-enterprise-ui 8090:80"
+  echo "  open http://localhost:8090"
+fi
 echo "Test:"
 echo "  ./test.sh"

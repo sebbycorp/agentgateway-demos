@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +17,10 @@ class Case:
     name: str
     route: str
     model: str
-    prompt: str
-    expect: dict[str, Any]
+    prompt: str = ""
+    expect: dict[str, Any] = field(default_factory=dict)
+    messages: list[dict[str, str]] | None = None
+    stream: bool = False
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,29 @@ def _as_list(value: Any) -> list[Any]:
     if value is None:
         return []
     return value if isinstance(value, list) else [value]
+
+
+def _prompt_from_parts(parts: list[Any]) -> str:
+    prompt = []
+    for part in parts:
+        if isinstance(part, str):
+            prompt.append(part)
+            continue
+        if not isinstance(part, dict) or "repeat" not in part:
+            raise ValueError(f"unsupported prompt part: {part!r}")
+        repeat = part["repeat"] or {}
+        text = str(repeat.get("text", ""))
+        count = int(repeat.get("count", 0))
+        if count < 0:
+            raise ValueError("prompt repeat count must not be negative")
+        prompt.append(text * count)
+    return "".join(prompt)
+
+
+def build_messages(case: Case) -> list[dict[str, str]]:
+    if case.messages:
+        return [{"role": str(item["role"]), "content": str(item["content"])} for item in case.messages]
+    return [{"role": "user", "content": case.prompt}]
 
 
 def classify_response(case: Case, status: int, body: str, latency_ms: int) -> Verdict:
@@ -72,12 +97,14 @@ def _summary(body: str) -> str:
     return body.replace("\n", " ")[:240]
 
 
-def result_record(case: Case, verdict: Verdict) -> dict[str, Any]:
+def result_record(case: Case, verdict: Verdict, iteration: int = 1) -> dict[str, Any]:
     parsed = _json_body(verdict.body)
     return {
         "case": case.name,
+        "iteration": iteration,
         "route": case.route,
         "model": case.model,
+        "stream": case.stream,
         "status": verdict.status,
         "passed": verdict.passed,
         "reason": verdict.reason,
@@ -94,13 +121,18 @@ def load_cases(path: Path) -> list[Case]:
         model = raw.get("model")
         if not model and raw.get("model_env"):
             model = os.getenv(raw["model_env"], raw.get("model_default", ""))
+        prompt = raw.get("prompt", "")
+        if "prompt_parts" in raw:
+            prompt = _prompt_from_parts(raw["prompt_parts"] or [])
         cases.append(
             Case(
                 name=raw["name"],
                 route=raw["route"],
                 model=model or "",
-                prompt=raw["prompt"],
+                prompt=prompt,
                 expect=raw.get("expect", {}),
+                messages=raw.get("messages"),
+                stream=bool(raw.get("stream", False)),
             )
         )
     return cases
@@ -109,21 +141,46 @@ def load_cases(path: Path) -> list[Case]:
 async def run_case(client: httpx.AsyncClient, base_url: str, case: Case) -> Verdict:
     started = time.perf_counter()
     try:
-        response = await client.post(
-            base_url.rstrip("/") + case.route,
-            json={
-                "model": case.model,
-                "stream": False,
-                "messages": [{"role": "user", "content": case.prompt}],
-            },
-        )
-        body = response.text
-        status = response.status_code
+        payload = {
+            "model": case.model,
+            "stream": case.stream,
+            "messages": build_messages(case),
+        }
+        if case.stream:
+            chunks = []
+            async with client.stream("POST", base_url.rstrip("/") + case.route, json=payload) as response:
+                status = response.status_code
+                async for chunk in response.aiter_text():
+                    chunks.append(chunk)
+            body = "".join(chunks)
+        else:
+            response = await client.post(base_url.rstrip("/") + case.route, json=payload)
+            body = response.text
+            status = response.status_code
     except Exception as exc:
         body = str(exc)
         status = 0
     latency_ms = int((time.perf_counter() - started) * 1000)
     return classify_response(case, status, body, latency_ms)
+
+
+async def run_cases(
+    client: httpx.AsyncClient,
+    base_url: str,
+    cases: list[Case],
+    concurrency: int = 1,
+    repeat: int = 1,
+    runner=run_case,
+) -> list[dict[str, Any]]:
+    semaphore = asyncio.Semaphore(max(1, concurrency))
+
+    async def run_one(case: Case, iteration: int) -> dict[str, Any]:
+        async with semaphore:
+            verdict = await runner(client, base_url, case)
+        return result_record(case, verdict, iteration)
+
+    tasks = [run_one(case, iteration) for iteration in range(1, max(1, repeat) + 1) for case in cases]
+    return await asyncio.gather(*tasks)
 
 
 def print_table(records: list[dict[str, Any]]) -> None:
@@ -136,11 +193,14 @@ def print_table(records: list[dict[str, Any]]) -> None:
 
 async def async_main(args: argparse.Namespace) -> int:
     cases = load_cases(Path(args.cases))
-    records = []
     async with httpx.AsyncClient(timeout=args.timeout) as client:
-        for case in cases:
-            verdict = await run_case(client, args.base_url, case)
-            records.append(result_record(case, verdict))
+        records = await run_cases(
+            client,
+            args.base_url,
+            cases,
+            concurrency=args.concurrency,
+            repeat=args.repeat,
+        )
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -159,6 +219,8 @@ def main() -> int:
     parser.add_argument("--cases", default=str(Path(__file__).with_name("cases.yaml")))
     parser.add_argument("--output", default=str(Path(__file__).with_name("results.jsonl")))
     parser.add_argument("--timeout", type=float, default=float(os.getenv("HARNESS_TIMEOUT", "120")))
+    parser.add_argument("--concurrency", type=int, default=int(os.getenv("HARNESS_CONCURRENCY", "1")))
+    parser.add_argument("--repeat", type=int, default=int(os.getenv("HARNESS_REPEAT", "1")))
     return asyncio.run(async_main(parser.parse_args()))
 
 

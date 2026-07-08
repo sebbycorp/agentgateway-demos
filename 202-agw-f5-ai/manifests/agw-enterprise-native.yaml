@@ -1,0 +1,129 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agw-direct
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+  - name: agentgateway-proxy
+    namespace: agentgateway-system
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /agw/direct
+    backendRefs:
+    - name: openai-direct
+      group: agentgateway.dev
+      kind: AgentgatewayBackend
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: agw-direct-response
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: agw-direct
+  traffic:
+    directResponse:
+      status: 200
+      body: '{"gateway":"enterprise-agentgateway","route":"direct-response","provider_call":false}'
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agw-rate-limit
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+  - name: agentgateway-proxy
+    namespace: agentgateway-system
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /agw/rate-limit
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /healthz
+    backendRefs:
+    - name: f5-guardrails-adapter
+      port: 8000
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: agw-local-rate-limit
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: agw-rate-limit
+  traffic:
+    rateLimit:
+      local:
+      - requests: 1
+        burst: 1
+        unit: Seconds
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agw-cors
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+  - name: agentgateway-proxy
+    namespace: agentgateway-system
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /agw/cors
+    backendRefs:
+    - name: openai-direct
+      group: agentgateway.dev
+      kind: AgentgatewayBackend
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: agw-cors-and-headers
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: agw-cors
+  traffic:
+    cors:
+      allowOrigins:
+      - http://localhost:3000
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+      allowHeaders:
+      - content-type
+      - authorization
+      exposeHeaders:
+      - x-agw-demo
+      maxAge: 600
+    directResponse:
+      status: 200
+      body: '{"gateway":"enterprise-agentgateway","route":"cors-and-headers","provider_call":false}'
+      headers:
+      - name: content-type
+        value: application/json
+    headerModifiers:
+      response:
+        add:
+        - name: x-agw-demo
+          value: cors-and-headers

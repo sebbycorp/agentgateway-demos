@@ -6,7 +6,7 @@
 
 **Architecture:** Option A routes AgentGateway to the F5 OpenAI-compatible inline endpoint. Option C routes AgentGateway to OpenAI directly and calls an in-cluster FastAPI adapter from promptGuard request and response webhooks; the adapter calls F5 ScanAPI.
 
-**Tech Stack:** kind, Helm, Gateway API, Enterprise AgentGateway v2026.6.1, FastAPI, pytest, curl, jq.
+**Tech Stack:** kind, Helm, Gateway API, Enterprise AgentGateway v2026.6.3, FastAPI, pytest, curl, jq.
 
 ---
 

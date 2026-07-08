@@ -1,4 +1,4 @@
-# 202 - AgentGateway + F5 AI Guardrails
+# 202 - agentgateway + F5 AI Guardrails
 
 This lab turns the F5 AI Guardrails architecture article into a runnable kind
 demo. It deploys two integration patterns side by side so you can compare the
@@ -17,8 +17,12 @@ The point of the lab is to prove both models with real traffic:
 
 - benign prompts pass through both routes
 - a custom `project-titan` keyword scanner blocks on both routes
-- a custom SSN regex scanner redacts request content on Option C
+- custom regex scanners redact PII and secret-like content
+- prompt-injection, secret-exfiltration, and obfuscated-codename probes block
+  before provider traffic is allowed
 - response-phase scanning on Option C masks blocked assistant output
+- the Solo/kagent Enterprise UI is installed with agentgateway visibility and
+  OTLP tracing enabled by default
 
 The `test.sh` traffic flow looks like this:
 
@@ -38,8 +42,9 @@ Those roles matter:
 
 | Layer | Product | Job |
 |---|---|---|
-| AI data plane | agentgateway | OpenAI-compatible routing, provider auth, policy attachment, failover, observability |
+| AI data plane | agentgateway | OpenAI-compatible routing, provider auth, enterprise policy attachment, failover, tracing, cost and token metadata |
 | AI security | F5 AI Guardrails | Prompt/response scanning, scanner policy, audit trail, redaction/block decisions |
+| Enterprise UI | Solo/kagent Enterprise UI | Gateway, route, backend, policy, and trace visibility for agentgateway |
 | Demo cluster | kind | Disposable local Kubernetes environment for proving the integration |
 
 ## Architecture
@@ -244,6 +249,15 @@ Set these credentials:
 - `F5_AISEC_URL`
 - `F5_AISEC_TOKEN`
 
+Solo/kagent Enterprise UI settings:
+
+- `ENABLE_AGENTGATEWAY_UI`, defaults to `true`
+- `SOLO_UI_VERSION`, defaults to `0.4.8`
+- `SOLO_UI_OIDC_ISSUER`, optional; leave blank to use the chart's built-in demo auto-auth IdP
+- `SOLO_UI_BACKEND_CLIENT_SECRET`, required only when `SOLO_UI_OIDC_ISSUER` is set
+- `SOLO_UI_BACKEND_CLIENT_ID`
+- `SOLO_UI_FRONTEND_CLIENT_ID`
+
 Copy `.env.example` to `.env`, or put the same values in the parent demo repo
 `.env`. Real `.env` files are gitignored.
 
@@ -264,6 +278,11 @@ CAI_PROJECT='Global-047d875c'
 
 OPTION_A_MODEL='gpt-4.1'
 OPTION_C_MODEL='gpt-5.5'
+
+ENABLE_AGENTGATEWAY_UI=true
+SOLO_UI_VERSION=0.4.8
+SOLO_UI_OIDC_ISSUER=''
+SOLO_UI_BACKEND_CLIENT_SECRET=''
 ```
 
 Do not commit real tokens.
@@ -281,21 +300,39 @@ The script does five things:
 1. Validates the F5 AI Security token with `/backend/v1/users/me`.
 2. Resolves `CAI_PROJECT` to the project identifier required by ScanAPI.
 3. Verifies that `F5_AISEC_INLINE_PROVIDER` exists for Option A.
-4. Creates or reuses two custom scanners:
+4. Creates or reuses the demo scanners:
    - `agw-lab-keyword-codename`: keyword scanner for `project-titan`, direction
      `both`, mode `block`
    - `agw-lab-regex-ssn`: regex scanner for `\d{3}-\d{2}-\d{4}`, direction
      `request`, mode `redact`
+   - `agw-lab-regex-email`: email redaction
+   - `agw-lab-regex-phone`: phone number redaction
+   - `agw-lab-regex-api-key`: common API key redaction
+   - `agw-lab-regex-jwt`: JWT redaction
+   - `agw-lab-regex-private-key`: private-key marker redaction
+   - `agw-lab-keyword-prompt-injection`: prompt-injection block
+   - `agw-lab-keyword-secret-exfiltration`: secret-exfiltration block
+   - `agw-lab-regex-codename-obfuscation`: spaced/punctuated codename block
 5. Enables those scanners on the project and verifies ScanAPI with benign,
-   blocked, and redacted inputs.
+   blocked, redacted, and obfuscation inputs.
 
-In the F5 UI, you should see both custom guardrails enabled in the selected
-project:
+In the F5 UI, you should see the custom guardrails enabled in the selected
+project. The key demo rows are:
 
 ```text
 agw-lab-regex-ssn          Regex     \d{3}-\d{2}-\d{4}     Prompts                 Redact
 agw-lab-keyword-codename   Keyword   project-titan         Prompts and responses   Block
+agw-lab-regex-email        Regex     email pattern          Prompts                 Redact
+agw-lab-regex-api-key      Regex     key pattern            Prompts                 Redact
+agw-lab-keyword-prompt-injection      Keyword               Prompts and responses   Block
+agw-lab-regex-codename-obfuscation    Regex                 Prompts and responses   Block
 ```
+
+After `setup-guardrails.sh` runs, the **Custom guardrails** page in the F5 AI
+Guardrails console shows the `agw-lab-*` scanners enabled with their scan
+direction and mode (Block or Redact):
+
+![F5 AI Guardrails Custom guardrails page showing the agw-lab scanners enabled with Block and Redact modes](docs/images/f5-custom-guardrails.png)
 
 ## Deploy
 
@@ -308,25 +345,107 @@ Run:
 The deploy script:
 
 - creates or reuses the `agw-f5-guardrails` kind cluster
-- installs enterprise agentgateway
+- installs enterprise agentgateway `v2026.6.3`
 - builds the local adapter image
 - loads the image into kind
 - renders the manifests with your environment values
 - applies the gateway, routes, backends, adapter deployment, and Option C
   promptGuard policy
+- installs the Solo/kagent Enterprise UI chart `0.4.8` by default with built-in
+  demo auto-auth
+- applies `manifests/agentgateway-tracing.yaml` so agentgateway sends OTLP
+  traces to the Solo UI telemetry collector
 
-Start a local port-forward:
+Start the two local port-forwards:
 
 ```bash
 kubectl port-forward -n agentgateway-system svc/agentgateway-proxy 8080:80
+kubectl port-forward -n agentgateway-system svc/solo-enterprise-ui 8090:80
+```
+
+Open the Solo/kagent Enterprise UI:
+
+```bash
+open http://localhost:8090
 ```
 
 Routes:
 
 - `POST http://localhost:8080/option-a`
 - `POST http://localhost:8080/option-c`
+- `GET http://localhost:8080/agw/direct`
+- `GET http://localhost:8080/agw/cors`
+- `GET http://localhost:8080/agw/rate-limit`
 
-Both routes accept OpenAI Chat Completions JSON.
+The `/option-a` and `/option-c` routes accept OpenAI Chat Completions JSON.
+The `/agw/*` routes demonstrate agentgateway-native Enterprise policy without
+calling OpenAI or F5.
+
+## Solo/kagent Enterprise UI Visibility
+
+The Solo Enterprise for agentgateway Playground lists every route this demo
+configures — the `/option-a` and `/option-c` guardrails routes plus the
+`/agw/*` native-policy routes — each with its path prefix and destination:
+
+![Solo Enterprise for agentgateway Playground showing the option-a, option-c, agw-cors, agw-direct, and agw-rate-limit routes](docs/images/agw-ui-routes.png)
+
+The UI is part of the default install. It gives visibility into agentgateway
+resources and traffic without adding Prometheus to this demo:
+
+- gateways, HTTPRoutes, backends, and EnterpriseAgentgatewayPolicy resources
+- traces from `agentgateway-proxy` through
+  `solo-enterprise-telemetry-collector:4317`
+- route, status, model, provider, token usage, cost, duration, trace ID, and
+  span ID fields for LLM traffic when those fields are emitted by agentgateway
+- ClickHouse-backed trace tables such as `agw_spans_typed`, `agw_chat_spans`,
+  `agw_trace_route_5m`, and raw `otel_traces_json`
+
+The UI is not a replacement for `kubectl logs` for raw pod stdout. Use it for
+agentgateway topology and request/trace visibility; use Kubernetes logs for
+adapter exceptions, pod startup messages, and raw container logs.
+
+Verify the UI and tracing pieces:
+
+```bash
+helm list -n agentgateway-system
+kubectl get pods,svc -n agentgateway-system
+kubectl get enterpriseagentgatewaypolicy tracing -n agentgateway-system -o yaml
+kubectl logs -n agentgateway-system deploy/agentgateway-proxy --tail=80
+```
+
+After traffic runs, the proxy logs should include `trace.id` and `span.id` on
+agentgateway requests, and the UI should have traces to display.
+
+## agentgateway Enterprise Native Tests
+
+The guardrails flow proves F5 integration. The native agentgateway flow proves
+that agentgateway itself can enforce app-facing policy:
+
+- direct responses generated by the gateway
+- response header modification
+- CORS preflight handling
+- local rate limiting before a backend/provider call
+
+Run:
+
+```bash
+./test_agentgateway.sh
+```
+
+Expected behavior:
+
+```text
+PASS direct response: HTTP 200
+PASS direct response body
+PASS CORS route direct response: HTTP 200
+PASS response header modifier
+PASS CORS preflight: HTTP 200
+PASS CORS preflight headers
+PASS rate limit request 1: HTTP 200
+PASS rate limit request 2: HTTP 200
+PASS rate limit request 3: HTTP 429
+PASS local rate limiting
+```
 
 ## Manual Tests
 
@@ -394,6 +513,14 @@ PASS Option C response-phase scanner masked blocked output
 Option A block status can vary by F5 inline provider behavior, so the test
 accepts either `400` or `403` for that path.
 
+Every request the smoke test sends is recorded in the F5 AI Guardrails **Logs →
+Prompt history** view, so you can confirm each outcome from the security side.
+Blocked codename probes (`project-titan`, the obfuscated `p r o j e c t - t i t
+a n`, and the prompt-injection phrase) show as `Blocked`, while the SSN, email,
+and API-key prompts show as `Redacted` with the sensitive values masked:
+
+![F5 AI Guardrails Logs prompt history showing Blocked and Redacted outcomes for the demo probes](docs/images/f5-logs-prompt-history.png)
+
 ## Testing Harness
 
 Use the harness when you want repeatable evidence with per-case latency, HTTP
@@ -408,8 +535,10 @@ The runner:
 - creates `harness/.venv`
 - installs `harness/requirements.txt`
 - starts a port-forward if `BASE_URL` is not reachable
-- reads test cases from `harness/cases.yaml`
-- writes `harness/results.jsonl`
+- reads test cases from `HARNESS_CASES`, defaulting to `harness/cases.yaml`
+- writes `HARNESS_OUTPUT`, defaulting to `harness/results.jsonl`
+- supports concurrent/repeated runs with `HARNESS_CONCURRENCY` and
+  `HARNESS_REPEAT`
 
 Example output:
 
@@ -432,6 +561,34 @@ The default harness cases are intentionally small:
 - Option C blocked keyword prompt
 - Option C SSN redaction prompt
 - Option C response-phase mask prompt
+
+For the aggressive suite:
+
+```bash
+HARNESS_CASES=harness/intense-cases.yaml \
+HARNESS_OUTPUT=harness/results-intense.jsonl \
+./run_harness.sh
+```
+
+For a soak run:
+
+```bash
+HARNESS_CASES=harness/intense-cases.yaml \
+HARNESS_CONCURRENCY=25 \
+HARNESS_REPEAT=4 \
+HARNESS_OUTPUT=harness/results-soak.jsonl \
+./run_harness.sh
+```
+
+For the fail-closed probe, use only a disposable demo cluster because it
+temporarily mutates the adapter deployment:
+
+```bash
+I_UNDERSTAND_FAIL_CLOSED_TEST_MUTATES_CLUSTER=1 harness/fail_closed_probe.sh
+```
+
+See `docs/intense-testing.md` for the complete test matrix and expected
+interpretation.
 
 ## Troubleshooting
 
@@ -469,11 +626,17 @@ Common issues:
 | `setup-guardrails.sh` | Validates F5 access and creates/enables demo scanners |
 | `deploy.sh` | Creates the kind cluster and deploys agentgateway, routes, backends, and adapter |
 | `test.sh` | Smoke tests both options |
+| `test_agentgateway.sh` | Tests agentgateway-native direct response, CORS, headers, and local rate limit |
 | `run_harness.sh` | Repeatable harness runner with JSONL output |
+| `harness/intense-cases.yaml` | Aggressive guardrails, streaming, PII, boundary, and large-payload cases |
+| `harness/fail_closed_probe.sh` | Mutating fail-closed probe for Option C ScanAPI outages |
+| `docs/intense-testing.md` | Intense test guide and UI setup notes |
 | `adapter/app.py` | FastAPI webhook adapter from agentgateway promptGuard to F5 ScanAPI |
 | `manifests/option-a-backend.yaml` | Option A F5 inline backend |
 | `manifests/option-c-backend.yaml` | Option C direct OpenAI backend |
 | `manifests/option-c-promptguard.yaml` | Option C request/response webhook policy |
+| `manifests/agw-enterprise-native.yaml` | agentgateway-native Enterprise policy demos |
+| `manifests/agentgateway-tracing.yaml` | Sends agentgateway OTLP traces to the Solo UI telemetry collector |
 | `harness/cases.yaml` | Harness test cases |
 
 ## Clean Up
