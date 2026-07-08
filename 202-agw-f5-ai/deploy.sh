@@ -69,6 +69,13 @@ install_agentgateway_ui() {
 
   echo "==> Solo UI ${SOLO_UI_VERSION}"
 
+  # 0.4.8's ui-backend watches platform.solo.io CRDs (KubernetesCluster). The
+  # management chart is installed with management-crds.enabled=false, so install
+  # the CRDs from the dedicated chart first or ui-backend CrashLoopBackOffs.
+  helm upgrade -i management-crds \
+    oci://us-docker.pkg.dev/solo-public/solo-enterprise-helm/charts/management-crds \
+    -n "${NAMESPACE}" --version "${SOLO_UI_VERSION}"
+
   helm upgrade -i management \
     oci://us-docker.pkg.dev/solo-public/solo-enterprise-helm/charts/management \
     -n "${NAMESPACE}" --version "${SOLO_UI_VERSION}" \
