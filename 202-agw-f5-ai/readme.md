@@ -400,9 +400,47 @@ resources and traffic without adding Prometheus to this demo:
 - ClickHouse-backed trace tables such as `agw_spans_typed`, `agw_chat_spans`,
   `agw_trace_route_5m`, and raw `otel_traces_json`
 
+The **Routes** inventory shows every HTTPRoute this demo applies, its match
+prefix, resolved destination, gateway, and observed p95 latency (Option A and
+Option C carry real latency once traffic has run):
+
+![Solo Enterprise for agentgateway Routes inventory showing agw-cors, agw-direct, agw-rate-limit, option-a, and option-c routes with match prefixes, destinations, and p95 latency](docs/images/agw-ui-routes-table.png)
+
+The **Destinations** view resolves to the two AI backends behind the demo —
+`f5-guardrails-inline` (Option A) and `openai-direct` (Option C and the
+`/agw/*` routes):
+
+![Solo Enterprise for agentgateway Destinations showing f5-guardrails-inline and openai-direct AI backends in the agentgateway-system namespace](docs/images/agw-ui-destinations.png)
+
+The **Policies** view lists the active EnterpriseAgentgateway policies: the F5
+guardrails promptGuard webhook, the tracing policy, and the three native
+policies (`agw-cors-and-headers`, `agw-direct-response`, `agw-local-rate-limit`):
+
+![Solo Enterprise for agentgateway Policies showing active EnterpriseAgentgateway policies for CORS/headers, direct response, local rate limit, F5 guardrails, and tracing](docs/images/agw-ui-policies.png)
+
 The UI is not a replacement for `kubectl logs` for raw pod stdout. Use it for
 agentgateway topology and request/trace visibility; use Kubernetes logs for
 adapter exceptions, pod startup messages, and raw container logs.
+
+### Cost Management
+
+`deploy.sh` installs the UI with cost management enabled by default
+(`ENABLE_COST_MANAGEMENT=true`), which sets
+`products.agentgateway.features.cost-management=true` on the management chart.
+That value renders `PRODUCT_AGENTGATEWAY_FEATURES_COST_MANAGEMENT_ENABLED=true`
+on the **`ui-frontend`** container (turning on the Cost Management tab), while
+the **`ui-backend`** container receives `AGENTGATEWAY_COST_WRITES_ENABLED` from
+the separate `cost-management-writes` value (default `true`). The Cost
+Management dashboard estimates spend from token counts × your configured
+per-token prices, broken down by provider, model family, model, group, user,
+and virtual key:
+
+<!-- To add: screenshot of Cost Management → Dashboard at docs/images/agw-ui-cost-management.png -->
+
+> **Note:** Solo UI `0.4.8`'s `ui-backend` watches `platform.solo.io` CRDs
+> (`KubernetesCluster`). `deploy.sh` installs the dedicated `management-crds`
+> chart before the management chart so `ui-backend` starts cleanly; without it
+> the container CrashLoopBackOffs with `no matches for kind "KubernetesCluster"`.
 
 Verify the UI and tracing pieces:
 
