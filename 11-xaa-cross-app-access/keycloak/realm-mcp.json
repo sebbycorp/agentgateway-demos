@@ -1,0 +1,252 @@
+{
+  "realm": "mcp",
+  "enabled": true,
+  "displayName": "MCP XAA Lab",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "sslRequired": "none",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "todo-reader",
+        "description": "Can list todos (todo.read)"
+      },
+      {
+        "name": "todo-writer",
+        "description": "Can create todos (todo.write)"
+      },
+      {
+        "name": "offline_access",
+        "description": "offline_access"
+      },
+      {
+        "name": "uma_authorization",
+        "description": "uma_authorization"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "eng-reader",
+      "path": "/eng-reader",
+      "realmRoles": ["todo-reader"]
+    },
+    {
+      "name": "eng-writer",
+      "path": "/eng-writer",
+      "realmRoles": ["todo-reader", "todo-writer"]
+    },
+    {
+      "name": "blocked",
+      "path": "/blocked",
+      "realmRoles": []
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Reader",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": ["/eng-reader"],
+      "realmRoles": ["todo-reader", "default-roles-mcp"]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@example.com",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Writer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": ["/eng-writer"],
+      "realmRoles": ["todo-reader", "todo-writer", "default-roles-mcp"]
+    },
+    {
+      "username": "mallory",
+      "enabled": true,
+      "email": "mallory@example.com",
+      "emailVerified": true,
+      "firstName": "Mallory",
+      "lastName": "Blocked",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": ["/blocked"],
+      "realmRoles": ["default-roles-mcp"]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "todo.read",
+      "description": "Read todos via MCP",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "todo-read-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mcp-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "todo.write",
+      "description": "Write todos via MCP",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "groups",
+      "description": "Group membership claim",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "mcp-gateway",
+      "name": "Agentgateway MCP (public / browser)",
+      "enabled": true,
+      "publicClient": true,
+      "secret": "",
+      "redirectUris": ["*", "http://localhost:*", "http://127.0.0.1:*"],
+      "webOrigins": ["*"],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "post.logout.redirect.uris": "+"
+      },
+      "defaultClientScopes": [
+        "groups"
+      ],
+      "optionalClientScopes": [
+        "offline_access",
+        "todo.read",
+        "todo.write"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-mcp-gateway",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mcp-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "mcp-lab",
+      "name": "Lab scripts (confidential)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "mcp-lab-secret",
+      "redirectUris": ["http://localhost:*", "http://127.0.0.1:*"],
+      "webOrigins": ["*"],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "groups"
+      ],
+      "optionalClientScopes": [
+        "offline_access",
+        "todo.read",
+        "todo.write"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-mcp-gateway",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mcp-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "scopeMappings": [],
+  "clientScopeMappings": {},
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "referrerPolicy": "no-referrer",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  }
+}

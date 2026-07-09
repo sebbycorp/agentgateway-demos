@@ -1,0 +1,52 @@
+# Keycloak IdP for the XAA / Enterprise-Managed Authorization lab.
+# Matches Agentgateway MCP auth examples that use http://localhost:7080/realms/mcp
+#
+#   ./setup-keycloak.sh          # start + wait + smoke check
+#   docker compose down -v       # stop and wipe data
+#
+# Admin console: http://localhost:7080  (admin / admin)
+# Realm:         mcp
+# Users:         alice | bob | mallory  (password: password)
+
+name: agw-xaa
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.2}
+    container_name: agw-xaa-keycloak
+    command:
+      - start-dev
+      - --import-realm
+      - --http-port=8080
+      - --hostname-strict=false
+      - --health-enabled=true
+    environment:
+      # Keycloak 26 prefers KC_BOOTSTRAP_ADMIN_*; keep KEYCLOAK_ADMIN as fallback.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      # Dev mode: embedded H2 is fine for the lab (not for production).
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-7080}:8080"
+    volumes:
+      - ./keycloak/realm-mcp.json:/opt/keycloak/data/import/realm-mcp.json:ro
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      # Keycloak 26 exposes health on the management port in some builds;
+      # fall back to openid-configuration which is enough for "ready to issue tokens".
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /realms/mcp/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"issuer\"'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+
+volumes:
+  keycloak-data:
