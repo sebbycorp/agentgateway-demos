@@ -8,7 +8,7 @@ Educate and lab-test how **Agentgateway** fronts MCP with enterprise identity, a
 | [TEST-PLAN.md](./TEST-PLAN.md) | Acceptance criteria & cases |
 | [EDUCATION-SCRIPT.md](./EDUCATION-SCRIPT.md) | 45–60 min facilitator script |
 
-> **Status:** Plan + education package ready. Runtime scripts (`deploy.sh`, sample MCP, lab AS) are next — see PLAN Phase 1–2.
+> **Status:** **Phase A and Phase B are live and verified.** `./deploy.sh` stands up Agentgateway (OSS `v1.4.0-alpha.1`) + Keycloak + a sample MCP and enforces MCP OAuth; `idjag/` adds the full **ID-JAG / Cross App Access** exchange. `./test.sh` runs 38 checks (`PASS=38 FAIL=0`, plus 1 Phase C skip). Runtime is **standalone** (Docker Compose for deps + the `agentgateway` binary), not kind — see PLAN.md.
 
 ---
 
@@ -29,76 +29,86 @@ Educate and lab-test how **Agentgateway** fronts MCP with enterprise identity, a
 
 ---
 
-## Target lab topology
+## Lab topology (as built)
+
+**Phase A** — MCP OAuth in front of a sample MCP (`./deploy.sh`):
 
 ```text
- MCP Client (Inspector / lab CLI)
-        │
-        │  Bearer access token
+ MCP client (curl / Inspector)
+        │  Bearer <Keycloak JWT>
         ▼
- ┌──────────────────┐     ┌─────────────┐
- │  Agentgateway    │────▶│ Sample MCP  │
- │  MCP gateway     │     │ todo tools  │
- └────────▲─────────┘     └─────────────┘
-          │ validate JWT
+ ┌──────────────────┐  validate JWT + scope   ┌─────────────┐
+ │ agentgateway     │────────────────────────▶│ sample MCP  │
+ │ :3000  (binary)  │   mcpAuthentication      │ todo tools  │
+ └────────▲─────────┘   mcpAuthorization       │ :8000 (FastMCP)
+          │                                    └─────────────┘
  ┌────────┴─────────┐
- │ Keycloak (IdP)   │  ← Phase A: SSO + JWT
- │ + lab AS (B)     │  ← Phase B: ID-JAG → access token
+ │ Keycloak :7080   │  realm mcp  (Docker)
  └──────────────────┘
 ```
 
-**Cluster:** kind `agw-xaa` · **Namespace:** `agentgateway-system`
+**Phase B** — ID-JAG / Cross App Access (`idjag/deploy.sh`):
+
+```text
+ client ─ Bearer <alice ID token> ─▶ agentgateway :3030
+                                        │ leg 1 token-exchange → ID-JAG
+                                        │ leg 2 jwt-bearer      → access token
+                                        ▼
+                                 echo backend :9000  (sees a token alice never held)
+   ID-JAG Keycloak :8480  (ceposta/keycloak:id-jag, realm idjag-demo)
+```
+
+**Runtime:** standalone — Docker for Keycloak/MCP, the `agentgateway` binary on the host. (No kind cluster; `agw-xaa` name is reserved per repo convention.)
 
 ---
 
 ## Phases
 
-| Phase | What | Depends on |
-|-------|------|------------|
-| **A** | Agentgateway + Keycloak + sample MCP; connect-time OAuth | OSS Agentgateway |
-| **B** | ID-JAG exchange + jwt-bearer lab AS; policy alice/bob/mallory | Phase A + lab AS |
-| **C** | MCP `2026-07-28` stateless headers / extension discovery | SDK support |
+| Phase | What | Status |
+|-------|------|--------|
+| **A** | agentgateway + Keycloak + sample MCP; MCP OAuth + per-tool scope | ✅ live (`./deploy.sh`, tests A2–A7) |
+| **B** | ID-JAG exchange via native `backendAuth.crossAppAccess`; no lab AS needed | ✅ live (`idjag/`, tests B1–B5) |
+| **C** | MCP `2026-07-28` stateless headers / extension discovery | ⏭ skipped — SDK-dependent |
 
 ---
 
-## Quick start — Keycloak in Docker (ready now)
+## Quick start
 
-Prerequisites: **Docker**, **docker compose**, **curl**, **jq**.
+Prerequisites: **Docker**, **docker compose**, **curl**, **jq**, and the **`agentgateway`** binary (`v1.4.0-alpha.1`+) on your PATH.
 
 ```bash
-# Start Keycloak with pre-imported realm "mcp"
-./setup-keycloak.sh
-# or: ./deploy.sh   (calls setup-keycloak today)
+# Phase A — Keycloak + sample MCP + agentgateway, all wired for MCP OAuth
+./deploy.sh
 
-# Admin UI
-open http://localhost:7080    # admin / admin
+# Verify everything (deploys first if the gateway isn't up)
+./test.sh                 # K1–K10 (Keycloak) + A2–A7 (gateway MCP OAuth)
 
-# Lab users (password: password)
-./scripts/get-token.sh alice
-./scripts/get-token.sh bob | ./scripts/decode-jwt.sh
+# Phase B — add the ID-JAG / Cross App Access exchange, then verify A + B
+PHASE_B=1 ./test.sh       # also runs B1–B5   → PASS=38
 
-# Automated harness (discovery, tokens, claims, negatives)
-./test.sh
-# If Keycloak is down: START_KEYCLOAK=1 ./test.sh
-
-# Tear down (removes container + volume)
+# Tear it all down (Phase A + Phase B)
 ./cleanup.sh
-# or: docker compose down -v
 ```
+
+**Phase A endpoints & fixtures**
 
 | Item | Value |
 |------|--------|
-| URL | `http://localhost:7080` |
-| Realm | `mcp` |
-| Issuer | `http://localhost:7080/realms/mcp` |
-| JWKS | `http://localhost:7080/realms/mcp/protocol/openid-connect/certs` |
-| Users | `alice` (reader), `bob` (writer), `mallory` (blocked) |
+| Gateway MCP | `http://localhost:3000/mcp` |
+| Resource metadata | `http://localhost:3000/.well-known/oauth-protected-resource/mcp` |
+| Keycloak | `http://localhost:7080` · realm `mcp` (admin / admin) |
+| Users | `alice` (`todo.read`), `bob` (`todo.read`+`todo.write`), `mallory` (blocked) |
 | Clients | `mcp-gateway` (public), `mcp-lab` / secret `mcp-lab-secret` |
+| Sample MCP | FastMCP `todo_read` / `todo_write` on `:8000` |
 
-Agentgateway `mcpAuthentication` will point at this issuer (see PLAN.md). Full gateway + sample MCP is the next implementation step.
+alice sees only `todo_read` (scope-filtered); bob sees both. See [`config.yaml`](./config.yaml).
+
+**Phase B** (`idjag/`) — the gateway turns alice's **ID token** into a downstream **access token** via ID-JAG (leg-1 token-exchange → leg-2 jwt-bearer), with no external IdP. See [`idjag/README.md`](./idjag/README.md).
 
 ```bash
-# Facilitator dry-run (no cluster required for talk track)
+cd idjag && ./deploy.sh && ./round-trip.sh   # standalone Phase B + raw exchange trace
+
+# Facilitator dry-run (no stack required for the talk track)
 ./step-by-step.sh
 ```
 

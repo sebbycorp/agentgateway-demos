@@ -2,7 +2,8 @@
 
 **Audience:** Platform / security / AI eng (mixed)  
 **Length:** 45–60 minutes (core) + 15 min optional RC deep-dive  
-**Facilitator prep:** `./deploy.sh` green; browser with Keycloak admin + MCP Inspector; this script + PLAN diagrams  
+**Facilitator prep:** `PHASE_B=1 ./test.sh` green (PASS=38); browser with Keycloak admin + MCP Inspector; this script + PLAN diagrams  
+**Runtime:** standalone — Docker for Keycloak/MCP, the `agentgateway` binary on the host (no kind cluster). Phase A gateway `:3000`, Phase B (ID-JAG) gateway `:3030`.  
 
 **Learning outcomes** — by the end, participants can:
 
@@ -18,9 +19,10 @@
 
 | Check | Command / action |
 |-------|------------------|
-| Cluster up | `kubectl --context kind-agw-xaa get pods -A` |
-| Port-forwards | Gateway `:8080`, Keycloak UI if needed |
-| Users exist | alice / bob / mallory |
+| Stack up | `PHASE_B=1 ./test.sh` → `PASS=38 FAIL=0` |
+| Containers | `docker ps` shows `agw-xaa-keycloak`, `agw-xaa-sample-mcp`, `agw-xaa-kc-idjag` |
+| Gateways | `curl -s localhost:3000/.well-known/oauth-protected-resource/mcp` (A); `curl -so/dev/null -w '%{http_code}' localhost:3030/` → 400 (B) |
+| Users exist | alice / bob / mallory (realm `mcp`); alice (realm `idjag-demo`) |
 | Slide 0 open | Title: “Who authorized that agent?” |
 | Kill personal MCP configs | Avoid accidental stdio keys in demos |
 

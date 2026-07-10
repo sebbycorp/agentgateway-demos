@@ -1,10 +1,12 @@
 # 11 — Cross-App Access (XAA) + Enterprise-Managed Authorization
 
-**Date:** 2026-07-09  
-**Status:** Plan (ready to implement)  
+**Date:** 2026-07-09 (updated 2026-07-10)  
+**Status:** **Phase A + B implemented and verified** (standalone runtime, AGW OSS `v1.4.0-alpha.1`). Phase C remains SDK-dependent.  
 **Demo dir:** `11-xaa-cross-app-access/`  
-**Cluster name:** `agw-xaa`  
+**Cluster name:** `agw-xaa` (reserved; runtime is standalone Docker + host binary, not kind)  
 **Related:** MCP RC `2026-07-28`, extension `io.modelcontextprotocol/enterprise-managed-authorization`
+
+> **Implementation note (what actually shipped):** Runtime is **standalone** — Docker Compose for Keycloak + sample MCP, the `agentgateway` binary on the host (kind was not needed). Phase B did **not** require a hand-rolled lab AS: AGW `v1.4.0-alpha.1` ships native `backendAuth.crossAppAccess`, and the ID-JAG legs run against `ceposta/keycloak:id-jag`. See `README.md` / `idjag/README.md`. The design below is preserved for context.
 
 ## Goal
 
@@ -205,12 +207,13 @@ Reference: Christian Posta’s Agentgateway Enterprise SaaS MCP posts (see READM
 | Public client | `mcp-gateway` (Inspector / browser; direct grants on for lab) |
 | Script client | `mcp-lab` / `mcp-lab-secret` |
 
-### Phase 1b — Agentgateway + sample MCP (next)
+### Phase 1b — Agentgateway + sample MCP ✅ (implemented)
 
-1. Standalone Docker **or** kind `agw-xaa` + Helm (choose one path in implement PR)
-2. Sample MCP (todo tools)
-3. MCP authentication config pointing at Docker Keycloak on the host
-4. `test.sh` Phase A cases green
+Chosen path: **standalone** (`agentgateway -f config.yaml` on host; Keycloak + sample MCP in Docker).
+
+1. ✅ Sample MCP (Python FastMCP `todo_read`/`todo_write`, `:8000`) — `sample-mcp/`
+2. ✅ `config.yaml`: `mcpAuthentication` (Keycloak provider) + `mcpAuthorization` CEL rules (tool → scope)
+3. ✅ `deploy.sh` brings up the full stack; `test.sh` A2–A7 green (401 unauth, resource metadata, scope-filtered tool list, alice read-only, bob read+write)
 
 **Config sketch (standalone — host reaches Keycloak on 7080):**
 
@@ -235,7 +238,18 @@ mcpAuthentication:
 > `resource` and browser redirect URLs on `localhost` for clients on the host.  
 > Prefer publishing Keycloak on `7080` so host tools and AGW docs stay consistent.
 
-### Phase 2 — ID-JAG / EMA lab path
+### Phase 2 — ID-JAG / EMA path ✅ (implemented, no lab AS needed)
+
+**What shipped** (`idjag/`): AGW `backendAuth.crossAppAccess` runs both legs against
+`ceposta/keycloak:id-jag` (realm `idjag-demo`, `agent-client` + `resource-client` +
+self-referential `jwt-authorization-grant` IdP). `idjag/gateway.yaml` validates alice's
+inbound ID token (`jwtAuth`), exchanges it (leg 1 token-exchange → ID-JAG, leg 2
+jwt-bearer → access token), and forwards to an echo backend. `test.sh` B1–B5 assert the
+backend receives a token that **differs** from the inbound one (`azp=resource-client`,
+`scope=todos.read`) — proof the exchange happened. Admin/stats/readiness moved to
+15030–15032 so it coexists with the Phase A gateway.
+
+The original lab-AS design (below) is superseded by native `crossAppAccess` but kept for context.
 
 1. Lab Authorization Server that:
    - Advertises `authorization_grant_profiles_supported` including `urn:ietf:params:oauth:grant-profile:id-jag`
