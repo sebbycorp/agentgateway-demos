@@ -10,6 +10,11 @@ PID_FILE="$DIR/.agw.pid"
 
 echo "==> 11-xaa-cross-app-access / cleanup.sh"
 
+# Tear down the Phase B (ID-JAG) stack too, if it was deployed.
+if [[ -x "$DIR/idjag/cleanup.sh" ]]; then
+  "$DIR/idjag/cleanup.sh" || true
+fi
+
 # Stop the host agentgateway process we launched in deploy.sh.
 if [[ -f "$PID_FILE" ]]; then
   AGW_PID="$(cat "$PID_FILE" 2>/dev/null || true)"

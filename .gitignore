@@ -9,3 +9,7 @@ tmp/
 # XAA demo runtime
 11-xaa-cross-app-access/.agw.pid
 11-xaa-cross-app-access/.agw.log
+11-xaa-cross-app-access/idjag/.idjag-gw.pid
+11-xaa-cross-app-access/idjag/.idjag-gw.log
+11-xaa-cross-app-access/idjag/.echo.pid
+11-xaa-cross-app-access/idjag/.echo.log

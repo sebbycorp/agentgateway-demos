@@ -65,6 +65,16 @@ RESOURCE_META="${GATEWAY_URL}/.well-known/oauth-protected-resource/mcp"
 AUTO_DEPLOY="${AUTO_DEPLOY:-1}"
 MCP_PROTO="2025-06-18"
 
+# Phase B (ID-JAG). Opt-in: PHASE_B=1 auto-deploys idjag/ (a heavier stack — a
+# second, emulated Keycloak image). Default runs Phase A only. B-cases also run
+# automatically if the ID-JAG gateway on :3030 is already reachable.
+PHASE_B="${PHASE_B:-0}"
+IDJAG_GW_URL="${IDJAG_GW_URL:-http://localhost:3030}"
+IDJAG_KC_URL="${IDJAG_KC_URL:-http://localhost:8480}"
+IDJAG_REALM="${IDJAG_REALM:-idjag-demo}"
+IDJAG_TOKEN_EP="${IDJAG_KC_URL}/realms/${IDJAG_REALM}/protocol/openid-connect/token"
+IDJAG_RESOURCE_ID="${IDJAG_RESOURCE_ID:-https://resource.idjag.demo}"
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -179,6 +189,17 @@ fi
 GATEWAY_UP=0
 if curl -sf --max-time 2 "$RESOURCE_META" >/dev/null 2>&1; then
   GATEWAY_UP=1
+fi
+
+# Phase B: opt-in deploy. Run if PHASE_B=1 or the ID-JAG gateway is already up.
+IDJAG_UP=0
+if curl -s -o /dev/null --max-time 2 "$IDJAG_GW_URL/" 2>/dev/null; then
+  IDJAG_UP=1
+fi
+if [[ "$PHASE_B" == "1" && "$IDJAG_UP" != "1" && -x ./idjag/deploy.sh ]]; then
+  say "PHASE_B=1 and ID-JAG gateway down — running ./idjag/deploy.sh"
+  ./idjag/deploy.sh
+  curl -s -o /dev/null --max-time 2 "$IDJAG_GW_URL/" 2>/dev/null && IDJAG_UP=1
 fi
 
 # ---------------------------------------------------------------------------
@@ -492,10 +513,83 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Phase B — ID-JAG / Cross App Access (backendAuth.crossAppAccess)
+# ---------------------------------------------------------------------------
+if [[ "$IDJAG_UP" != "1" ]]; then
+  say "Phase B — ID-JAG / Cross App Access (not deployed)"
+  skip "B1–B5 ID-JAG exchange — run: PHASE_B=1 ./test.sh  (or ./idjag/deploy.sh)"
+else
+  # --- B1: ID-JAG realm discovery ---
+  say "B1 ID-JAG realm discovery (${IDJAG_REALM})"
+  if curl -sf "${IDJAG_KC_URL}/realms/${IDJAG_REALM}/.well-known/openid-configuration" \
+       | jq -e --arg i "${IDJAG_KC_URL}/realms/${IDJAG_REALM}" '.issuer == $i' >/dev/null 2>&1; then
+    pass "B1 idjag-demo realm reachable"
+  else
+    fail "B1 idjag-demo realm discovery failed"
+  fi
+
+  # --- B2: alice's inbound OIDC ID token (what the client presents) ---
+  say "B2 mint alice ID token (agent-client password grant)"
+  IDJAG_ID_TOKEN="$(curl -s -X POST "$IDJAG_TOKEN_EP" \
+    -d grant_type=password -d client_id=agent-client -d client_secret=agent-secret \
+    -d username=alice -d password=alice -d scope=openid \
+    | jq -r '.id_token // empty')"
+  if [[ -n "$IDJAG_ID_TOKEN" ]]; then
+    pass "B2 alice received an OIDC ID token"
+  else
+    fail "B2 could not mint alice ID token"
+  fi
+
+  # --- B3: gateway rejects a request with no token ---
+  say "B3 negative: ID-JAG gateway with no token"
+  B3_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${IDJAG_GW_URL}/")"
+  if [[ "$B3_CODE" == "400" || "$B3_CODE" == "401" ]]; then
+    pass "B3 no token → HTTP ${B3_CODE} (rejected)"
+  else
+    fail "B3 expected 400/401, got ${B3_CODE}"
+  fi
+
+  # --- B4/B5: gateway performs the two-leg exchange automatically ---
+  say "B4/B5 gateway exchanges ID token → backend access token"
+  if [[ -n "${IDJAG_ID_TOKEN:-}" ]]; then
+    ECHO_RESP="$(curl -s "${IDJAG_GW_URL}/" -H "Authorization: Bearer ${IDJAG_ID_TOKEN}")"
+    # The echo backend returns the headers it received. Extract the Bearer the gateway attached.
+    BACK_TOKEN="$(echo "$ECHO_RESP" | jq -r '(.headers.Authorization // .headers.authorization // "") | sub("^Bearer ";"")' 2>/dev/null)"
+    if [[ -n "$BACK_TOKEN" && "$BACK_TOKEN" != "null" ]]; then
+      pass "B4 backend received a Bearer token from the gateway"
+    else
+      fail "B4 backend got no token: $(echo "$ECHO_RESP" | head -c 200)"
+    fi
+    # The exchanged token must DIFFER from alice's inbound token (proof of exchange).
+    if [[ -n "$BACK_TOKEN" && "$BACK_TOKEN" != "$IDJAG_ID_TOKEN" ]]; then
+      pass "B4 backend token ≠ inbound ID token (exchange happened)"
+    else
+      fail "B4 backend token identical to inbound (no exchange)"
+    fi
+    # Decode the backend token: should be azp=resource-client, scope includes todos.read.
+    if [[ -n "$BACK_TOKEN" && "$BACK_TOKEN" != "null" ]]; then
+      BACK_PL="$(jwt_payload "$BACK_TOKEN")"
+      echo "$BACK_PL" | jq '{iss, aud, azp, sub, typ, scope}' 2>/dev/null || true
+      if echo "$BACK_PL" | jq -e '.azp == "resource-client"' >/dev/null 2>&1; then
+        pass "B5 exchanged token azp == resource-client"
+      else
+        fail "B5 exchanged token azp wrong: $(echo "$BACK_PL" | jq -c .azp 2>/dev/null)"
+      fi
+      if echo "$BACK_PL" | jq -e '(.scope // "") | test("todos\\.read")' >/dev/null 2>&1; then
+        pass "B5 exchanged token scope includes todos.read"
+      else
+        fail "B5 exchanged token scope missing todos.read: $(echo "$BACK_PL" | jq -r .scope 2>/dev/null)"
+      fi
+    fi
+  else
+    fail "B4/B5 skipped — no inbound ID token from B2"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Future phases (explicit skips so the harness stays honest)
 # ---------------------------------------------------------------------------
 say "Future phases (not deployed yet)"
-skip "B1–B8 ID-JAG / EMA exchange path (backendAuth.crossAppAccess)"
 skip "C1–C4 MCP 2026-07-28 RC headers"
 
 # ---------------------------------------------------------------------------
@@ -512,12 +606,13 @@ if (( FAIL > 0 )); then
   exit 1
 fi
 
-printf '\n\033[1;32mAll harness checks passed (Keycloak + Phase A gateway).\033[0m\n'
-printf '  Issuer:  %s\n' "$ISSUER"
-printf '  Gateway: %s/mcp\n' "$GATEWAY_URL"
-if [[ "$GATEWAY_UP" == "1" ]]; then
-  printf '  Next: Phase B — ID-JAG via backendAuth.crossAppAccess (PLAN Phase 2)\n'
+printf '\n\033[1;32mAll harness checks passed.\033[0m\n'
+printf '  Keycloak (Phase A): %s\n' "$ISSUER"
+printf '  MCP gateway  (A):   %s/mcp\n' "$GATEWAY_URL"
+if [[ "$IDJAG_UP" == "1" ]]; then
+  printf '  ID-JAG gateway (B): %s  (Cross App Access exchange verified)\n' "$IDJAG_GW_URL"
+  printf '  Next: Phase C — MCP 2026-07-28 RC headers (SDK-dependent)\n'
 else
-  printf '  Next: run ./deploy.sh to bring up the gateway, then re-run ./test.sh\n'
+  printf '  Phase B (ID-JAG):   not deployed — run: PHASE_B=1 ./test.sh\n'
 fi
 exit 0
