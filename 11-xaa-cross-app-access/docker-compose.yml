@@ -48,5 +48,28 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  # Sample MCP server (todo tools) that sits behind agentgateway.
+  # agentgateway proxies to it on the host at http://localhost:8000/mcp and
+  # enforces enterprise JWT + per-tool scope before any call arrives here.
+  sample-mcp:
+    build: ./sample-mcp
+    image: agw-xaa-sample-mcp:latest
+    container_name: agw-xaa-sample-mcp
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    healthcheck:
+      # /mcp requires the MCP handshake; a bare GET returning any HTTP status
+      # (405/406/400) proves the server is listening and routing.
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/8000 && echo -e 'GET /mcp HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q 'HTTP/1.1'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   keycloak-data:

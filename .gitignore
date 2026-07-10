@@ -5,3 +5,7 @@ tmp/
 *.db
 *.db-shm
 *.db-wal
+
+# XAA demo runtime
+11-xaa-cross-app-access/.agw.pid
+11-xaa-cross-app-access/.agw.log

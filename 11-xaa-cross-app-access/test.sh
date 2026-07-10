@@ -56,6 +56,15 @@ TOKEN_EP="${ISSUER}/protocol/openid-connect/token"
 JWKS_EP="${ISSUER}/protocol/openid-connect/certs"
 START_KEYCLOAK="${START_KEYCLOAK:-0}"
 
+# Gateway (Phase A). AUTO_DEPLOY=1 (default) runs ./deploy.sh if the gateway
+# isn't already serving. Set AUTO_DEPLOY=0 to assume the stack is up.
+GATEWAY_PORT="${GATEWAY_PORT:-3000}"
+GATEWAY_URL="${GATEWAY_URL:-http://localhost:${GATEWAY_PORT}}"
+MCP_URL="${GATEWAY_URL}/mcp"
+RESOURCE_META="${GATEWAY_URL}/.well-known/oauth-protected-resource/mcp"
+AUTO_DEPLOY="${AUTO_DEPLOY:-1}"
+MCP_PROTO="2025-06-18"
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -104,6 +113,38 @@ token_for() {
     -d "scope=${scope}"
 }
 
+# --- MCP over Streamable HTTP helpers (through the gateway) -----------------
+# mcp_session <token> → prints the mcp-session-id from an initialize handshake
+mcp_session() {
+  local token="$1"
+  curl -s -D - -o /dev/null -X POST "$MCP_URL" \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -H "MCP-Protocol-Version: ${MCP_PROTO}" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"'"${MCP_PROTO}"'","capabilities":{},"clientInfo":{"name":"harness","version":"0"}}}' \
+    | grep -i '^mcp-session-id:' | sed 's/^[^:]*: *//' | tr -d '\r'
+}
+
+# mcp_rpc <token> <session-id> <json-body> → prints the JSON-RPC response object.
+# Success replies are SSE-framed (data: {json}); errors (e.g. a scope-denied tool)
+# come back as plain JSON with HTTP 400. Emit the JSON object either way.
+mcp_rpc() {
+  local token="$1" sid="$2" body="$3" raw
+  raw="$(curl -s -X POST "$MCP_URL" \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -H "MCP-Protocol-Version: ${MCP_PROTO}" \
+    -H "mcp-session-id: ${sid}" \
+    -d "$body")"
+  if printf '%s\n' "$raw" | grep -q '^data:'; then
+    printf '%s\n' "$raw" | sed -n 's/^data: //p'
+  else
+    printf '%s\n' "$raw"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------
@@ -120,6 +161,24 @@ if [[ "$START_KEYCLOAK" == "1" ]] || ! curl -sf --max-time 2 "$OIDC" >/dev/null 
   else
     die "Keycloak not reachable at ${OIDC}. Run: ./setup-keycloak.sh"
   fi
+fi
+
+# Ensure the agentgateway + sample-MCP stack is up. One command = deploy + verify.
+if ! curl -sf --max-time 2 "$RESOURCE_META" >/dev/null 2>&1; then
+  if [[ "$AUTO_DEPLOY" == "1" && -x ./deploy.sh ]]; then
+    say "Gateway not serving — running ./deploy.sh (full Phase A stack)"
+    command -v agentgateway >/dev/null 2>&1 || die "agentgateway binary required to deploy"
+    ./deploy.sh
+  else
+    say "Gateway not reachable at ${GATEWAY_URL} — Phase A cases will be skipped"
+    say "(run ./deploy.sh, or set AUTO_DEPLOY=1)"
+  fi
+fi
+
+# Is the gateway available for Phase A assertions?
+GATEWAY_UP=0
+if curl -sf --max-time 2 "$RESOURCE_META" >/dev/null 2>&1; then
+  GATEWAY_UP=1
 fi
 
 # ---------------------------------------------------------------------------
@@ -326,11 +385,117 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Phase A — Agentgateway MCP OAuth (gateway + sample MCP)
+# ---------------------------------------------------------------------------
+if [[ "$GATEWAY_UP" != "1" ]]; then
+  say "Phase A — Agentgateway MCP OAuth (gateway not up)"
+  skip "A2–A7 gateway not reachable at ${GATEWAY_URL} (run ./deploy.sh)"
+else
+  # --- A2: unauthenticated request is rejected ---
+  say "A2 unauthenticated POST ${MCP_URL} → 401 + WWW-Authenticate"
+  A2_HDR="$(mktemp)"
+  A2_CODE="$(curl -s -o /dev/null -D "$A2_HDR" -w '%{http_code}' -X POST "$MCP_URL" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')"
+  if [[ "$A2_CODE" == "401" ]]; then
+    pass "A2 unauthenticated → HTTP 401"
+  else
+    fail "A2 expected 401, got ${A2_CODE}"
+  fi
+  if grep -iq 'www-authenticate:.*resource_metadata' "$A2_HDR"; then
+    pass "A2 WWW-Authenticate advertises resource_metadata"
+  else
+    fail "A2 missing WWW-Authenticate resource_metadata"
+  fi
+  rm -f "$A2_HDR"
+
+  # --- A3: OAuth Protected Resource metadata ---
+  say "A3 resource metadata (${RESOURCE_META})"
+  RM="$(curl -sf "$RESOURCE_META")" || { fail "A3 metadata fetch failed"; RM='{}'; }
+  if echo "$RM" | jq -e --arg r "${GATEWAY_URL}/mcp" '.resource == $r' >/dev/null 2>&1; then
+    pass "A3 resource == ${GATEWAY_URL}/mcp"
+  else
+    fail "A3 resource mismatch: $(echo "$RM" | jq -c .resource 2>/dev/null)"
+  fi
+  if echo "$RM" | jq -e '(.scopes_supported | index("todo.read")) and (.scopes_supported | index("todo.write"))' >/dev/null 2>&1; then
+    pass "A3 scopes_supported includes todo.read + todo.write"
+  else
+    fail "A3 scopes_supported wrong: $(echo "$RM" | jq -c .scopes_supported 2>/dev/null)"
+  fi
+
+  # --- A7: malformed token rejected (run early; no session needed) ---
+  say "A7 negative: garbage bearer → 401"
+  A7_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$MCP_URL" \
+    -H 'Authorization: Bearer not.a.jwt' \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')"
+  if [[ "$A7_CODE" == "401" ]]; then
+    pass "A7 garbage token → HTTP 401"
+  else
+    fail "A7 expected 401, got ${A7_CODE}"
+  fi
+
+  # --- A4/A5: alice (todo.read) — reads allowed, writes filtered out ---
+  say "A4/A5 alice (todo.read): tools/list + scope enforcement"
+  ALICE_AT="$(token_for alice 'openid groups todo.read' | jq -r '.access_token // empty')"
+  if [[ -z "$ALICE_AT" ]]; then
+    fail "A4 could not mint alice token"
+  else
+    ASID="$(mcp_session "$ALICE_AT")"
+    if [[ -n "$ASID" ]]; then
+      pass "A4 alice completed MCP initialize (session established)"
+    else
+      fail "A4 alice initialize returned no session id"
+    fi
+    ATOOLS="$(mcp_rpc "$ALICE_AT" "$ASID" '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq -r '.result.tools[].name' 2>/dev/null | sort | tr '\n' ' ')"
+    if [[ "$ATOOLS" == *todo_read* && "$ATOOLS" != *todo_write* ]]; then
+      pass "A4 alice sees todo_read only (scope-filtered): [${ATOOLS% }]"
+    else
+      fail "A4 alice tool list unexpected: [${ATOOLS% }]"
+    fi
+    AREAD="$(mcp_rpc "$ALICE_AT" "$ASID" '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"todo_read","arguments":{}}}')"
+    if echo "$AREAD" | jq -e '.result.content[0].text' >/dev/null 2>&1; then
+      pass "A5 alice todo_read succeeds"
+    else
+      fail "A5 alice todo_read failed: $(echo "$AREAD" | head -c 200)"
+    fi
+    AWRITE="$(mcp_rpc "$ALICE_AT" "$ASID" '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"todo_write","arguments":{"item":"nope"}}}')"
+    if echo "$AWRITE" | jq -e '.error' >/dev/null 2>&1; then
+      pass "A5 alice todo_write DENIED ($(echo "$AWRITE" | jq -r '.error.message'))"
+    else
+      fail "A5 alice todo_write unexpectedly allowed: $(echo "$AWRITE" | head -c 200)"
+    fi
+  fi
+
+  # --- A6: bob (todo.read + todo.write) — writes allowed ---
+  say "A6 bob (todo.read+write): todo_write succeeds"
+  BOB_AT="$(token_for bob 'openid groups todo.read todo.write' | jq -r '.access_token // empty')"
+  if [[ -z "$BOB_AT" ]]; then
+    fail "A6 could not mint bob token"
+  else
+    BSID="$(mcp_session "$BOB_AT")"
+    BTOOLS="$(mcp_rpc "$BOB_AT" "$BSID" '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq -r '.result.tools[].name' 2>/dev/null | sort | tr '\n' ' ')"
+    if [[ "$BTOOLS" == *todo_read* && "$BTOOLS" == *todo_write* ]]; then
+      pass "A6 bob sees todo_read + todo_write: [${BTOOLS% }]"
+    else
+      fail "A6 bob tool list unexpected: [${BTOOLS% }]"
+    fi
+    BWRITE="$(mcp_rpc "$BOB_AT" "$BSID" '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"todo_write","arguments":{"item":"from-bob"}}}')"
+    if echo "$BWRITE" | jq -e '.result.content[0].text' >/dev/null 2>&1; then
+      pass "A6 bob todo_write succeeds ($(echo "$BWRITE" | jq -r '.result.content[0].text'))"
+    else
+      fail "A6 bob todo_write failed: $(echo "$BWRITE" | head -c 200)"
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Future phases (explicit skips so the harness stays honest)
 # ---------------------------------------------------------------------------
 say "Future phases (not deployed yet)"
-skip "A2–A11 Agentgateway MCP OAuth (gateway + sample MCP)"
-skip "B1–B8 ID-JAG / EMA exchange path"
+skip "B1–B8 ID-JAG / EMA exchange path (backendAuth.crossAppAccess)"
 skip "C1–C4 MCP 2026-07-28 RC headers"
 
 # ---------------------------------------------------------------------------
@@ -347,7 +512,12 @@ if (( FAIL > 0 )); then
   exit 1
 fi
 
-printf '\n\033[1;32mAll Keycloak harness checks passed.\033[0m\n'
-printf '  Issuer: %s\n' "$ISSUER"
-printf '  Next: wire Agentgateway mcpAuthentication → this issuer (PLAN Phase 1b)\n'
+printf '\n\033[1;32mAll harness checks passed (Keycloak + Phase A gateway).\033[0m\n'
+printf '  Issuer:  %s\n' "$ISSUER"
+printf '  Gateway: %s/mcp\n' "$GATEWAY_URL"
+if [[ "$GATEWAY_UP" == "1" ]]; then
+  printf '  Next: Phase B — ID-JAG via backendAuth.crossAppAccess (PLAN Phase 2)\n'
+else
+  printf '  Next: run ./deploy.sh to bring up the gateway, then re-run ./test.sh\n'
+fi
 exit 0
