@@ -23,16 +23,19 @@
 
 ## 2. Environment & fixtures
 
-### 2.1 Infrastructure
+### 2.1 Infrastructure (as built — standalone, not kind)
 
 | Component | Expected |
 |-----------|----------|
-| kind cluster | `agw-xaa` |
-| namespace | `agentgateway-system`, `keycloak` (or equivalent) |
-| Agentgateway proxy | Ready pods; port-forward `8080:80` |
-| Keycloak | Reachable; realm `mcp` |
-| Sample MCP | Behind gateway path `/mcp` (or documented path) |
-| Lab AS (Phase B) | Token endpoint reachable |
+| agentgateway | binary `v1.4.0-alpha.1`+ on host; Phase A proxy `:3000`, Phase B `:3030` |
+| Keycloak (A) | Docker `agw-xaa-keycloak`, realm `mcp`, `:7080` |
+| Sample MCP | Docker `agw-xaa-sample-mcp` (FastMCP), gateway path `/mcp` → `:8000` |
+| ID-JAG Keycloak (B) | Docker `agw-xaa-kc-idjag` (`ceposta/keycloak:id-jag`), realm `idjag-demo`, `:8480` |
+| Echo backend (B) | host process `:9000` (shows the exchanged token) |
+| Harness | `./test.sh` (Phase A) · `PHASE_B=1 ./test.sh` (adds Phase B) → `PASS=38` |
+
+> No hand-rolled lab AS: Phase B uses AGW's native `backendAuth.crossAppAccess` for the
+> ID-JAG two-leg exchange. kind cluster `agw-xaa` is reserved by convention but unused.
 
 ### 2.2 Users (fixtures)
 
