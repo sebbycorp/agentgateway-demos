@@ -58,12 +58,12 @@ services:
     ports:
       - "${MCP_PORT:-8000}:8000"
     healthcheck:
-      # /mcp requires the MCP handshake; a bare GET returning any HTTP status
-      # (405/406/400) proves the server is listening and routing.
+      # python:3.12-slim ships /bin/sh (dash), so the bash /dev/tcp trick fails.
+      # Use python (already in the image) to confirm the port accepts connections.
       test:
         [
           "CMD-SHELL",
-          "exec 3<>/dev/tcp/127.0.0.1/8000 && echo -e 'GET /mcp HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q 'HTTP/1.1'",
+          "python -c \"import socket,sys; socket.create_connection(('127.0.0.1',8000),3); sys.exit(0)\"",
         ]
       interval: 10s
       timeout: 5s
