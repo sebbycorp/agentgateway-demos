@@ -56,7 +56,7 @@ if [[ "$EXISTING" != "None" && -n "$EXISTING" ]]; then
 else
   CRED="$(aws iam create-service-specific-credential \
     --user-name "$USER_NAME" --service-name bedrock.amazonaws.com --output json)"
-  BEDROCK_KEY="$(echo "$CRED" | jq -r .ServiceSpecificCredential.ServicePassword)"
+  BEDROCK_KEY="$(echo "$CRED" | jq -r .ServiceSpecificCredential.ServiceCredentialSecret)"
   echo "    Created. STORE THIS NOW (shown once):"
   echo "      AWS_BEARER_TOKEN_BEDROCK=$BEDROCK_KEY"
 fi

@@ -1,8 +1,9 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
 #
 # Standalone AgentGateway -> Amazon Bedrock (Claude).
-# Auth is AMBIENT: the agentgateway process inherits AWS creds (AUTH_MODE=creds)
-# or AWS_BEARER_TOKEN_BEDROCK (AUTH_MODE=apikey) from its environment via run.sh.
+# Auth is chosen by AUTH_MODE in ../.env and applied by run.sh:
+#   creds  — ambient AWS SigV4 from AWS_ACCESS_KEY_ID/SECRET in the environment.
+#   apikey — run.sh injects the Bedrock API key as params.apiKey into a temp copy of this file.
 # No secret ever lives in this tracked file.
 config:
   adminAddr: "0.0.0.0:15000"          # admin UI: http://localhost:15000/ui/
