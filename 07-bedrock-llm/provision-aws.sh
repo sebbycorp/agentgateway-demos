@@ -12,7 +12,7 @@ umask 077   # any file we create (.env, temp files) is owner-only — these hold
 cd "$(dirname "$0")"
 
 REGION="${AWS_REGION:-us-east-2}"
-PING_MODEL="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+PING_MODEL="${PING_MODEL:-us.anthropic.claude-haiku-4-5-20251001-v1:0}"
 ENV_FILE="./.env"
 
 # Private scratch file for command stderr; cleaned up on exit (avoids predictable /tmp paths).
@@ -40,6 +40,9 @@ if aws bedrock-runtime converse --region "$REGION" --model-id "$PING_MODEL" \
 else
   echo "    ACCESS DENIED or model not enabled. Enable Claude models here:" >&2
   echo "    https://${REGION}.console.aws.amazon.com/bedrock/home?region=${REGION}#/modelaccess" >&2
+  echo "    NOTE: Anthropic (Claude) models also require submitting the one-time 'Anthropic use" >&2
+  echo "    case details' form on that page (then wait ~15 min). Non-Anthropic models such as" >&2
+  echo "    us.amazon.nova-micro-v1:0 work without it — set PING_MODEL to test the plumbing first." >&2
   cat "$ERR_FILE" >&2
   exit 1
 fi

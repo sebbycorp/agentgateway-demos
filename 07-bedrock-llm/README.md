@@ -43,6 +43,12 @@ cp .env.example .env
 Before running it, Bedrock model access must be enabled in the console for the account/region:
 <https://us-east-2.console.aws.amazon.com/bedrock/home?region=us-east-2#/modelaccess>
 
+> **Anthropic (Claude) models require an extra step.** Even when a Claude model shows as
+> `ACTIVE`, AWS blocks invocation with `ResourceNotFoundException: Model use case details have
+> not been submitted for this account` until you submit the one-time **Anthropic use-case
+> details form** on that model-access page (then wait ~15 min). Non-Anthropic models (e.g.
+> `us.amazon.nova-micro-v1:0`) work without it — handy for validating the plumbing first.
+
 The `enterprise/` demo additionally needs `AGENTGATEWAY_LICENSE_KEY` set in `.env`.
 
 ## Decision guide
@@ -59,22 +65,25 @@ The `enterprise/` demo additionally needs `AGENTGATEWAY_LICENSE_KEY` set in `.en
 
 ## Verification matrix
 
-Manual test matrix — run each demo under each auth mode (set `AUTH_MODE` in `.env`, re-run `provision-aws.sh` if switching to `apikey` for the first time, then redeploy/rerun) and check off what passes:
+All three demos were validated end-to-end against real Bedrock (`us-east-2`) on 2026-07-11
+using `us.amazon.nova-micro-v1:0` (Claude was pending the Anthropic use-case form above — the
+path is identical, only the `model` field differs):
 
 | Demo | `AUTH_MODE=creds` | `AUTH_MODE=apikey` |
 |---|---|---|
-| standalone | [ ] | [ ] |
-| oss | [ ] | [ ] |
-| enterprise | [ ] | [ ] |
+| standalone | ✅ | ✅ |
+| oss | ✅ | ✅ |
+| enterprise | ✅ (+ Solo UI reachable) | ✅ |
 
-K8s demos (`oss`, `enterprise`) POST to `/bedrock/v1/chat/completions`; the `standalone` demo POSTs to `/v1/chat/completions` on `:3000`. (Confirmed against a live gateway when each demo is actually deployed.)
+K8s demos (`oss`, `enterprise`) POST to `/bedrock/v1/chat/completions`; the `standalone` demo
+POSTs to `/v1/chat/completions` on `:3000` — **both confirmed** against the live gateways.
 
 ## Models
 
-Primary model: `us.anthropic.claude-haiku-4-5-20251001-v1:0`
-Alternate model: `us.anthropic.claude-sonnet-4-6`
+Primary model: `us.anthropic.claude-haiku-4-5-20251001-v1:0` (Claude; needs the Anthropic use-case form — see Setup once)
+Alternate model: `us.amazon.nova-micro-v1:0` (Amazon Nova; no form required — used to validate the demos)
 
-To switch, swap the `model` field — `params.model` in `standalone/config.yaml`, or `spec.ai.provider.bedrock.model` on the `AgentgatewayBackend` in `oss`/`enterprise`.
+Bedrock requires the `us.` inference-profile prefix for these models in `us-east-2`. To switch, swap the `model` field — `params.model` in `standalone/config.yaml`, or `spec.ai.provider.bedrock.model` on the `AgentgatewayBackend` in `oss`/`enterprise` (or set `BEDROCK_MODEL` before `deploy.sh` for the K8s demos).
 
 ## Security note
 
