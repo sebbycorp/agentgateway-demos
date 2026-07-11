@@ -6,6 +6,11 @@ tmp/
 *.db-shm
 *.db-wal
 
+# Bedrock demo secrets
+07-bedrock-llm/.env
+*.env
+!*.env.example
+
 # XAA demo runtime
 11-xaa-cross-app-access/.agw.pid
 11-xaa-cross-app-access/.agw.log
