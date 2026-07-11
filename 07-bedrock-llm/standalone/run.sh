@@ -17,7 +17,9 @@ case "$MODE" in
     : "${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID in ../.env for creds mode}"
     : "${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY in ../.env for creds mode}"
     export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION="${AWS_REGION:-us-east-2}"
-    [[ -n "${AWS_SESSION_TOKEN:-}" ]] && export AWS_SESSION_TOKEN
+    # An empty-but-exported AWS_SESSION_TOKEN can break SigV4 signing with long-term keys;
+    # export it only when non-empty, otherwise remove it from the environment entirely.
+    if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then export AWS_SESSION_TOKEN; else unset AWS_SESSION_TOKEN 2>/dev/null || true; fi
     unset AWS_BEARER_TOKEN_BEDROCK 2>/dev/null || true
     ;;
   apikey)

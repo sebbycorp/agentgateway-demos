@@ -19,11 +19,16 @@ ENV_FILE="./.env"
 ERR_FILE="$(mktemp "${TMPDIR:-/tmp}/bedrock_provision.XXXXXX")"
 trap 'rm -f "$ERR_FILE"' EXIT
 
-command -v aws >/dev/null || { echo "ERROR: aws CLI not found." >&2; exit 1; }
+for c in aws jq; do command -v "$c" >/dev/null || { echo "ERROR: '$c' not found." >&2; exit 1; }; done
 
 echo "==> 1/4 Preflight: caller identity"
 IDENT="$(aws sts get-caller-identity --output json)"
 USER_ARN="$(echo "$IDENT" | jq -r .Arn)"
+[[ "$USER_ARN" == *:user/* ]] || {
+  echo "ERROR: caller is not an IAM user ($USER_ARN)." >&2
+  echo "       Bedrock long-term API keys require an IAM user; assumed-role/SSO identities can't mint one." >&2
+  exit 1
+}
 USER_NAME="$(echo "$USER_ARN" | sed -E 's#.*user/##')"
 echo "    $USER_ARN (region $REGION)"
 
