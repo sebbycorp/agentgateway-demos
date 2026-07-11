@@ -51,21 +51,33 @@ spec:
           from: Same
 EOF
 
-# --- Secret (by AUTH_MODE) ---
+# --- Secret + backend auth policy (by AUTH_MODE) ---
+# creds  -> SigV4: Secret keys accessKey/secretKey (+ sessionToken only for temporary STS
+#           creds — an empty sessionToken breaks signing), backend uses auth.aws.secretRef.
+# apikey -> Bedrock API key as the Authorization bearer: Secret key Authorization, backend
+#           uses auth.secretRef (NOT auth.aws, which is SigV4-only).
 echo "==> Bedrock auth secret (mode=$MODE)"
 kubectl delete secret bedrock-secret -n "$NAMESPACE" --ignore-not-found
 case "$MODE" in
   creds)
     : "${AWS_ACCESS_KEY_ID:?}"; : "${AWS_SECRET_ACCESS_KEY:?}"
-    kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
-      --from-literal=accessKey="$AWS_ACCESS_KEY_ID" \
-      --from-literal=secretKey="$AWS_SECRET_ACCESS_KEY" \
-      --from-literal=sessionToken="${AWS_SESSION_TOKEN:-}"
+    if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then
+      kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
+        --from-literal=accessKey="$AWS_ACCESS_KEY_ID" \
+        --from-literal=secretKey="$AWS_SECRET_ACCESS_KEY" \
+        --from-literal=sessionToken="$AWS_SESSION_TOKEN"
+    else
+      kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
+        --from-literal=accessKey="$AWS_ACCESS_KEY_ID" \
+        --from-literal=secretKey="$AWS_SECRET_ACCESS_KEY"
+    fi
+    AUTH_YAML=$'    auth:\n      aws:\n        secretRef:\n          name: bedrock-secret'
     ;;
   apikey)
     : "${AWS_BEARER_TOKEN_BEDROCK:?}"
     kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
       --from-literal=Authorization="$AWS_BEARER_TOKEN_BEDROCK"
+    AUTH_YAML=$'    auth:\n      secretRef:\n        name: bedrock-secret'
     ;;
   *) echo "ERROR: AUTH_MODE must be creds|apikey." >&2; exit 1 ;;
 esac
@@ -84,10 +96,7 @@ spec:
         model: "${MODEL}"
         region: "${REGION}"
   policies:
-    auth:
-      aws:
-        secretRef:
-          name: bedrock-secret
+${AUTH_YAML}
 EOF
 
 # --- Route ---

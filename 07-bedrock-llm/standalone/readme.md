@@ -16,7 +16,7 @@ Run the `agentgateway` binary directly against `config.yaml` (no Kubernetes) to 
 | `creds`     | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (optional `AWS_SESSION_TOKEN`) |
 | `apikey`    | `AWS_BEARER_TOKEN_BEDROCK` |
 
-Auth is ambient: the agentgateway process inherits these from its environment. No secret is ever written into the tracked `config.yaml`.
+In `creds` mode, `run.sh` exports the AWS keys and the binary signs each request with SigV4. In `apikey` mode, AgentGateway's AWS path is SigV4-only and ignores an ambient `AWS_BEARER_TOKEN_BEDROCK`, so `run.sh` injects the key as `params.apiKey` (an `Authorization` bearer) into a temporary copy of `config.yaml`. Either way, no secret is ever written into the tracked `config.yaml`.
 
 ## Run
 

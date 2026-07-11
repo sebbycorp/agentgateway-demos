@@ -102,7 +102,7 @@ metadata:
   name: agentgateway-proxy
   namespace: ${NAMESPACE}
 spec:
-  gatewayClassName: agentgateway
+  gatewayClassName: enterprise-agentgateway
   listeners:
     - name: http
       port: 80
@@ -113,26 +113,36 @@ spec:
 EOF
 
 # --- Secret (by AUTH_MODE) ---
-step "6. Create the Bedrock auth Secret. Two AUTH_MODE branches (set in ../.env):
-   - creds  -> standard AWS SigV4 credentials: keys accessKey / secretKey / sessionToken
-   - apikey -> Bedrock long-term bearer token: key Authorization
-   Either way the Secret is named bedrock-secret and is what AgentgatewayBackend's
-   policies.auth.aws.secretRef points at next."
+step "6. Create the Bedrock auth Secret + pick the backend auth policy. Two AUTH_MODE branches
+   (set in ../.env):
+   - creds  -> AWS SigV4 credentials: Secret keys accessKey / secretKey (sessionToken only
+               for temporary STS creds), backend uses policies.auth.aws.secretRef.
+   - apikey -> Bedrock bearer token: Secret key Authorization, backend uses
+               policies.auth.secretRef (NOT auth.aws — the AWS path is SigV4-only).
+   Either way the Secret is named bedrock-secret; \$AUTH_YAML holds the matching auth block."
 pause
 echo "==> Bedrock auth secret (mode=$MODE)"
 kubectl delete secret bedrock-secret -n "$NAMESPACE" --ignore-not-found
 case "$MODE" in
   creds)
     : "${AWS_ACCESS_KEY_ID:?}"; : "${AWS_SECRET_ACCESS_KEY:?}"
-    kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
-      --from-literal=accessKey="$AWS_ACCESS_KEY_ID" \
-      --from-literal=secretKey="$AWS_SECRET_ACCESS_KEY" \
-      --from-literal=sessionToken="${AWS_SESSION_TOKEN:-}"
+    if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then
+      kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
+        --from-literal=accessKey="$AWS_ACCESS_KEY_ID" \
+        --from-literal=secretKey="$AWS_SECRET_ACCESS_KEY" \
+        --from-literal=sessionToken="$AWS_SESSION_TOKEN"
+    else
+      kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
+        --from-literal=accessKey="$AWS_ACCESS_KEY_ID" \
+        --from-literal=secretKey="$AWS_SECRET_ACCESS_KEY"
+    fi
+    AUTH_YAML=$'    auth:\n      aws:\n        secretRef:\n          name: bedrock-secret'
     ;;
   apikey)
     : "${AWS_BEARER_TOKEN_BEDROCK:?}"
     kubectl create secret generic bedrock-secret -n "$NAMESPACE" \
       --from-literal=Authorization="$AWS_BEARER_TOKEN_BEDROCK"
+    AUTH_YAML=$'    auth:\n      secretRef:\n        name: bedrock-secret'
     ;;
   *) echo "ERROR: AUTH_MODE must be creds|apikey." >&2; exit 1 ;;
 esac
@@ -155,10 +165,7 @@ spec:
         model: "${MODEL}"
         region: "${REGION}"
   policies:
-    auth:
-      aws:
-        secretRef:
-          name: bedrock-secret
+${AUTH_YAML}
 EOF
 
 # --- Route ---

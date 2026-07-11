@@ -16,12 +16,12 @@ All three route the same `AgentgatewayBackend` (`agentgateway.dev/v1alpha1`, `sp
 
 A single `AUTH_MODE` value in `.env` picks how every demo authenticates to Bedrock:
 
-| `AUTH_MODE` | Env vars in `.env` | Reaches Bedrock via | How it's stored |
+| `AUTH_MODE` | Env vars in `.env` | Reaches Bedrock via | How it's applied |
 |---|---|---|---|
-| `creds` (default) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (+ optional `AWS_SESSION_TOKEN`) | SigV4-signed requests | K8s Secret keys `accessKey`/`secretKey`/`sessionToken` (`oss`/`enterprise`); ambient process env (`standalone`) |
-| `apikey` | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock bearer token | K8s Secret key `Authorization` (`oss`/`enterprise`); ambient process env (`standalone`) |
+| `creds` (default) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (+ `AWS_SESSION_TOKEN` only for temporary STS creds) | SigV4-signed requests | K8s Secret `accessKey`/`secretKey` + backend `policies.auth.aws.secretRef` (`oss`/`enterprise`); exported env for the binary (`standalone`) |
+| `apikey` | `AWS_BEARER_TOKEN_BEDROCK` | `Authorization` bearer header | K8s Secret `Authorization` + backend `policies.auth.secretRef` (`oss`/`enterprise`); injected as `params.apiKey` into a temp config (`standalone`) |
 
-The Bedrock bearer token in `apikey` mode is an IAM **service-specific credential** for the `bedrock.amazonaws.com` service, minted by `provision-aws.sh`. In both K8s demos, the `AgentgatewayBackend`'s `policies.auth.aws.secretRef` points at the same `bedrock-secret` name regardless of mode — AgentGateway inspects which keys are present to decide how to sign the request. Nothing in `config.yaml` or the CRDs needs to change between modes; only `.env` does.
+The Bedrock bearer token in `apikey` mode is an IAM **service-specific credential** for the `bedrock.amazonaws.com` service, minted by `provision-aws.sh`. AgentGateway's AWS auth path is **SigV4-only**, so the two modes use *different* backend auth policies: `creds` → `auth.aws.secretRef` (signs with the access/secret keys), `apikey` → `auth.secretRef` (sends the key as the `Authorization` bearer). Only `.env` changes between modes; `deploy.sh`/`run.sh` pick the right Secret keys and auth policy automatically. Note: an **empty** `sessionToken` breaks SigV4, so it is only included when `AWS_SESSION_TOKEN` is actually set.
 
 ## Setup once
 
