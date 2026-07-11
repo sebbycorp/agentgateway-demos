@@ -8,11 +8,16 @@
 #   4. Upsert AWS creds + API key into ./.env (gitignored)
 # ---------------------------------------------------------------------------
 set -euo pipefail
+umask 077   # any file we create (.env, temp files) is owner-only — these hold AWS secrets
 cd "$(dirname "$0")"
 
 REGION="${AWS_REGION:-us-east-2}"
 PING_MODEL="us.anthropic.claude-haiku-4-5-20251001-v1:0"
 ENV_FILE="./.env"
+
+# Private scratch file for command stderr; cleaned up on exit (avoids predictable /tmp paths).
+ERR_FILE="$(mktemp "${TMPDIR:-/tmp}/bedrock_provision.XXXXXX")"
+trap 'rm -f "$ERR_FILE"' EXIT
 
 command -v aws >/dev/null || { echo "ERROR: aws CLI not found." >&2; exit 1; }
 
@@ -25,12 +30,12 @@ echo "    $USER_ARN (region $REGION)"
 echo "==> 2/4 Verify Bedrock model access ($PING_MODEL)"
 if aws bedrock-runtime converse --region "$REGION" --model-id "$PING_MODEL" \
      --messages '[{"role":"user","content":[{"text":"ping"}]}]' \
-     --inference-config '{"maxTokens":5}' >/dev/null 2>/tmp/bedrock_err; then
+     --inference-config '{"maxTokens":5}' >/dev/null 2>"$ERR_FILE"; then
   echo "    OK — model reachable"
 else
   echo "    ACCESS DENIED or model not enabled. Enable Claude models here:" >&2
   echo "    https://${REGION}.console.aws.amazon.com/bedrock/home?region=${REGION}#/modelaccess" >&2
-  cat /tmp/bedrock_err >&2
+  cat "$ERR_FILE" >&2
   exit 1
 fi
 
@@ -53,6 +58,7 @@ fi
 
 echo "==> 4/4 Writing $ENV_FILE"
 [[ -f "$ENV_FILE" ]] || cp .env.example "$ENV_FILE"
+chmod 600 "$ENV_FILE"   # lock down even if .env pre-existed with looser permissions
 upsert() { # upsert KEY VALUE into ENV_FILE
   local k="$1" v="$2"
   [[ -z "$v" ]] && return 0
