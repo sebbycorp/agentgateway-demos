@@ -8,4 +8,4 @@ RESP="$(curl -sS -X POST "http://localhost:${PORT}/bedrock/v1/chat/completions" 
 echo "$RESP"
 echo "$RESP" | grep -q "BEDROCK_OK" && echo "PASS: Bedrock reachable via Enterprise AgentGateway" \
   || { echo "FAIL: no expected content" >&2; exit 1; }
-echo "Solo UI: kubectl port-forward -n agentgateway-system svc/solo-enterprise-ui 8090:8080  ->  http://localhost:8090"
+echo "Solo UI: kubectl port-forward -n agentgateway-system svc/solo-enterprise-ui 8090:80  ->  http://localhost:8090"

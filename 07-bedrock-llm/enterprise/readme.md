@@ -82,7 +82,7 @@ kubectl port-forward -n agentgateway-system svc/agentgateway-proxy 8080:80
 The Solo UI is the enterprise management/observability plane sitting alongside AgentGateway. Once deployed:
 
 ```bash
-kubectl port-forward -n agentgateway-system svc/solo-enterprise-ui 8090:8080
+kubectl port-forward -n agentgateway-system svc/solo-enterprise-ui 8090:80
 open http://localhost:8090
 ```
 

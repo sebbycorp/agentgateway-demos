@@ -147,5 +147,5 @@ EOF
 echo ""
 echo "==> Deployed (auth=$MODE, model=$MODEL, region=$REGION)."
 echo "    kubectl port-forward -n $NAMESPACE svc/agentgateway-proxy 8080:80   # proxy"
-echo "    kubectl port-forward -n $NAMESPACE svc/solo-enterprise-ui 8090:8080 # Solo UI -> http://localhost:8090"
+echo "    kubectl port-forward -n $NAMESPACE svc/solo-enterprise-ui 8090:80 # Solo UI -> http://localhost:8090"
 echo "    ./test.sh"
