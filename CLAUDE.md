@@ -12,7 +12,7 @@ Demos use one of two ways to run AgentGateway. Identify which a demo uses before
 
 1. **Kubernetes** (`01`, `03`, `04`, `05`, `06`, `07`, `09`) — A local `kind` cluster + Helm install of the AgentGateway control plane, configured via Gateway API resources. The LLM/MCP provider is a custom `AgentgatewayBackend` CRD (`agentgateway.dev/v1alpha1`); traffic is routed to it with a standard `HTTPRoute` whose `backendRefs` point at the backend with `group: agentgateway.dev, kind: AgentgatewayBackend`. API keys are stored in Kubernetes `Secret`s.
 
-2. **Standalone** (`00`, `08`) — The `agentgateway` binary run directly against a `config.yaml`: `agentgateway -f config.yaml`. The standalone config schema is different from the K8s CRDs — it nests `binds → listeners → routes → backends`. Proxy listener is `:3000`, admin UI is `http://localhost:15000/ui/`. Validate config against `# yaml-language-server: $schema=https://agentgateway.dev/schema/config`.
+2. **Standalone** (`00`, `08`, `07/standalone`) — The `agentgateway` binary run directly against a `config.yaml`: `agentgateway -f config.yaml`. The standalone config schema is different from the K8s CRDs — it nests `binds → listeners → routes → backends`. Proxy listener is `:3000`, admin UI is `http://localhost:15000/ui/`. Validate config against `# yaml-language-server: $schema=https://agentgateway.dev/schema/config`.
 
 ## Per-demo conventions
 
@@ -34,10 +34,14 @@ Each deploy script pins its own versions and **its own cluster name** (clusters 
 | 05-content-based | `agw-content-based` | v1.1.0 |
 | 06-virtual-mcp | `agw-series-demo` | v1.1.0 |
 | 09-k8s-langfuse | `agw-k8s-langfuse` | v1.1.0 |
+| 07-bedrock-llm/oss | `agw-bedrock` | v1.1.0 |
+| 07-bedrock-llm/enterprise | `agw-bedrock-ent` | v2026.6.3 (ent) + Solo UI 0.5.0 |
 | 103-agw-tokenomics-with-f5-tool-modes | `agw-f5-tool-modes` | v2026.6.1 |
 | 104-ent-github-tokenomics | `agw-github-tokenomics` | v2026.6.1 |
 | 105-ent-headroom-comp-tokenomics | `agw-headroom-comp` | v2026.6.1 |
 | 11-xaa-cross-app-access | `agw-xaa` | pin at implement (OSS MCP auth + Keycloak; see demo PLAN.md) |
+
+Demo `07-bedrock-llm` is split into three subfolders — `standalone/` (binary), `oss/` (K8s, cluster `agw-bedrock`), and `enterprise/` (K8s, cluster `agw-bedrock-ent`, Enterprise v2026.6.3 + Solo UI 0.5.0) — all fronting **Amazon Bedrock** (Claude, `us-east-2`). One `AGENTGATEWAY_LICENSE_KEY` + AWS creds live in a shared gitignored `07-bedrock-llm/.env` (populated by `07-bedrock-llm/provision-aws.sh`). A single `AUTH_MODE={creds|apikey}` toggles between AWS SigV4 credentials and an AWS Bedrock long-term API key; the `AgentgatewayBackend` (`spec.ai.provider.bedrock`) is otherwise identical across all three.
 
 Demo `11` is the **XAA / Enterprise-Managed Authorization** education + lab (MCP EMA, ID-JAG, Keycloak). Plan/test/education docs land first; runtime deploy follows PLAN Phase 1–2.
 
