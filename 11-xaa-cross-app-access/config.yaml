@@ -1,18 +1,4 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
-#
-# agentgateway (standalone) — Phase A: MCP OAuth in front of the sample todo MCP.
-#
-# Run on the HOST so the JWT issuer (localhost:7080) and the OAuth resource
-# metadata URLs (localhost:3000) resolve identically for the gateway and for
-# host clients (MCP Inspector / curl):
-#
-#   agentgateway -f config.yaml     # proxy :3000, admin UI :15000
-#
-# Auth chain:
-#   mcpAuthentication  -> validates enterprise JWT from Keycloak realm "mcp",
-#                         serves OAuth Protected Resource metadata + AS adapter.
-#   mcpAuthorization   -> per-tool scope enforcement (todo.read / todo.write).
-#
 binds:
 - port: 3000
   listeners:
@@ -36,13 +22,12 @@ binds:
       policies:
         cors:
           allowOrigins:
-          - "*"
+          - '*'
           allowHeaders:
           - mcp-protocol-version
           - content-type
           exposeHeaders:
-          - "Mcp-Session-Id"
-        # --- Authentication: enterprise SSO / MCP OAuth against Keycloak ---
+          - Mcp-Session-Id
         mcpAuthentication:
           mode: strict
           issuer: http://localhost:7080/realms/mcp
@@ -50,8 +35,6 @@ binds:
           - mcp-gateway
           jwks:
             url: http://localhost:7080/realms/mcp/protocol/openid-connect/certs
-          # Keycloak isn't a spec-compliant MCP AS; the adapter exposes usable
-          # oauth-authorization-server metadata while still validating JWTs.
           provider:
             keycloak: {}
           resourceMetadata:
@@ -61,9 +44,33 @@ binds:
             - todo.write
             bearerMethodsSupported:
             - header
-        # --- Authorization: map tool name -> required OAuth scope ---
-        # alice (todo.read) may read but not write; bob (todo.read+write) may do both.
         mcpAuthorization:
           rules:
-          - 'mcp.tool.name == "todo_read" && jwt.scope.contains("todo.read")'
-          - 'mcp.tool.name == "todo_write" && jwt.scope.contains("todo.write")'
+          - mcp.tool.name == "todo_read" && jwt.scope.contains("todo.read")
+          - mcp.tool.name == "todo_write" && jwt.scope.contains("todo.write")
+llm:
+  port: 4000
+  models:
+  - name: openai/*
+    provider: openai
+    params:
+      apiKey: $OPENAI_API_KEY
+    transformation:
+      model: llmRequest.model.stripPrefix("openai/")
+  providers: []
+  virtualModels: []
+  policies:
+    cors:
+      allowOrigins:
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      allowMethods:
+      - GET
+      - POST
+frontendPolicies:
+  http:
+    maxBufferSize: 33554432
+config:
+  modelCatalog:
+  - file: base-costs.json
