@@ -18,3 +18,6 @@ tmp/
 11-xaa-cross-app-access/idjag/.idjag-gw.log
 11-xaa-cross-app-access/idjag/.echo.pid
 11-xaa-cross-app-access/idjag/.echo.log
+**/harness/.venv/
+**/harness/results/
+**/.port-forwards.pid

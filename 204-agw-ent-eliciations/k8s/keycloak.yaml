@@ -1,0 +1,84 @@
+# Keycloak IdP for Solo UI OIDC + STS JWT validation (kind-friendly ClusterIP).
+#
+# Browser + in-cluster both use hostname keycloak.local:8180
+#   - Host: add "127.0.0.1 keycloak.local" to /etc/hosts, port-forward 8180
+#   - UI pod: hostAliases maps keycloak.local → this Service ClusterIP
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.1.3
+          args: ["start-dev", "--http-port=8080"]
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: admin
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            # Shared hostname for browser OIDC + in-pod hostAliases
+            - name: KC_HOSTNAME
+              value: keycloak.local
+            - name: KC_HOSTNAME_PORT
+              value: "8180"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_STRICT_HTTPS
+              value: "false"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  selector:
+    app: keycloak
+  ports:
+    # Port 8180 matches KC_HOSTNAME_PORT so hostAliases + browser use the same URL
+    - name: http
+      port: 8180
+      targetPort: 8080
