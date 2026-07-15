@@ -40,6 +40,11 @@ PASS: Bedrock reachable via standalone AgentGateway
 
 <http://localhost:15000/ui/> — proxy/chat listener is on `:3000`.
 
+The **Analytics** tab reads request logs from the SQLite store configured at `config.database.url`
+in `config.yaml` (`sqlite://./agentgateway-lab.db?mode=rwc`, auto-created on first run and gitignored).
+Without it, the UI shows *"Analytics API error — request log database is not configured"*. Send a few
+requests (e.g. `./test.sh`) and reload the tab to see them. Delete `agentgateway-lab.db*` to reset.
+
 ## Swap the model
 
 Edit `params.model` in `config.yaml` — for example, set it to `us.anthropic.claude-sonnet-4-6` to use Sonnet instead of Haiku.

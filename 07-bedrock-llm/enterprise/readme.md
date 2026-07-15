@@ -75,7 +75,7 @@ kubectl port-forward -n agentgateway-system svc/agentgateway-proxy 8080:80
 
 ## Walkthrough
 
-`./step-by-step.sh` runs the exact same deploy as `deploy.sh`, paced stage-by-stage with an explanation and an enter-to-continue pause before each command — useful for live demos or first-time review. It is not a different deployment; the commands are copied verbatim from `deploy.sh` so the two can't drift.
+`./step-by-step.sh` runs the exact same deploy as `deploy.sh`, paced stage-by-stage with a color-coded step header (with a progress bar), an explanation, and an enter-to-continue pause before each command — useful for live demos or first-time review. Steps 1–8 are copied verbatim from `deploy.sh` so the two can't drift; steps 9–10 are walkthrough-only — they port-forward the proxy (`localhost:8080`, override with `PORT`) **and** the Solo UI (`localhost:8090`, override with `UI_PORT`), run `./test.sh` for you, then print the UI URL and how to re-test, stop the forwards, or tear down. So unlike the manual quick start, you don't run the port-forwards or test yourself. Set `NO_COLOR=1` to disable the ANSI styling.
 
 ## Solo UI
 

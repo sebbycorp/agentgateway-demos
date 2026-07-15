@@ -1,23 +1,32 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
-#
-# Standalone AgentGateway -> Amazon Bedrock (Claude).
-# Auth is chosen by AUTH_MODE in ../.env and applied by run.sh:
-#   creds  — ambient AWS SigV4 from AWS_ACCESS_KEY_ID/SECRET in the environment.
-#   apikey — run.sh injects the Bedrock API key as params.apiKey into a temp copy of this file.
-# No secret ever lives in this tracked file.
 config:
-  adminAddr: "0.0.0.0:15000"          # admin UI: http://localhost:15000/ui/
-
+  adminAddr: 0.0.0.0:15000
+  database:
+    url: sqlite://./agentgateway-lab.db?mode=rwc
+  modelCatalog:
+  - file: base-costs.json
 llm:
   port: 3000
   policies:
     cors:
-      allowOrigins: ["*"]
-      allowHeaders: ["*"]
-      allowMethods: ["GET", "POST", "OPTIONS"]
+      allowOrigins:
+      - '*'
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
   models:
-    - name: "bedrock/claude"
-      provider: bedrock
-      params:
-        model: us.anthropic.claude-haiku-4-5-20251001-v1:0
-        awsRegion: us-east-2
+  - name: bedrock/claude
+    provider: bedrock
+    params:
+      model: us.anthropic.claude-haiku-4-5-20251001-v1:0
+      awsRegion: us-east-2
+frontendPolicies:
+  accessLog:
+    database:
+      add:
+        gen_ai.prompt: llm.prompt
+        gen_ai.completion: 'llm.completion.map(c, {"role":"assistant", "content": c})'
