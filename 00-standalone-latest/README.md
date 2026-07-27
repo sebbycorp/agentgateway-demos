@@ -11,6 +11,12 @@ export OPENAI_API_KEY='sk-...'
 
 Then open the dashboard: <http://localhost:15000/ui/> → **Costs** / **Analytics**.
 
+| URL | What it is |
+|-----|------------|
+| <http://localhost:15000/ui/> | UI on the **admin interface** (`config.adminAddr`) — always on |
+| <http://localhost:8081/ui/> | UI on the **public `ui` gateway** (`ui.gateways`) — see [Gateways](#gateways) |
+| <http://localhost:4000> | OpenAI-compatible LLM endpoint (`gateways.llm`) |
+
 Teardown:
 
 ```sh
@@ -22,8 +28,41 @@ docker rm -f agw-cost-demo && docker volume rm agw-cost-demo-data
 1. **Preflight** — checks for `docker`, a running Docker daemon, `curl`, `OPENAI_API_KEY`, and a Python runner (`uv` preferred, else `python3 ≥ 3.11`).
 2. **Fetches the generator** — downloads [`gen-mock-logs.py`](https://github.com/sebbycorp/Instruqt-demos/blob/main/01-ai-cost-webinar-workshop/assets/gen-mock-logs.py) (skips if already present).
 3. **Generates mock data** — writes `data/data.db`, a SQLite database using the **same `request_logs` schema agentgateway logs to** (5000 requests across 7 days by default).
-4. **Writes `config.yaml`** — wires `config.database` at the SQLite DB, the `base-costs.json` model catalog (so every request is priced), and a live OpenAI route on port `4000`.
+4. **Uses the committed `config.yaml`** — it does **not** generate it (see [Config ownership](#config-ownership)). It reads the gateway ports out of the file, fails early if any is already in use, and publishes exactly those.
 5. **Seeds a Docker volume & runs** — copies the generated DB into the `agw-cost-demo-data` named volume, then starts the `agw-cost-demo` container mounting the config, catalog, and volume.
+
+### Gateways
+
+`config.yaml` declares named **gateways** — the entrypoints that features attach to by name:
+
+```yaml
+gateways:
+  llm:
+    port: 4000
+  ui:
+    port: 8081
+
+llm:
+  gateways: [llm]     # LLM routes on :4000
+  models: [...]
+
+ui:
+  gateways: [ui]      # UI also served on :8081, on top of the admin interface
+```
+
+This matters beyond tidiness: **the admin UI's gateway pickers read `config.gateways` and nothing else.** The older `llm.port:` / `mcp.port:` shorthand still works and still creates real listeners, but the schema marks it *"Deprecated; use `gateways` instead"* and it produces no entry in `gateways`, so **UI Settings → Public UI gateway** shows *"No gateways configured — Add a gateway before exposing the UI"* and the UI access policies (OIDC, JWT, API key, CORS…) stay greyed out with *"UI policies require the UI to be exposed on a gateway."*
+
+`setup.sh` derives its published Docker ports from this block, so changing a port in `config.yaml` is the only edit needed.
+
+> ⚠️ The public UI gateway is **unauthenticated**. `setup.sh` binds it to `127.0.0.1` only. Add `ui.policies.oidc` before exposing it beyond loopback — the schema itself notes it is *"strongly recommended to utilize authentication (typically OIDC) when exposing the UI externally."*
+
+MCP is present but commented out. With `targets: []` the endpoint only answers `503 mcp: no backends configured`, so it ships off; uncomment the `mcp` gateway and the `mcp:` block together to enable it.
+
+### Config ownership
+
+`config.yaml` is the **source of truth** and is committed. `setup.sh` mounts it as-is.
+
+The admin UI can write this file back — every Save in UI Settings or a policy editor `PUT`s to `/api/config`, which re-serializes the whole file and **drops all comments**. That's expected; `git diff config.yaml` shows you exactly what the UI changed. Earlier versions of this demo regenerated `config.yaml` from a heredoc on every run, which silently discarded those UI edits — that's why generation was removed.
 
 ### How the mock data reaches the dashboard
 
@@ -57,7 +96,7 @@ curl -s http://localhost:4000/v1/chat/completions \
 | Variable         | Default      | Purpose                       |
 |------------------|--------------|-------------------------------|
 | `OPENAI_API_KEY` | *(required)* | Live OpenAI route credential  |
-| `VERSION`        | `v1.3.1`     | agentgateway Docker image tag |
+| `VERSION`        | `v1.4.0`     | agentgateway Docker image tag |
 | `REQUESTS`       | `5000`       | Mock request rows to generate |
 | `DAYS`           | `7`          | Days of history to backfill   |
 
@@ -99,7 +138,7 @@ agentgateway --version
 
 ### Option B — download the release binary directly
 
-Pick the asset for your platform from the [v1.3.0-beta.1 release](https://github.com/agentgateway/agentgateway/releases/tag/v1.3.0-beta.1):
+Pick the asset for your platform from the [v1.4.0 release](https://github.com/agentgateway/agentgateway/releases/tag/v1.4.0):
 
 | Platform        | agentgateway binary             | CLI                       |
 |-----------------|---------------------------------|---------------------------|
@@ -111,7 +150,7 @@ Pick the asset for your platform from the [v1.3.0-beta.1 release](https://github
 Example (macOS Apple Silicon):
 
 ```sh
-VERSION=v1.3.0-beta.1
+VERSION=v1.4.0
 BASE=https://github.com/agentgateway/agentgateway/releases/download/$VERSION
 
 # Download
