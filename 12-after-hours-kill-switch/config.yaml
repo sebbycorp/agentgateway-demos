@@ -1,0 +1,126 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# After-hours cloud kill switch (standalone agentgateway 1.4.x).
+#
+# Clients call one OpenAI-compatible URL and pick a public virtual model:
+#   gpt-4o-mini | claude-sonnet | grok
+#
+# Keep the requested cloud provider only when ALL of these are true:
+#   1. x-env: prod
+#   2. hour is daytime in America/Toronto
+#   3. x-force-after-hours is not "true"
+# Otherwise every request is rewritten to xAI Grok (grok-4.6).
+#
+# timestamp(request.startTime).getHours() is UTC (see CEL docs).
+# America/Toronto is UTC-4 in August 2026 (EDT).
+#   daytime      08:00–18:59 local  =  12:00–22:59 UTC
+#   after-hours  19:00–07:59 local  =  23:00–11:59 UTC
+#
+# Docs:
+#   https://agentgateway.dev/docs/standalone/latest/llm/virtual-models/
+#   https://agentgateway.dev/docs/standalone/latest/llm/providers/multiple-llms/
+#   https://agentgateway.dev/docs/standalone/latest/llm/providers/xai/
+#   https://agentgateway.dev/docs/standalone/latest/reference/cel/
+
+config:
+  adminAddr: 0.0.0.0:15000
+
+gateways:
+  llm:
+    port: 4000
+
+llm:
+  gateways:
+  - llm
+  policies:
+    cors:
+      allowOrigins:
+      - '*'
+      allowHeaders:
+      - '*'
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+
+  # Shared provider credentials. Models only override params.model.
+  # Dollar-sign env refs (OPENAI_API_KEY, etc.) are expanded by agentgateway.
+  providers:
+  - name: openai
+    provider: openAI
+    params:
+      apiKey: "$OPENAI_API_KEY"
+  - name: anthropic
+    provider: anthropic
+    params:
+      apiKey: "$ANTHROPIC_API_KEY"
+  - name: xai
+    provider: xai
+    params:
+      apiKey: "$XAI_API_KEY"
+
+  # Concrete upstreams. visibility: internal so clients cannot bypass
+  # the virtual-model kill switch by requesting these names directly.
+  models:
+  - name: openai-gpt-4o-mini
+    visibility: internal
+    provider:
+      reference: openai
+    params:
+      model: gpt-4o-mini
+  - name: anthropic-claude-sonnet
+    visibility: internal
+    provider:
+      reference: anthropic
+    params:
+      # Current Anthropic / agentgateway Claude Sonnet id (not Bedrock).
+      # See https://agentgateway.dev/docs/standalone/latest/llm/providers/anthropic/
+      model: claude-sonnet-4-6
+  - name: xai-grok
+    visibility: internal
+    provider:
+      reference: xai
+    params:
+      # Current xAI chat model (https://docs.x.ai/developers/models).
+      # agentgateway's xAI page still shows grok-2-latest as an example; that
+      # id is retired. Swap params.model here if xAI publishes a newer id.
+      model: grok-4.6
+
+  # Public names. First matching `when` wins; last target is the Grok fallback.
+  virtualModels:
+  - name: gpt-4o-mini
+    routing:
+      conditional:
+        targets:
+        - model: openai-gpt-4o-mini
+          when: |
+            default(request.headers["x-env"], "") == "prod"
+            && default(request.headers["x-force-after-hours"], "") != "true"
+            && timestamp(request.startTime).getHours() >= 12
+            && timestamp(request.startTime).getHours() < 23
+        - model: xai-grok
+          when: "true"
+  - name: claude-sonnet
+    routing:
+      conditional:
+        targets:
+        - model: anthropic-claude-sonnet
+          when: |
+            default(request.headers["x-env"], "") == "prod"
+            && default(request.headers["x-force-after-hours"], "") != "true"
+            && timestamp(request.startTime).getHours() >= 12
+            && timestamp(request.startTime).getHours() < 23
+        - model: xai-grok
+          when: "true"
+  - name: grok
+    routing:
+      conditional:
+        targets:
+        - model: xai-grok
+          when: |
+            default(request.headers["x-env"], "") == "prod"
+            && default(request.headers["x-force-after-hours"], "") != "true"
+            && timestamp(request.startTime).getHours() >= 12
+            && timestamp(request.startTime).getHours() < 23
+        - model: xai-grok
+          when: "true"
