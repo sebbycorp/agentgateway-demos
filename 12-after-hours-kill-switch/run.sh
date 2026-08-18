@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Start standalone agentgateway with this demo's config.
-# Loads .env if present so $OPENAI_API_KEY / $ANTHROPIC_API_KEY / $XAI_API_KEY
-# are in the process environment. Does not print secret values.
+# Loads .env if present. Does not print secret values.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +14,7 @@ if [[ -f .env ]]; then
 fi
 
 missing=0
-for var in OPENAI_API_KEY ANTHROPIC_API_KEY XAI_API_KEY; do
+for var in ANTHROPIC_API_KEY XAI_API_KEY; do
   if [[ -z "${!var:-}" ]]; then
     echo "ERROR: $var is not set. Copy .env.example to .env or export the key." >&2
     missing=1
