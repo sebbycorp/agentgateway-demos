@@ -32,6 +32,26 @@ This folder:
 
 **Optional demo header.** `x-force-after-hours: true` sends that request to Grok even at noon. It is only so you can show the night path without waiting until 7pm.
 
+## Screenshots
+
+Live 2026-08-18, after 7pm America/Toronto. The playground labels the public name `claude` even when Grok served the call — the JSON `model` field is the rewrite proof.
+
+![Gateway overview](agw-ui-home.png)
+
+LLM enabled: one public virtual model, two backends.
+
+![LLM Models](agw-ui-models.png)
+
+`claude` is virtual + conditional (2 rules). Internal backends are Anthropic Sonnet and xAI Grok.
+
+![Chat Playground](agw-ui-playground.png)
+
+Client always sends `claude`.
+
+![After-hours live test](agw-live-test.png)
+
+After 7pm Toronto the JSON `model` field is `grok-4.6`.
+
 ## How to set it up
 
 1. **Install standalone agentgateway**
