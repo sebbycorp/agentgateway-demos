@@ -1,226 +1,98 @@
-# After-hours cloud kill switch
+# After-hours Claude → Grok
 
-Standalone [agentgateway](https://agentgateway.dev) 1.4.x demo. Clients hit **one** OpenAI-compatible URL and ask for GPT, Claude, or Grok by a short public name. The gateway keeps the requested **cloud** model only in daytime production; otherwise it rewrites every request to **xAI Grok**.
+Daytime quality on Claude. After-hours spend on Grok. Same URL, same `"model": "claude"`. The switch is a CEL virtual-model policy in standalone agentgateway — not an if/else in your app.
 
-This demo does **not** use a local Qwen / Spark / `172.16.10.155` endpoint. The after-hours destination is xAI only.
+## Why
 
-```
-Client  ──POST /v1/chat/completions──►  agentgateway :4000
-                                         │
-                                         ├─ daytime AND x-env: prod
-                                         │    gpt-4o-mini     → OpenAI  gpt-4o-mini
-                                         │    claude-sonnet   → Anthropic  claude-sonnet-4-6
-                                         │    grok            → xAI  grok-4.6
-                                         │
-                                         └─ after-hours OR missing/non-prod x-env
-                                              OR x-force-after-hours: true
-                                              any public model → xAI  grok-4.6
-```
+During the workday you want Claude. That is the default quality path.
 
-## What it does
+After 7pm America/Toronto you do not want that bill. The gateway silently rewrites every request to xAI Grok until 8am. Clients keep calling one OpenAI-compatible URL. No SDK change, no cron, no client-side hour check.
 
-`llm.virtualModels` with `routing.conditional.targets` (see [Virtual models](https://agentgateway.dev/docs/standalone/latest/llm/virtual-models/)) evaluates CEL `when` expressions in order. First match wins.
+This lives in `config.yaml` as `llm.virtualModels` + a CEL `when`. Agentgateway evaluates `timestamp(request.startTime).getHours()` on each request and picks the backend. Your app always sends `claude`.
 
-Keep the requested cloud target only when **all** of these are true:
+## What
 
-1. `request.headers["x-env"] == "prod"`
-2. The request hour is daytime in **America/Toronto**
-3. `x-force-after-hours` is not `true`
+This folder:
 
-Otherwise the explicit fallback `when: "true"` sends the request to the internal xAI model.
+| File | Role |
+|------|------|
+| `config.yaml` | Standalone 1.4.x config. One public virtual model, two internal backends. |
+| `.env.example` | `ANTHROPIC_API_KEY` and `XAI_API_KEY` placeholders. Copy to `.env` (gitignored). |
+| `run.sh` | Loads `.env` and runs `agentgateway -f config.yaml`. |
+| `demo.sh` | Two curls against a running gateway (daytime vs force header). |
 
-Missing `x-env`, `x-env: workshop`, quiet hours, or `x-force-after-hours: true` all land on Grok.
+**Public name** the client always sends: `claude`
 
-### Time window (UTC)
+**Backends** (internal; clients cannot request them directly):
 
-`timestamp(request.startTime).getHours()` is **UTC** ([CEL reference](https://agentgateway.dev/docs/standalone/latest/reference/cel/)). America/Toronto is **UTC-4** in August 2026 (EDT).
+- Daytime → Anthropic `claude-sonnet-4-6`
+- After hours → xAI `grok-4.6`
 
-| Local (America/Toronto) | UTC hours (`getHours()`) | If `x-env: prod` |
-|-------------------------|--------------------------|------------------|
-| Daytime `08:00`–`18:59` | `12`–`22` | Keep GPT / Claude / Grok as requested |
-| After-hours `19:00`–`07:59` | `23`–`11` | Rewrite to xAI `grok-4.6` |
+**Window.** After-hours is 7:00pm–8:00am America/Toronto. CEL `getHours()` is UTC, and Toronto is UTC-4 in August (EDT), so the YAML uses **12–22 UTC for daytime** (`>= 12 && < 23`). Hours `23`–`11` UTC are Grok.
 
-CEL used on each virtual model:
+**Optional demo header.** `x-force-after-hours: true` sends that request to Grok even at noon. It is only so you can show the night path without waiting until 7pm.
 
-```cel
-default(request.headers["x-env"], "") == "prod"
-&& default(request.headers["x-force-after-hours"], "") != "true"
-&& timestamp(request.startTime).getHours() >= 12
-&& timestamp(request.startTime).getHours() < 23
-```
+## How to set it up
 
-`x-force-after-hours: true` lets you demonstrate the Grok rewrite at any hour.
+1. **Install standalone agentgateway**
 
-## Public model names
+   ```sh
+   curl -sL https://agentgateway.dev/install | bash
+   agentgateway --version
+   ```
 
-| Client sends (`"model"`) | Daytime + `x-env: prod` | Otherwise |
-|--------------------------|-------------------------|-----------|
-| `gpt-4o-mini` | OpenAI **`gpt-4o-mini`** | xAI **`grok-4.6`** |
-| `claude-sonnet` | Anthropic **`claude-sonnet-4-6`** | xAI **`grok-4.6`** |
-| `grok` | xAI **`grok-4.6`** | xAI **`grok-4.6`** |
+2. **Put keys in `.env`** (never commit `.env`)
 
-Concrete upstreams are `visibility: internal` so clients cannot skip the kill switch by naming them directly.
+   ```sh
+   cd 12-after-hours-kill-switch
+   cp .env.example .env
+   # edit .env — set ANTHROPIC_API_KEY and XAI_API_KEY
+   ```
 
-## Prerequisites
+   Or export them in your shell. Root `.gitignore` already ignores `.env`.
 
-- `curl` (and `jq` if you want pretty demo output)
-- API keys in the environment (never commit them):
+3. **Run the gateway from this folder**
 
-| Env var | Provider | Upstream model |
-|---------|----------|----------------|
-| `$OPENAI_API_KEY` | [OpenAI](https://agentgateway.dev/docs/standalone/latest/llm/providers/openai/) | `gpt-4o-mini` |
-| `$ANTHROPIC_API_KEY` | [Anthropic](https://agentgateway.dev/docs/standalone/latest/llm/providers/anthropic/) | `claude-sonnet-4-6` |
-| `$XAI_API_KEY` | [xAI](https://agentgateway.dev/docs/standalone/latest/llm/providers/xai/) | `grok-4.6` ([current xAI chat model](https://docs.x.ai/developers/models); agentgateway's example still shows `grok-2-latest`, which xAI has retired) |
+   ```sh
+   agentgateway -f config.yaml
+   ```
 
-```sh
-cp .env.example .env
-# edit .env — .env is gitignored
-```
+   `./run.sh` does the same after sourcing `.env`. LLM is `http://localhost:4000`. Admin UI is `http://localhost:15000/ui/`.
 
-Or export the three variables in your shell.
+4. **Daytime path (Claude)** — same public model every time
 
-## Install the binary
+   ```sh
+   curl -s http://localhost:4000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "claude",
+       "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
+       "max_tokens": 16
+     }' | jq '{model, content: .choices[0].message.content}'
+   ```
 
-```sh
-curl -sL https://agentgateway.dev/install | bash
-agentgateway --version
-```
+   Between 12:00 and 22:59 UTC this should hit Anthropic. After 7pm Toronto this same curl is Grok — that is the point.
 
-This demo targets standalone **1.4.x** (`llm.virtualModels`, `llm.providers`, named `gateways`).
+5. **Force Grok without waiting until night**
 
-## Run
+   ```sh
+   curl -s http://localhost:4000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -H "x-force-after-hours: true" \
+     -d '{
+       "model": "claude",
+       "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
+       "max_tokens": 16
+     }' | jq '{model, content: .choices[0].message.content}'
+   ```
 
-```sh
-export OPENAI_API_KEY='...'
-export ANTHROPIC_API_KEY='...'
-export XAI_API_KEY='...'
+   Or run `./demo.sh` (needs the gateway already up).
 
-agentgateway -f config.yaml
-```
+6. **Confirm who served it**
 
-Or, after filling `.env`:
+   On a successful chat completion, agentgateway returns OpenAI-compatible JSON. Read the **`model` field in the body**:
 
-```sh
-./run.sh
-```
+   - `claude-sonnet-4-6` — Anthropic
+   - `grok-4.6` — xAI
 
-| URL | What it is |
-|-----|------------|
-| `http://localhost:4000/v1/chat/completions` | OpenAI-compatible LLM endpoint |
-| `http://localhost:15000/ui/` | Admin UI |
-
-Check the CEL playground in the admin UI if a `when` expression does not behave as you expect.
-
-## Curl examples
-
-All five calls use the same URL. Look at the response `"model"` field to see where the kill switch sent the request (`gpt-4o-mini`, `claude-sonnet-4-6`, or `grok-4.6`).
-
-**Cases 1–3 only keep the requested cloud model during 12:00–22:59 UTC.** Outside that window they also rewrite to Grok — that is the kill switch. Use case 5 to force Grok at any hour.
-
-### 1. `x-env: prod` daytime → GPT
-
-```sh
-curl -s http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "x-env: prod" \
-  -d '{
-    "model": "gpt-4o-mini",
-    "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
-    "max_tokens": 16
-  }' | jq '{model, content: .choices[0].message.content}'
-```
-
-Expected in daytime: `"model"` contains `gpt-4o-mini`.
-
-### 2. `x-env: prod` daytime → Claude
-
-```sh
-curl -s http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "x-env: prod" \
-  -d '{
-    "model": "claude-sonnet",
-    "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
-    "max_tokens": 16
-  }' | jq '{model, content: .choices[0].message.content}'
-```
-
-Expected in daytime: `"model"` contains `claude-sonnet-4-6`.
-
-### 3. `x-env: prod` daytime → Grok
-
-```sh
-curl -s http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "x-env: prod" \
-  -d '{
-    "model": "grok",
-    "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
-    "max_tokens": 16
-  }' | jq '{model, content: .choices[0].message.content}'
-```
-
-Expected: `"model"` contains `grok-4.6` (Grok is already the xAI cloud model).
-
-### 4. Missing `x-env` or `x-env: workshop` → Grok
-
-```sh
-# missing x-env
-curl -s http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o-mini",
-    "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
-    "max_tokens": 16
-  }' | jq '{model, content: .choices[0].message.content}'
-
-# non-prod workshop header
-curl -s http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "x-env: workshop" \
-  -d '{
-    "model": "claude-sonnet",
-    "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
-    "max_tokens": 16
-  }' | jq '{model, content: .choices[0].message.content}'
-```
-
-Expected: both rewrite to `grok-4.6`.
-
-### 5. `x-force-after-hours: true` → Grok
-
-```sh
-curl -s http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "x-env: prod" \
-  -H "x-force-after-hours: true" \
-  -d '{
-    "model": "gpt-4o-mini",
-    "messages": [{"role": "user", "content": "Reply with exactly: ok"}],
-    "max_tokens": 16
-  }' | jq '{model, content: .choices[0].message.content}'
-```
-
-Expected at any hour: `grok-4.6`.
-
-### Run all five
-
-With the gateway already running:
-
-```sh
-./demo.sh
-```
-
-## Config notes
-
-- Simplified `llm:` mode ([configuration modes](https://agentgateway.dev/docs/standalone/latest/llm/configuration-modes/)), same style as `00-standalone-latest`.
-- Named `gateways.llm` on port **4000** (default LLM listener when no gateway is declared).
-- Reusable `llm.providers[]` + `provider.reference` ([multiple providers](https://agentgateway.dev/docs/standalone/latest/llm/providers/multiple-llms/)).
-- API keys are `$VAR` references only. Root `.gitignore` already ignores `.env` / `*.env`.
-
-## References
-
-- Standalone docs: https://agentgateway.dev/docs/standalone/latest/
-- Virtual models: https://agentgateway.dev/docs/standalone/latest/llm/virtual-models/
-- xAI provider: https://agentgateway.dev/docs/standalone/latest/llm/providers/xai/
-- Config schema: https://agentgateway.dev/schema/config
+   The process log for that request also prints `gen_ai.provider.name` (`anthropic` or `xai`) and `gen_ai.request.model`. There is no extra provider header on the response.
