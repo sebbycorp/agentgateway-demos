@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
 #
-# Partner vs employee MCP (standalone agentgateway).
+# Partner/Consultant (standalone agentgateway).
 #
 # Same MCP URL for everyone: http://localhost:3000/mcp
 # Identity is the request header x-role: employee | partner | consultant
