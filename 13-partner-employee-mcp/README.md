@@ -113,3 +113,32 @@ This folder:
    - `grok-4.6` — partner, consultant, or missing header
 
    Or run `./demo.sh` (needs the gateway already up). It handles the MCP initialize / session headers for you.
+
+## Screenshots
+
+Live admin UI from this folder running on standalone agentgateway (`http://127.0.0.1:15000/ui/`).
+
+**Home** — LLM enabled (2 models, 1 virtual model) and MCP enabled (1 server):
+
+![Gateway home](13-ui-home.png)
+
+**Models** — `anthropic-claude`, `xai-grok`, and virtual `assistant` with 2 conditional rules:
+
+![LLM models](13-ui-models.png)
+
+**MCP Servers** — one target, `npx @modelcontextprotocol/server-everything`, state ready:
+
+![MCP servers](13-ui-mcp-servers.png)
+
+**MCP Policies** — MCP authorization and CORS enabled (`x-role` is on the allowed header list):
+
+![MCP policies](13-ui-mcp-policies.png)
+
+**Tool Playground** — no `x-role` header control in this UI, so `tools/list` is empty (same as a request with no header):
+
+![MCP tool playground](13-ui-tool-playground.png)
+
+**Live test** — `./demo.sh` against the running gateway. Employee catalog is 13 tools and Claude; partner is `echo` only, redacted body, and Grok:
+
+![Live demo.sh](13-partner-live-test.png)
+
