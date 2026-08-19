@@ -1,4 +1,4 @@
-# Partner vs employee MCP
+# Partner/Consultant
 
 Same `/mcp` URL for everyone. Identity is `x-role`. Employees get the full catalog, full tool bodies, and Claude. Partners and consultants get a stripped catalog, a redacted tool body, and Grok.
 
