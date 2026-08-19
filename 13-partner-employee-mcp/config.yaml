@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# Partner vs employee MCP (standalone agentgateway).
+#
+# Same MCP URL for everyone: http://localhost:3000/mcp
+# Identity is the request header x-role: employee | partner | consultant
+#
+# Three official knobs, one header:
+#   1. mcpAuthorization          — partner/consultant catalog is echo-only
+#   2. transformations.conditional — partner/consultant tools/call body is stripped
+#   3. llm.virtualModels + when  — public model "assistant" is Claude for
+#                                  employees, Grok otherwise
+#
+# No x-role → no authz rule matches → empty catalog.
+# Missing/unknown x-role on the LLM path → Grok (the pin is obvious).
+#
+# JWT is the production version of this header
+# (https://agentgateway.dev/docs/standalone/latest/configuration/security/mcp-authn).
+#
+# Docs:
+#   https://agentgateway.dev/docs/standalone/latest/mcp/connect/stdio/
+#   https://agentgateway.dev/docs/standalone/latest/configuration/security/mcp-authz
+#   https://agentgateway.dev/docs/standalone/latest/configuration/policies/conditional-policies
+#   https://agentgateway.dev/docs/standalone/latest/configuration/traffic-management/transformations/
+#   https://agentgateway.dev/docs/standalone/latest/reference/cel/yaml-and-examples/
+#   https://agentgateway.dev/docs/standalone/latest/reference/cel/
+#   https://agentgateway.dev/docs/standalone/latest/llm/virtual-models/
+#   https://agentgateway.dev/docs/standalone/latest/llm/configuration-modes/
+#   https://agentgateway.dev/docs/standalone/latest/llm/providers/anthropic/
+#   https://agentgateway.dev/docs/standalone/latest/llm/providers/xai/
+
+config:
+  adminAddr: 0.0.0.0:15000
+
+# Named gateways so one `agentgateway -f config.yaml` serves both listeners.
+# Official ports only: MCP 3000, LLM 4000.
+# https://agentgateway.dev/docs/standalone/latest/llm/configuration-modes/
+gateways:
+  mcp:
+    port: 3000
+  llm:
+    port: 4000
+
+mcp:
+  gateways:
+  - mcp
+  policies:
+    cors:
+      allowOrigins:
+      - "*"
+      allowHeaders:
+      - mcp-protocol-version
+      - content-type
+      - cache-control
+      - mcp-session-id
+      - x-role
+      exposeHeaders:
+      - "Mcp-Session-Id"
+    # Rules are OR. First match allows. Unmatched tools are omitted from tools/list.
+    mcpAuthorization:
+      rules:
+      # Employee: every tool on the everything server.
+      - 'default(request.headers["x-role"], "") == "employee"'
+      # Partner / consultant: echo only (name from the official stdio + mcp-authz docs).
+      - '(default(request.headers["x-role"], "") == "partner" || default(request.headers["x-role"], "") == "consultant") && mcp.tool.name == "echo"'
+    # First match wins. No fallback → employees skip the transform.
+    # Limit the rewrite to tools/call so initialize / tools/list stay intact.
+    transformations:
+      conditional:
+      - condition: |
+          (default(request.headers["x-role"], "") == "partner"
+           || default(request.headers["x-role"], "") == "consultant")
+          && default(json(request.body).method, "") == "tools/call"
+        response:
+          body: |
+            '{"jsonrpc":"2.0","result":{"content":[{"type":"text","text":"[redacted] Partner/consultant tool result stripped by agentgateway."}],"isError":false}}'
+  targets:
+  - name: everything
+    stdio:
+      cmd: npx
+      args: ["@modelcontextprotocol/server-everything"]
+
+llm:
+  gateways:
+  - llm
+  policies:
+    cors:
+      allowOrigins:
+      - '*'
+      allowHeaders:
+      - '*'
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+
+  # Dollar-sign env refs are expanded by agentgateway from the process environment.
+  providers:
+  - name: anthropic
+    provider: anthropic
+    params:
+      apiKey: "$ANTHROPIC_API_KEY"
+  - name: xai
+    provider: xai
+    params:
+      apiKey: "$XAI_API_KEY"
+
+  models:
+  - name: anthropic-claude
+    visibility: internal
+    provider:
+      reference: anthropic
+    params:
+      # Current Anthropic / agentgateway Claude Sonnet id (same as folder 12).
+      # https://agentgateway.dev/docs/standalone/latest/llm/providers/anthropic/
+      model: claude-sonnet-4-6
+  - name: xai-grok
+    visibility: internal
+    provider:
+      reference: xai
+    params:
+      # Current xAI chat model (same as folder 12).
+      model: grok-4.6
+
+  virtualModels:
+  - name: assistant
+    routing:
+      conditional:
+        targets:
+        - model: anthropic-claude
+          when: |
+            default(request.headers["x-role"], "") == "employee"
+        - model: xai-grok
+          when: "true"
