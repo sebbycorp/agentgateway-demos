@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+config:
+  adminAddr: localhost:15000
+  database:
+    url: sqlite://./data.db?mode=rwc
+  modelCatalog:
+  - file: ./cost.json
+gateways:
+  default:
+    port: 4001
+    protocol: HTTP
+routes:
+- name: claude-agent
+  matches:
+  - path:
+      pathPrefix: /claude
+  policies:
+    urlRewrite:
+      path:
+        prefix: /
+    jwtAuth:
+      mode: strict
+      issuer: https://login.microsoftonline.com/$TENANT_ID/v2.0
+      audiences:
+      - $CLIENT_ID
+      jwks:
+        url: https://login.microsoftonline.com/$TENANT_ID/discovery/v2.0/keys
+  backends:
+  - ai:
+      name: claude-agent
+      provider:
+        anthropic: {}
+      policies:
+        backendAuth:
+          key: $ANTHROPIC_API_KEY
+        ai:
+          routes:
+            /v1/messages: messages
+            /v1/messages/count_tokens: anthropicTokenCount
+            '*': passthrough
+llm:
+  port: 4000
+  models: []
+  providers: []
+  virtualModels: []
+frontendPolicies:
+  http:
+    maxBufferSize: 33554432
+  accessLog:
+    database:
+      add:
+        gen_ai.prompt: llm.prompt
+        gen_ai.completion: 'llm.completion.map(c, {"role":"assistant", "content": c})'

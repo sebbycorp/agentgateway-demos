@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# Minimal standalone Docker config for AgentGateway.
+# Admin UI: http://localhost:15000/ui/
+# LLM:     http://localhost:3000/v1/chat/completions  (or port from gateways.llm)
+config:
+  adminAddr: 0.0.0.0:15000
+
+gateways:
+  llm:
+    port: 3000
+
+llm:
+  gateways:
+    - llm
+  policies:
+    cors:
+      allowOrigins:
+        - "*"
+      allowHeaders:
+        - "*"
+      allowMethods:
+        - GET
+        - POST
+        - OPTIONS
+  models:
+    - name: openai/gpt-4.1-nano
+      provider: openAI
+      params:
+        model: gpt-4.1-nano
+        apiKey: $OPENAI_API_KEY
+    - name: openai/*
+      provider: openAI
+      params:
+        model: gpt-4.1-nano
+        apiKey: $OPENAI_API_KEY

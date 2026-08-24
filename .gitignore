@@ -21,3 +21,6 @@ tmp/
 **/harness/.venv/
 **/harness/results/
 **/.port-forwards.pid
+.env.entra
+secrets/
+*.key

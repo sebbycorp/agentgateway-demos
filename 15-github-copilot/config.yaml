@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+config:
+  adminAddr: localhost:15000
+  database:
+    url: sqlite://./data.db?mode=rwc
+  modelCatalog:
+  - file: ./cost-openai.json
+llm:
+  models:
+  - name: '*'
+    provider: openAI
+    params:
+      apiKey: $OPENAI_API_KEY
+frontendPolicies:
+  accessLog:
+    database:
+      add:
+        gen_ai.prompt: llm.prompt
+        gen_ai.completion: 'llm.completion.map(c, {"role":"assistant", "content": c})'

@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+config:
+  adminAddr: localhost:15000
+  database:
+    url: sqlite://./data.db?mode=rwc
+  modelCatalog:
+  - file: ./cost.json
+  standardAttributes:
+    user: 'has(jwt.email) ? jwt.email : (has(jwt.preferred_username) ? jwt.preferred_username : jwt.sub)'
+    group: 'has(jwt.roles) ? jwt.roles[0] : (has(jwt.groups) ? jwt.groups[0] : "unassigned")'
+llm:
+  models:
+  - name: '*'
+    provider: openAI
+    params:
+      apiKey: $OPENAI_API_KEY
+      model: gpt-5.5
+  policies:
+    jwtAuth:
+      mode: strict
+      issuer: https://login.microsoftonline.com/$ENTRA_TENANT_ID/v2.0
+      audiences:
+      - $ENTRA_CLIENT_ID
+      jwks:
+        url: https://login.microsoftonline.com/$ENTRA_TENANT_ID/discovery/v2.0/keys
+    cors:
+      allowOrigins:
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      allowMethods:
+      - GET
+      - POST
+frontendPolicies:
+  accessLog:
+    database:
+      add:
+        gen_ai.prompt: llm.prompt
+        gen_ai.completion: 'llm.completion.map(c, {"role":"assistant", "content": c})'
+

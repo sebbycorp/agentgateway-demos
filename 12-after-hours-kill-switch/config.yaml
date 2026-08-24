@@ -1,31 +1,9 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
-#
-# After-hours setup (standalone agentgateway 1.4.x).
-#
-# Clients always send model "claude". The gateway picks the upstream:
-#   daytime (America/Toronto) → Anthropic  claude-sonnet-4-6
-#   after hours (7pm–8am local) → xAI      grok-4.6
-#
-# Optional demo header: x-force-after-hours: true  (Grok at any hour).
-#
-# timestamp(request.startTime).getHours() is UTC
-# (https://agentgateway.dev/docs/standalone/latest/reference/cel/).
-# America/Toronto is UTC-4 in August 2026 (EDT).
-#   daytime      08:00–18:59 local  =  12:00–22:59 UTC
-#   after-hours  19:00–07:59 local  =  23:00–11:59 UTC
-#
-# Docs:
-#   https://agentgateway.dev/docs/standalone/latest/llm/virtual-models/
-#   https://agentgateway.dev/docs/standalone/latest/llm/providers/anthropic/
-#   https://agentgateway.dev/docs/standalone/latest/llm/providers/xai/
-
 config:
   adminAddr: 0.0.0.0:15000
-
 gateways:
   llm:
     port: 4000
-
 llm:
   gateways:
   - llm
@@ -33,42 +11,35 @@ llm:
     cors:
       allowOrigins:
       - '*'
+      - http://0.0.0.0:15000
       allowHeaders:
       - '*'
       allowMethods:
       - GET
       - POST
       - OPTIONS
-
-  # Dollar-sign env refs are expanded by agentgateway from the process environment.
   providers:
   - name: anthropic
     provider: anthropic
     params:
-      apiKey: "$ANTHROPIC_API_KEY"
+      apiKey: $ANTHROPIC_API_KEY
   - name: xai
     provider: xai
     params:
-      apiKey: "$XAI_API_KEY"
-
+      apiKey: $XAI_API_KEY
   models:
   - name: anthropic-claude
     visibility: internal
     provider:
       reference: anthropic
     params:
-      # Current Anthropic / agentgateway Claude Sonnet id.
-      # https://agentgateway.dev/docs/standalone/latest/llm/providers/anthropic/
       model: claude-sonnet-4-6
   - name: xai-grok
     visibility: internal
     provider:
       reference: xai
     params:
-      # Current xAI chat model (https://docs.x.ai/developers/models).
-      # agentgateway's xAI page still examples grok-2-latest; that id is retired.
       model: grok-4.6
-
   virtualModels:
   - name: claude
     routing:
@@ -80,4 +51,4 @@ llm:
             && timestamp(request.startTime).getHours() >= 12
             && timestamp(request.startTime).getHours() < 23
         - model: xai-grok
-          when: "true"
+          when: 'true'

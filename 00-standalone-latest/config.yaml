@@ -17,6 +17,7 @@ llm:
     cors:
       allowOrigins:
       - '*'
+      - http://localhost:15000
       allowHeaders:
       - '*'
       allowMethods:
