@@ -7,7 +7,7 @@ set -euo pipefail
 # The API you ask Entra for a token FOR (the Application ID URI).
 # The resulting token's `aud` is the app's client-ID GUID, which is what
 # AgentGateway's jwtAuth.audiences must contain.
-RESOURCE="${ENTRA_RESOURCE:-api://agw-codex}"
+RESOURCE="${ENTRA_RESOURCE:-api://agw-ai-desktop-app}"
 
 # az caches and silently refreshes, so this is cheap to call repeatedly.
 # Requires a prior `az login`; the Azure CLI is pre-authorized on the
