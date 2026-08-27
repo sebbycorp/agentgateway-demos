@@ -46,7 +46,7 @@ Demo `07-bedrock-llm` is split into three subfolders — `standalone/` (binary),
 
 Demo `11` is the **XAA / Enterprise-Managed Authorization** education + lab (MCP EMA, ID-JAG, Keycloak). Plan/test/education docs land first; runtime deploy follows PLAN Phase 1–2.
 
-Demo `16` is the **v1.5.0 standalone API-key-scoped token/dollar budget** lab (`llm.policies.apiKey.keys[].budgets` + `config.database` SQLite). It is **not** the Kubernetes Redis/Envoy rate-limit approach in `04-vitural-keys`. Folder is `16-…` because `11-…` is already XAA.
+Demo `16` is the **v1.5.0 standalone API-key-scoped token/dollar budget** lab (`llm.policies.apiKey.keys[].budgets` + `config.database` SQLite). Folder is `16-…` because `11-…` is already XAA.
 
 Demos `103`, `104`, and `105` use the **Enterprise** AgentGateway (`EnterpriseAgentgatewayBackend`,
 `entMcp.toolMode` Standard/Search/Code) from `oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/`, not the OSS charts above. `104` and `105` front an **external** MCP server (GitHub's hosted `api.githubcopilot.com/mcp`) — no in-cluster MCP pod. `105` forks `104` and adds a second knob: a local **Headroom** compression proxy (https://github.com/headroomlabs-ai/headroom) the harness routes the LLM call through (`HEADROOM=on` + `LLM_URL`), to test whether AGW's catalog savings and Headroom's payload compression *stack*. Headroom defaults to compression OFF — `105`'s `run_matrix.sh`/`test.sh` launch it with compression explicitly enabled.

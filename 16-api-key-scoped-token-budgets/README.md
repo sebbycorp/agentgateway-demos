@@ -2,23 +2,23 @@
 
 Demonstrate the **new** AgentGateway **1.5.0 standalone** feature: rolling **token or dollar budgets attached to a virtual API key** ([agentgateway/agentgateway#3143](https://github.com/agentgateway/agentgateway/pull/3143), [v1.5.0](https://github.com/agentgateway/agentgateway/releases/tag/v1.5.0)).
 
-This is **not** the older Kubernetes Redis / Envoy rate-limit approach in [`04-vitural-keys`](../04-vitural-keys). Budgets live on the key itself (`llm.policies.apiKey.keys[].budgets`), persist through `config.database` (SQLite is enough), and are checked in-process.
+Budgets live on the key itself (`llm.policies.apiKey.keys[].budgets`), persist through `config.database` (SQLite is enough), and are checked in-process.
 
 > Folder name: this demo was requested as `11-api-key-scoped-token-budgets`, but `11-xaa-cross-app-access` already occupies slot 11. It is `16-…` — the next free sequential OSS demo after `15-github-copilot`.
 
 ## Why standalone + a database
 
-| | This demo (1.5.0 standalone) | `04-vitural-keys` (K8s) |
-|---|---|---|
-| Where the budget lives | `LocalAPIKey.budgets[]` on the virtual key | `AgentgatewayPolicy` + Envoy rate-limit descriptors |
-| Enforcement | In-process `BudgetPolicy` | External Redis + rate-limit server |
-| Persistence | In-memory counters, flushed to SQLite/Postgres every 5s | Redis |
-| Charge timing | **After** the LLM response, and only if the provider reports usage (Tokens) or cost (USD) | Descriptor cost reported around the request |
-| Window | `window.rolling` duration, **aligned to the Unix epoch** (not first request) | Rate-limit `unit` (second/minute/hour/day) |
-| Over-limit | `onBudgetExceeded: Block` → HTTP 429 `budget_exceeded` + `Retry-After`; or `Audit` (log, do not block) | HTTP 429 from the rate-limit server |
-| Status | `GET /api/budgets/status` and the admin UI **Keys** page | Prometheus metrics |
+| | v1.5.0 standalone |
+|---|---|
+| Where the budget lives | `LocalAPIKey.budgets[]` on the virtual key |
+| Enforcement | In-process `BudgetPolicy` |
+| Persistence | In-memory counters, flushed to SQLite/Postgres every 5s |
+| Charge timing | **After** the LLM response, and only if the provider reports usage (Tokens) or cost (USD) |
+| Window | `window.rolling` duration, **aligned to the Unix epoch** (not first request) |
+| Over-limit | `onBudgetExceeded: Block` → HTTP 429 `budget_exceeded` + `Retry-After`; or `Audit` (log, do not block) |
+| Status | `GET /api/budgets/status` and the admin UI **Virtual API Keys** page |
 
-v1.5.0 source (`crates/agentgateway/src/http/budget/mod.rs`) refuses to register budgets unless `config.database` is set: *"API key budgets require config.database to be configured."* Hybrid here means **memory + periodic DB flush**, not a Kubernetes control plane.
+v1.5.0 source (`crates/agentgateway/src/http/budget/mod.rs`) refuses to register budgets unless `config.database` is set: *"API key budgets require config.database to be configured."* Hybrid here means **memory + periodic DB flush**.
 
 Windows are epoch-aligned: `1h` follows UTC clock hours, `24h` starts at midnight UTC, `30d` is consecutive 30-day periods from 1970-01-01 — not “starting when the first request arrives.”
 
@@ -134,9 +134,25 @@ curl -s 'http://localhost:15000/api/budgets/status?apiKeyName=demo-audit' | jq .
 
 ## UI
 
-Admin UI: <http://localhost:15000/ui/> → **Keys**. Each key shows its budget name, unit, used / remaining, and window. The same data is `GET /api/budgets/status`.
+Admin UI: <http://localhost:15000/ui/> → **LLM → Virtual API Keys**. Each key shows its budget name and a usage meter. The same data is `GET /api/budgets/status`.
 
 Saving in the UI `PUT`s `/api/config` and re-serializes the file (comments are dropped). `git diff config.yaml` is the record of those edits.
+
+**Virtual API Keys** (hero, 2000px) — after traffic, `demo-block` and `demo-audit` both show the `tokens` meter fully red at **100%**:
+
+![Virtual API Keys with hourly token budgets exceeded at 100%](docs/06-keys-exceeded.png)
+
+**Home** — Gateway Overview. LLM enabled, Virtual API Keys in the sidebar:
+
+![Gateway Overview home](docs/01-home.png)
+
+**LLM Costs** — no catalog is configured. A `limit.unit: USD` budget only charges when the gateway can compute `response.cost` from a catalog (plus provider usage). Token budgets do not need this page:
+
+![LLM Costs with empty catalog](docs/03-costs.png)
+
+**Status API** — raw `GET /api/budgets/status` after the same replay. Both keys are `exceeded: true` (`demo-audit` used 80/40 `Audit`, `demo-block` used 40/40 `Block`):
+
+![GET /api/budgets/status JSON with both keys exceeded](docs/07-budgets-json-exceeded.png)
 
 ## Config (verified against the 1.5.0 schema)
 
@@ -161,6 +177,10 @@ Each budget, from `Budget` in the standalone schema:
 | `test.sh` | No-auth / 200 / status / `budget_exceeded` / Audit |
 | `cleanup.sh` | Container + volume + mock |
 | `mock-openai.py` | Fallback LLM that reports usage |
+| `docs/06-keys-exceeded.png` | Hero: Virtual API Keys at 2000px, both meters 100% |
+| `docs/01-home.png` | Gateway Overview |
+| `docs/03-costs.png` | LLM Costs (empty catalog) |
+| `docs/07-budgets-json-exceeded.png` | `GET /api/budgets/status` after both keys exceeded |
 | `.env.example` | `OPENAI_API_KEY=` |
 
 ## References
@@ -169,4 +189,3 @@ Each budget, from `Budget` in the standalone schema:
 - Release: <https://github.com/agentgateway/agentgateway/releases/tag/v1.5.0>
 - Standalone schema: <https://agentgateway.dev/schema/config>
 - Sibling Docker demo: [`00-standalone-latest`](../00-standalone-latest)
-- Older K8s virtual-key + Redis budgets: [`04-vitural-keys`](../04-vitural-keys)
