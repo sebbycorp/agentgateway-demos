@@ -63,12 +63,14 @@ Teardown:
 
 Image: `cr.agentgateway.dev/agentgateway:v1.5.0`. Override with `VERSION=v1.5.0 ./setup.sh`.
 
+If Docker cannot start a container, `setup.sh` downloads the matching [v1.5.0 release binary](https://github.com/agentgateway/agentgateway/releases/tag/v1.5.0) and runs it on the host (`AGW_RUNTIME=binary` forces that path). SQLite then lives in `./data/data.db` instead of the named volume.
+
 ### What `setup.sh` does
 
 1. **Preflight** — `docker`, a running daemon, `curl`, free ports from `config.yaml`.
 2. **LLM path** — live OpenAI when `OPENAI_API_KEY` is set; otherwise `mock-openai.py` (stdlib HTTP server) that always returns **40** total tokens so Block trips on the second call.
 3. **Named volume** — SQLite at `/data/data.db` in `agw-token-budgets-data`. Bind mounts break SQLite WAL on Docker Desktop macOS (`disk I/O error`, code 522); a named volume sits on the Linux VM filesystem. Same reason as `00-standalone-latest`.
-4. **Run** — `docker run` the v1.5.0 image, loopback-published `:4000` and `:15000`.
+4. **Run** — `docker run` the v1.5.0 image, loopback-published `:4000` and `:15000`. If that fails, the official v1.5.0 host binary is used instead.
 
 `config.yaml` is the committed source of truth. The mock path only injects `params.baseUrl` (a real `LocalLLMParams` field) into `.runtime/config.yaml` so the tracked file stays a valid live-OpenAI config.
 

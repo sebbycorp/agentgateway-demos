@@ -25,6 +25,12 @@ if [ -f .mock.pid ]; then
   rm -f .mock.pid
 fi
 
+if [ -f .runtime/agw.pid ]; then
+  say "Stopping host agentgateway (pid $(cat .runtime/agw.pid))"
+  kill "$(cat .runtime/agw.pid)" >/dev/null 2>&1 || true
+  rm -f .runtime/agw.pid
+fi
+
 if command -v docker >/dev/null 2>&1; then
   say "Removing container '${CONTAINER}'"
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
@@ -34,6 +40,6 @@ else
   say "docker not found — nothing Docker-side to remove."
 fi
 
-rm -rf "$DIR/.runtime"
+rm -rf "$DIR/.runtime" "$DIR/data"
 
 say "Done. Demo torn down."
