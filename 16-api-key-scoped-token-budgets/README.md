@@ -134,9 +134,25 @@ curl -s 'http://localhost:15000/api/budgets/status?apiKeyName=demo-audit' | jq .
 
 ## UI
 
-Admin UI: <http://localhost:15000/ui/> → **Keys**. Each key shows its budget name, unit, used / remaining, and window. The same data is `GET /api/budgets/status`.
+Admin UI: <http://localhost:15000/ui/> → **LLM → Virtual API Keys**. Each key shows its budget name and a usage meter. The same data is `GET /api/budgets/status`.
 
 Saving in the UI `PUT`s `/api/config` and re-serializes the file (comments are dropped). `git diff config.yaml` is the record of those edits.
+
+**Virtual API Keys** — `demo-block` (`sk-demo-block`) and `demo-audit` (`sk-demo-audit`), each with a `tokens` budget meter. This is the page that shows the 1.5.0 feature:
+
+![Virtual API Keys with per-key token budget meters](docs/02-keys.png)
+
+**Home** — Gateway Overview. LLM enabled, Virtual API Keys in the sidebar:
+
+![Gateway Overview home](docs/01-home.png)
+
+**LLM Costs** — no catalog is configured. A `limit.unit: USD` budget only charges when the gateway can compute `response.cost` from a catalog (plus provider usage). Token budgets do not need this page:
+
+![LLM Costs with empty catalog](docs/03-costs.png)
+
+**Status API** — raw `GET /api/budgets/status` for both keys (`tokens`, 40 Tokens, Audit vs Block):
+
+![GET /api/budgets/status JSON](docs/04-budgets-json.png)
 
 ## Config (verified against the 1.5.0 schema)
 
@@ -161,6 +177,7 @@ Each budget, from `Budget` in the standalone schema:
 | `test.sh` | No-auth / 200 / status / `budget_exceeded` / Audit |
 | `cleanup.sh` | Container + volume + mock |
 | `mock-openai.py` | Fallback LLM that reports usage |
+| `docs/*.png` | Live admin UI screenshots (Keys is the primary shot) |
 | `.env.example` | `OPENAI_API_KEY=` |
 
 ## References
