@@ -4,8 +4,10 @@
 Used when OPENAI_API_KEY is unset so the 1.5.0 budget demo can still charge
 and then trip Block / show Audit on /api/budgets/status.
 
-Each chat completion reports 25 prompt + 15 completion = 40 total tokens,
-matching the committed Tokens limit so the second Block-key call is denied.
+Each chat completion reports 150 prompt + 350 completion = 500 total tokens,
+sized against the committed limits: the 1000-token budget is crossed on the
+second call and the 0.02 USD budget on the second gpt-5.5 call, so Block trips
+on the call after that.
 """
 from __future__ import annotations
 
@@ -14,9 +16,9 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-TOTAL_TOKENS = 40
-PROMPT_TOKENS = 25
-COMPLETION_TOKENS = 15
+PROMPT_TOKENS = 150
+COMPLETION_TOKENS = 350
+TOTAL_TOKENS = PROMPT_TOKENS + COMPLETION_TOKENS
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -46,7 +48,7 @@ class Handler(BaseHTTPRequestHandler):
                     "object": "list",
                     "data": [
                         {
-                            "id": "gpt-4.1-nano",
+                            "id": "gpt-5.5",
                             "object": "model",
                             "owned_by": "mock",
                         }
@@ -67,7 +69,7 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(raw.decode("utf-8") or "{}")
         except json.JSONDecodeError:
             req = {}
-        model = req.get("model") or "gpt-4.1-nano"
+        model = req.get("model") or "gpt-5.5"
         self._json(
             200,
             {
