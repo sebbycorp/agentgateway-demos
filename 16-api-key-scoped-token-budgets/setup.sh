@@ -7,13 +7,24 @@
 # If Docker cannot start a container (or AGW_RUNTIME=binary), the official
 # v1.5.0 release binary is downloaded and run on the host instead.
 #
-# LLM path: live OpenAI when OPENAI_API_KEY is set; otherwise mock-openai.py
-# (fixed 40-token usage so Block/Audit are deterministic).
+# LLM path: live OpenAI. OPENAI_API_KEY is REQUIRED — the demo never silently
+# substitutes a fake upstream. Set USE_MOCK=1 to opt into mock-openai.py
+# (fixed 500-token usage) when you deliberately want an offline run.
+#
+# Cost path: USD budgets are usage x per-model rate, so they need a priced
+# catalog. The image ships /base-costs.json, which prices gpt-5.5 but not
+# gpt-4.1-nano — the gap that made USD usage read 0.00 for the latter.
+# Setup pulls https://models.dev/api.json,
+# converts it with models-dev-catalog.py, and layers it over the shipped file.
+# The fetch is best-effort: if models.dev is unreachable a cached copy is
+# reused, otherwise setup continues with the image catalog alone.
 #
 # Usage:
-#   export OPENAI_API_KEY='sk-...'   # optional; mock is used when unset
+#   export OPENAI_API_KEY='sk-...'   # required
 #   ./setup.sh
 #   AGW_RUNTIME=binary ./setup.sh
+#   USE_MOCK=1 ./setup.sh            # offline, no real OpenAI calls
+#   SKIP_MODEL_CATALOG=1 ./setup.sh  # do not fetch models.dev
 #
 # Teardown:
 #   ./cleanup.sh
@@ -25,12 +36,16 @@ CONTAINER="agw-token-budgets"
 VOLUME="agw-token-budgets-data"
 MOCK_PORT="${MOCK_PORT:-18080}"
 AGW_RUNTIME="${AGW_RUNTIME:-auto}"   # auto | docker | binary
+CATALOG_URL="${CATALOG_URL:-https://models.dev/api.json}"
+CATALOG_FILE=""                      # host path to the converted catalog, if any
+CATALOG_DESC=""                      # what the readiness banner reports
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
-die() { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
+say()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33mWarning:\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
 if [ -f .env ]; then
   set -a
@@ -55,13 +70,15 @@ if [ "$AGW_RUNTIME" = "docker" ] && [ "$DOCKER_OK" != "1" ]; then
 fi
 
 LLM_MODE="openai"
-if [ -z "${OPENAI_API_KEY:-}" ]; then
-  command -v python3 >/dev/null 2>&1 || die "OPENAI_API_KEY is unset and python3 is missing (needed for mock-openai.py)."
+if [ "${USE_MOCK:-0}" = "1" ]; then
+  command -v python3 >/dev/null 2>&1 || die "USE_MOCK=1 but python3 is missing (needed for mock-openai.py)."
   LLM_MODE="mock"
-  say "OPENAI_API_KEY is unset — using mock-openai.py (fixed 40-token usage)"
+  say "USE_MOCK=1 — using mock-openai.py (fixed 500-token usage), no real OpenAI calls"
   export OPENAI_API_KEY="sk-mock-upstream"
+elif [ -z "${OPENAI_API_KEY:-}" ]; then
+  die "OPENAI_API_KEY is required. Put it in $DIR/.env (see .env.example) or export it, then re-run ./setup.sh. For an offline run: USE_MOCK=1 ./setup.sh"
 else
-  say "Using live OpenAI via \$OPENAI_API_KEY"
+  say "Using live OpenAI via \$OPENAI_API_KEY (${OPENAI_API_KEY:0:7}…)"
 fi
 
 read_ports() {
@@ -123,14 +140,30 @@ say "Publishing ports: ${PORT_DESC[*]}"
 # ----------------------------------------------------------------------------
 # 2. Runtime config (committed file is the source of truth)
 # ----------------------------------------------------------------------------
+# Rewrites the three runtime-dependent values in the committed config:
+#   $1 db_url     — sqlite path (container volume vs. host ./data)
+#   $2 base_url   — params.baseUrl, injected only on the USE_MOCK path
+#   $3 catalog    — path the models.dev catalog is readable at, "" to drop it
+#   $4 drop_base  — 1 to drop the image-shipped /base-costs.json entry
 write_runtime_config() {
   local db_url="$1"
   local base_url="$2"
+  local catalog="$3"
+  local drop_base="$4"
   mkdir -p .runtime
-  awk -v db="$db_url" -v url="$base_url" '
+  awk -v db="$db_url" -v url="$base_url" -v cat="$catalog" -v drop="$drop_base" '
     { line = $0 }
     line ~ /^[[:space:]]+url:[[:space:]]*sqlite:/ {
       match(line, /^[[:space:]]+/); printf "%surl: %s\n", substr(line, 1, RLENGTH), db
+      next
+    }
+    line ~ /^[[:space:]]*-[[:space:]]*file:[[:space:]]*\/base-costs\.json[[:space:]]*$/ {
+      if (drop == "1") next
+      print; next
+    }
+    line ~ /^[[:space:]]*-[[:space:]]*file:[[:space:]]*\/model-catalog\.json[[:space:]]*$/ {
+      if (cat == "") next
+      match(line, /^[[:space:]]*/); printf "%s- file: %s\n", substr(line, 1, RLENGTH), cat
       next
     }
     { print }
@@ -138,6 +171,56 @@ write_runtime_config() {
       match($0, /^[[:space:]]+/); printf "%sbaseUrl: %s\n", substr($0, 1, RLENGTH), url
     }
   ' "$DIR/config.yaml" > "$DIR/.runtime/config.yaml"
+}
+
+# Number of priced models in a converted catalog, for the readiness banner.
+count_catalog_models() {
+  python3 - "$1" <<'PY' 2>/dev/null || echo "?"
+import json, sys
+c = json.load(open(sys.argv[1]))
+print(sum(len(p.get("models", {})) for p in c.get("providers", {}).values()))
+PY
+}
+
+# Pull https://models.dev/api.json and convert it to an AgentGateway cost
+# catalog at .runtime/model-catalog.json. Sets CATALOG_FILE on success.
+# Never fatal: no catalog just means USD budgets can only price the models the
+# image's /base-costs.json already knows.
+fetch_model_catalog() {
+  local raw="$DIR/.runtime/models-dev-api.json"
+  local out="$DIR/.runtime/model-catalog.json"
+  mkdir -p "$DIR/.runtime"
+
+  if [ "${SKIP_MODEL_CATALOG:-0}" = "1" ]; then
+    say "SKIP_MODEL_CATALOG=1 — keeping only the cost catalog shipped in the image"
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "python3 not found; skipping the models.dev catalog. USD budgets will price only the models in the image's /base-costs.json."
+    return 0
+  fi
+
+  say "Fetching model pricing from ${CATALOG_URL}"
+  if curl -fsSL --max-time 30 "$CATALOG_URL" -o "${raw}.tmp"; then
+    mv "${raw}.tmp" "$raw"
+  else
+    rm -f "${raw}.tmp"
+    if [ -f "$out" ]; then
+      warn "${CATALOG_URL} unreachable; reusing the cached .runtime/model-catalog.json"
+      CATALOG_FILE="$out"
+      return 0
+    fi
+    warn "${CATALOG_URL} unreachable and no cached catalog; USD budgets will price only the models in the image's /base-costs.json."
+    return 0
+  fi
+
+  if python3 "$DIR/models-dev-catalog.py" "$raw" > "${out}.tmp"; then
+    mv "${out}.tmp" "$out"
+    CATALOG_FILE="$out"
+  else
+    rm -f "${out}.tmp"
+    warn "models-dev-catalog.py failed; continuing with the image catalog only."
+  fi
 }
 
 start_mock() {
@@ -172,26 +255,37 @@ wait_admin() {
 print_ready() {
   local runtime="$1"
   local logs="$2"
+  local ADMIN_URL_HINT="http://localhost:${ADMIN_PORT:-15000}"
   cat <<EOF
 
 $(say "Ready 🚀")
 
   Runtime:                        ${runtime}
   Mode:                           ${LLM_MODE}
+  Cost catalog:                   ${CATALOG_DESC}
   UI — admin / Keys:              http://localhost:${ADMIN_PORT:-15000}/ui/
   Budget status API:              http://localhost:${ADMIN_PORT:-15000}/api/budgets/status
   LLM endpoint:                   http://localhost:${LLM_PORT:-4000}
 
-  Virtual keys (demo only):
-    Block  Authorization: Bearer sk-demo-block
-    Audit  Authorization: Bearer sk-demo-audit
+  Model:                          openai/gpt-5.5 (5 USD/1M in, 30 USD/1M out)
 
-  First call (allowed, then charged):
+  Virtual keys (demo only):
+    1000 Tokens / Block  Bearer sk-demo-block
+    1000 Tokens / Audit  Bearer sk-demo-audit
+    0.02 USD    / Block  Bearer sk-demo-cost   (gpt-5.5)
+    0.02 USD    / Audit  Bearer sk-demo-nano   (gpt-4.1-nano, models.dev only)
+
+  First call (allowed, then charged). gpt-5.5 is a reasoning model, so it needs
+  max_completion_tokens — plain max_tokens is rejected by OpenAI:
 
     curl -s http://localhost:${LLM_PORT:-4000}/v1/chat/completions \\
       -H 'Authorization: Bearer sk-demo-block' \\
       -H 'Content-Type: application/json' \\
-      -d '{"model":"openai/gpt-4.1-nano","messages":[{"role":"user","content":"Reply with: OK"}],"max_tokens":8}'
+      -d '{"model":"openai/gpt-5.5","messages":[{"role":"user","content":"Explain token budgets in about 120 words."}],"max_completion_tokens":400}'
+
+  Dollar usage charged from the catalog:
+
+    curl -s '${ADMIN_URL_HINT}/api/budgets/status?apiKeyName=demo-cost' | jq .
 
   Then:  ./test.sh
   Logs:  ${logs}
@@ -212,7 +306,19 @@ run_docker() {
     start_mock
     mock_url="http://host.docker.internal:${MOCK_PORT}/v1"
   fi
-  write_runtime_config "sqlite:///data/data.db" "$mock_url"
+  fetch_model_catalog
+  local catalog_args=()
+  local catalog_path=""
+  if [ -n "$CATALOG_FILE" ]; then
+    catalog_path="/model-catalog.json"
+    catalog_args+=(-v "${CATALOG_FILE}:${catalog_path}:ro")
+    CATALOG_DESC="/base-costs.json + models.dev ($(count_catalog_models "$CATALOG_FILE") priced models)"
+  else
+    CATALOG_DESC="/base-costs.json shipped in the image (no models.dev layer)"
+  fi
+  # Keep /base-costs.json: it exists inside the image, and models.dev is
+  # layered after it so fresher rates win.
+  write_runtime_config "sqlite:///data/data.db" "$mock_url" "$catalog_path" 0
 
   say "Pulling ${IMAGE}"
   docker pull "$IMAGE"
@@ -227,6 +333,7 @@ run_docker() {
     "${PORT_ARGS[@]}" \
     -e OPENAI_API_KEY \
     -v "$DIR/.runtime/config.yaml:/config.yaml" \
+    "${catalog_args[@]+"${catalog_args[@]}"}" \
     -v "$VOLUME:/data" \
     "$IMAGE" -f /config.yaml >/dev/null
 
@@ -265,7 +372,15 @@ run_binary() {
     mock_url="http://127.0.0.1:${MOCK_PORT}/v1"
   fi
   mkdir -p data
-  write_runtime_config "sqlite://./data/data.db?mode=rwc" "$mock_url"
+  fetch_model_catalog
+  # /base-costs.json only exists inside the container image, so drop it here
+  # rather than log a missing-file warning on every start.
+  if [ -n "$CATALOG_FILE" ]; then
+    CATALOG_DESC="models.dev only ($(count_catalog_models "$CATALOG_FILE") priced models); /base-costs.json is image-only"
+  else
+    CATALOG_DESC="none — USD budgets will stay at 0.00 on this runtime"
+  fi
+  write_runtime_config "sqlite://./data/data.db?mode=rwc" "$mock_url" "$CATALOG_FILE" 1
 
   local bin="$DIR/.runtime/agentgateway"
   if [ ! -x "$bin" ]; then
