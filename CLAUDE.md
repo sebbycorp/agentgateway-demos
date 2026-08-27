@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A collection of self-contained **AgentGateway** demos and workshops. AgentGateway (https://agentgateway.dev) is an open-source proxy for LLM and MCP traffic. Each numbered top-level directory (`01-…` through `10-…`) is an independent demo with its own scripts, config, and readme — there is no shared build system, package manifest, or test runner across the repo. Work inside one demo directory at a time.
+A collection of self-contained **AgentGateway** demos and workshops. AgentGateway (https://agentgateway.dev) is an open-source proxy for LLM and MCP traffic. Each numbered top-level directory is an independent demo with its own scripts, config, and readme — there is no shared build system, package manifest, or test runner across the repo. Work inside one demo directory at a time.
 
 ## Two deployment modes
 
@@ -12,7 +12,7 @@ Demos use one of two ways to run AgentGateway. Identify which a demo uses before
 
 1. **Kubernetes** (`01`, `03`, `04`, `05`, `06`, `07`, `09`) — A local `kind` cluster + Helm install of the AgentGateway control plane, configured via Gateway API resources. The LLM/MCP provider is a custom `AgentgatewayBackend` CRD (`agentgateway.dev/v1alpha1`); traffic is routed to it with a standard `HTTPRoute` whose `backendRefs` point at the backend with `group: agentgateway.dev, kind: AgentgatewayBackend`. API keys are stored in Kubernetes `Secret`s.
 
-2. **Standalone** (`00`, `08`, `07/standalone`) — The `agentgateway` binary run directly against a `config.yaml`: `agentgateway -f config.yaml`. The standalone config schema is different from the K8s CRDs — it nests `binds → listeners → routes → backends`. Proxy listener is `:3000`, admin UI is `http://localhost:15000/ui/`. Validate config against `# yaml-language-server: $schema=https://agentgateway.dev/schema/config`.
+2. **Standalone** (`00`, `08`, `07/standalone`, `16`) — The `agentgateway` binary (or Docker image) run directly against a `config.yaml`: `agentgateway -f config.yaml`. The standalone config schema is different from the K8s CRDs — it nests `binds → listeners → routes → backends` (or the newer `gateways` / `llm` shape). Proxy listener is `:3000` or `:4000`, admin UI is `http://localhost:15000/ui/`. Validate config against `# yaml-language-server: $schema=https://agentgateway.dev/schema/config`.
 
 ## Per-demo conventions
 
@@ -40,10 +40,13 @@ Each deploy script pins its own versions and **its own cluster name** (clusters 
 | 104-ent-github-tokenomics | `agw-github-tokenomics` | v2026.6.1 |
 | 105-ent-headroom-comp-tokenomics | `agw-headroom-comp` | v2026.6.1 |
 | 11-xaa-cross-app-access | `agw-xaa` | pin at implement (OSS MCP auth + Keycloak; see demo PLAN.md) |
+| 16-api-key-scoped-token-budgets | (standalone Docker, no kind cluster) | v1.5.0 |
 
 Demo `07-bedrock-llm` is split into three subfolders — `standalone/` (binary), `oss/` (K8s, cluster `agw-bedrock`), and `enterprise/` (K8s, cluster `agw-bedrock-ent`, Enterprise v2026.6.3 + Solo UI 0.5.0) — all fronting **Amazon Bedrock** (Claude, `us-east-2`). One `AGENTGATEWAY_LICENSE_KEY` + AWS creds live in a shared gitignored `07-bedrock-llm/.env` (populated by `07-bedrock-llm/provision-aws.sh`). A single `AUTH_MODE={creds|apikey}` toggles between AWS SigV4 credentials and an AWS Bedrock long-term API key; the `AgentgatewayBackend` (`spec.ai.provider.bedrock`) is otherwise identical across all three.
 
 Demo `11` is the **XAA / Enterprise-Managed Authorization** education + lab (MCP EMA, ID-JAG, Keycloak). Plan/test/education docs land first; runtime deploy follows PLAN Phase 1–2.
+
+Demo `16` is the **v1.5.0 standalone API-key-scoped token/dollar budget** lab (`llm.policies.apiKey.keys[].budgets` + `config.database` SQLite). It is **not** the Kubernetes Redis/Envoy rate-limit approach in `04-vitural-keys`. Folder is `16-…` because `11-…` is already XAA.
 
 Demos `103`, `104`, and `105` use the **Enterprise** AgentGateway (`EnterpriseAgentgatewayBackend`,
 `entMcp.toolMode` Standard/Search/Code) from `oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/`, not the OSS charts above. `104` and `105` front an **external** MCP server (GitHub's hosted `api.githubcopilot.com/mcp`) — no in-cluster MCP pod. `105` forks `104` and adds a second knob: a local **Headroom** compression proxy (https://github.com/headroomlabs-ai/headroom) the harness routes the LLM call through (`HEADROOM=on` + `LLM_URL`), to test whether AGW's catalog savings and Headroom's payload compression *stack*. Headroom defaults to compression OFF — `105`'s `run_matrix.sh`/`test.sh` launch it with compression explicitly enabled.

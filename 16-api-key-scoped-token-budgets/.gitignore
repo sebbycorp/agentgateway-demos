@@ -1,0 +1,7 @@
+.env
+data/
+.runtime/
+.mock.pid
+*.db
+*.db-shm
+*.db-wal
