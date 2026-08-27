@@ -275,7 +275,7 @@ run_binary() {
     curl -fsSL -o "$bin" "https://github.com/agentgateway/agentgateway/releases/download/${VERSION}/${asset}"
     chmod +x "$bin"
   fi
-  say "Starting $($bin --version 2>/dev/null | head -1 || echo "agentgateway ${VERSION}") on the host"
+  say "Starting agentgateway ${VERSION} on the host"
   nohup "$bin" -f "$DIR/.runtime/config.yaml" >"$DIR/.runtime/agw.log" 2>&1 &
   echo $! > "$DIR/.runtime/agw.pid"
   wait_admin 'tail -40 "$DIR/.runtime/agw.log"'

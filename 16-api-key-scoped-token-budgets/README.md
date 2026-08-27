@@ -47,7 +47,7 @@ export OPENAI_API_KEY='sk-...'
 ./test.sh
 ```
 
-`./run.sh` is the same as `./setup.sh`.
+`./run.sh` is the same as `./setup.sh`. `./test.sh` expects a **fresh** window (run `./setup.sh` first). Re-running it in the same epoch-aligned `1h` window will see `sk-demo-block` already over limit.
 
 | URL | What it is |
 |-----|------------|

@@ -34,7 +34,7 @@ fi
 
 pretty() {
   if command -v jq >/dev/null 2>&1; then
-    jq .
+    jq . 2>/dev/null || cat
   else
     cat
   fi
@@ -47,14 +47,14 @@ chat() {
   local out
   out="$(mktemp)"
   local code
-  code="$(curl -sS -D "$hdr" -o "$out" -w '%{http_code}' \
+  code="$(curl -sS --max-time 20 -D "$hdr" -o "$out" -w '%{http_code}' \
     -X POST "${LLM_URL}/v1/chat/completions" \
     -H "Authorization: Bearer ${key}" \
     -H "Content-Type: application/json" \
     -d "{\"model\":\"${MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with: OK\"}],\"max_tokens\":8}")"
   CHAT_CODE="$code"
   CHAT_BODY="$(cat "$out")"
-  CHAT_RETRY="$(awk 'BEGIN{IGNORECASE=1} /^Retry-After:/{print $2}' "$hdr" | tr -d '\r')"
+  CHAT_RETRY="$(awk 'tolower($1)=="retry-after:"{print $2}' "$hdr" | tr -d '\r' || true)"
   rm -f "$hdr" "$out"
 }
 
@@ -67,7 +67,7 @@ status() {
 
 echo
 say "0. Reject a request with no virtual key (strict apiKey mode)"
-NOAUTH_CODE="$(curl -sS -o /tmp/agw-budgets-noauth.json -w '%{http_code}' \
+NOAUTH_CODE="$(curl -sS --max-time 10 -o /tmp/agw-budgets-noauth.json -w '%{http_code}' \
   -X POST "${LLM_URL}/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -d "{\"model\":\"${MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":8}")"
