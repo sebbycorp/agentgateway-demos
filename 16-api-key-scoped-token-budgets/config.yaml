@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# Standalone v1.5.0 API-key-scoped token budgets.
+# Fields match crates/agentgateway/src/http/budget/mod.rs and LocalAPIKey
+# (schema: https://agentgateway.dev/schema/config). Do not invent names.
+#
+# Budgets live ON the virtual API key, not as a Kubernetes AgentgatewayPolicy.
+# They require config.database (SQLite is enough). Usage is charged AFTER the
+# LLM response, and only when the provider reports tokens (or cost, for USD).
+config:
+  adminAddr: 0.0.0.0:15000
+  database:
+    url: sqlite:///data/data.db
+gateways:
+  llm:
+    port: 4000
+llm:
+  gateways:
+  - llm
+  policies:
+    cors:
+      allowOrigins:
+      - '*'
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+    apiKey:
+      mode: strict
+      keys:
+      # Tiny Tokens budget + Block: the first completion is allowed (charge is
+      # post-response), then the next call in the same epoch-aligned 1h window
+      # returns 429 budget_exceeded + Retry-After.
+      - key: sk-demo-block
+        metadata:
+          name: demo-block
+          team: demo
+        allowedModels:
+        - openai/*
+        - gpt-4.1-nano
+        budgets:
+        - name: tokens
+          limit:
+            unit: Tokens
+            amount: 40
+          window:
+            rolling: 1h
+          onBudgetExceeded: Block
+      # Same limit, Audit: calls keep succeeding while /api/budgets/status
+      # still reports used/remaining/exceeded.
+      - key: sk-demo-audit
+        metadata:
+          name: demo-audit
+          team: demo
+        allowedModels:
+        - openai/*
+        - gpt-4.1-nano
+        budgets:
+        - name: tokens
+          limit:
+            unit: Tokens
+            amount: 40
+          window:
+            rolling: 1h
+          onBudgetExceeded: Audit
+  models:
+  - name: openai/gpt-4.1-nano
+    provider: openAI
+    params:
+      model: gpt-4.1-nano
+      apiKey: $OPENAI_API_KEY
+  - name: openai/*
+    provider: openAI
+    params:
+      model: gpt-4.1-nano
+      apiKey: $OPENAI_API_KEY
