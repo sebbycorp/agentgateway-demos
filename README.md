@@ -11,5 +11,6 @@ Self-contained [AgentGateway](https://agentgateway.dev) demos. Each numbered dir
 | [`11-xaa-cross-app-access`](./11-xaa-cross-app-access) | Standalone | XAA / EMA / ID-JAG + Keycloak |
 | [`15-github-copilot`](./15-github-copilot) | Standalone | GitHub Copilot MCP |
 | [`16-api-key-scoped-token-budgets`](./16-api-key-scoped-token-budgets) | Standalone Docker | **v1.5.0 API-key-scoped token budgets** |
+| [`17-k8s-api-key-scoped-token-budgets`](./17-k8s-api-key-scoped-token-budgets) | Kubernetes (standalone image, apply-only) | Same v1.5.0 key budgets as `16`, Kind YAML how-to |
 
 See each folder's README for start / test / teardown. Conventions live in [`CLAUDE.md`](./CLAUDE.md).

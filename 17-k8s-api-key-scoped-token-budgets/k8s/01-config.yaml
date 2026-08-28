@@ -1,0 +1,119 @@
+# ConfigMap: standalone v1.5.0 config + a one-model cost catalog.
+# Field names match https://agentgateway.dev/schema/config (Budget, LocalAPIKey).
+# Do not invent names. Budgets live on the virtual API key and need config.database.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentgateway-config
+  namespace: agw-token-budgets
+data:
+  config.yaml: |
+    # yaml-language-server: $schema=https://agentgateway.dev/schema/config
+    #
+    # Standalone v1.5.0 API-key-scoped token budgets, run in-cluster.
+    # Same shape as 16-api-key-scoped-token-budgets: llm.policies.apiKey.keys[].budgets.
+    #
+    # The gateway expands env-var references over the raw config text, comments
+    # included, matching a dollar sign followed by uppercase letters or digits.
+    # Never write a bare dollar amount in a comment — spell prices as "USD".
+    config:
+      adminAddr: 0.0.0.0:15000
+      database:
+        url: sqlite:///data/data.db
+      modelCatalog:
+      - file: /base-costs.json
+      - file: /config/model-catalog.json
+    gateways:
+      llm:
+        port: 4000
+    llm:
+      gateways:
+      - llm
+      policies:
+        cors:
+          allowOrigins:
+          - '*'
+          - http://localhost:15000
+          allowHeaders:
+          - '*'
+          allowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        apiKey:
+          mode: strict
+          keys:
+          - key: sk-demo-block
+            metadata:
+              name: demo-block
+              team: demo
+            allowedModels:
+            - openai/gpt-4.1-nano
+            - gpt-4.1-nano
+            budgets:
+            - name: tokens
+              limit:
+                unit: Tokens
+                amount: 40
+              window:
+                rolling: 1h
+              onBudgetExceeded: Block
+          - key: sk-demo-audit
+            metadata:
+              name: demo-audit
+              team: demo
+            allowedModels:
+            - openai/gpt-4.1-nano
+            - gpt-4.1-nano
+            budgets:
+            - name: tokens
+              limit:
+                unit: Tokens
+                amount: 40
+              window:
+                rolling: 1h
+              onBudgetExceeded: Audit
+          - key: sk-demo-cost
+            metadata:
+              name: demo-cost
+              team: demo
+            allowedModels:
+            - openai/gpt-4.1-nano
+            - gpt-4.1-nano
+            budgets:
+            - name: dollars
+              limit:
+                unit: USD
+                amount: 0.00002
+              window:
+                rolling: 1h
+              onBudgetExceeded: Block
+      models:
+      - name: openai/gpt-4.1-nano
+        provider: openAI
+        params:
+          model: gpt-4.1-nano
+          apiKey: $OPENAI_API_KEY
+    frontendPolicies:
+      accessLog:
+        database:
+          llm: full
+  # Prices gpt-4.1-nano so the optional USD key can charge. The v1.5.0 image
+  # catalog is a subset and may omit this model (an unpriced model costs 0.00).
+  # Rates are Money strings, at most 6 fractional digits, per 1M tokens.
+  model-catalog.json: |
+    {
+      "providers": {
+        "openai": {
+          "models": {
+            "gpt-4.1-nano": {
+              "rates": {
+                "input": "0.1",
+                "output": "0.4",
+                "cacheRead": "0.025"
+              }
+            }
+          }
+        }
+      }
+    }
