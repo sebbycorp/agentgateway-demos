@@ -1,0 +1,65 @@
+# Requires Secret openai (key OPENAI_API_KEY) in this namespace.
+# Replicas must stay 1: budgets are in-process and flushed to SQLite every 5s.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentgateway
+  namespace: agw-token-budgets
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentgateway
+  template:
+    metadata:
+      labels:
+        app: agentgateway
+    spec:
+      containers:
+      - name: agentgateway
+        image: cr.agentgateway.dev/agentgateway:v1.5.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - -f
+        - /config/config.yaml
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai
+              key: OPENAI_API_KEY
+        ports:
+        - name: llm
+          containerPort: 4000
+        - name: admin
+          containerPort: 15000
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: data
+          mountPath: /data
+        readinessProbe:
+          httpGet:
+            path: /api/budgets/status
+            port: admin
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /api/budgets/status
+            port: admin
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+      volumes:
+      - name: config
+        configMap:
+          name: agentgateway-config
+      - name: data
+        emptyDir: {}
