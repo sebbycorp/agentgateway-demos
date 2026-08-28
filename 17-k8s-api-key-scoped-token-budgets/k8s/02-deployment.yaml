@@ -7,6 +7,8 @@ metadata:
   namespace: agw-token-budgets
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: agentgateway
@@ -15,6 +17,8 @@ spec:
       labels:
         app: agentgateway
     spec:
+      securityContext:
+        fsGroup: 65532
       containers:
       - name: agentgateway
         image: cr.agentgateway.dev/agentgateway:v1.5.0

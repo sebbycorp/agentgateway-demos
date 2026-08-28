@@ -20,6 +20,7 @@ Keep `replicas: 1`. Do not add a `setup.sh` / `deploy.sh` / `run.sh`.
 - A real `OPENAI_API_KEY` (the gateway calls `openai/gpt-4.1-nano`)
 
 ```sh
+cd 17-k8s-api-key-scoped-token-budgets
 export OPENAI_API_KEY='sk-...'
 # or: cp .env.example .env && edit .env && set -a && source .env && set +a
 ```
@@ -42,10 +43,9 @@ kubectl apply -f k8s/00-namespace.yaml
 
 ```sh
 kubectl -n agw-token-budgets create secret generic openai \
-  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY"
+  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
-
-Re-create after a change: add `--dry-run=client -o yaml | kubectl apply -f -`.
 
 ## 5. Config, Deployment, Service
 
@@ -70,7 +70,7 @@ If the pod is `CreateContainerConfigError`, the `openai` secret is missing. If i
 kubectl -n agw-token-budgets port-forward svc/agentgateway 4000:4000 15000:15000
 ```
 
-Leave that running. LLM is `:4000`, admin UI / APIs are `:15000`.
+Leave that running in this terminal. Steps 8–14 use a second terminal (still from `17-k8s-api-key-scoped-token-budgets`, or any cwd — those curls hit `127.0.0.1`). LLM is `:4000`, admin UI / APIs are `:15000`.
 
 ## 8. Unauthenticated — expect 401
 
@@ -147,7 +147,7 @@ Expect **200**. Status still reports `used` / `remaining` / `exceeded`.
 
 ## 13. Optional — USD Block key
 
-`sk-demo-cost` is 0.00002 USD / 1h on `gpt-4.1-nano` (0.10 USD / 1M input, 0.40 USD / 1M output from `model-catalog.json`). First call 200; the next is 429 once `used` crosses the limit.
+`sk-demo-cost` is 0.00002 USD / 1h on `gpt-4.1-nano` (0.10 USD / 1M input, 0.40 USD / 1M output from `model-catalog.json`). First call 200. A short completion is often still under the limit, so call again until you see 429.
 
 ```sh
 curl -sS http://127.0.0.1:4000/v1/chat/completions \
@@ -163,7 +163,7 @@ If `usage.used` is `0`, the catalog did not price the model. Confirm the pod log
 
 Open <http://127.0.0.1:15000/ui/> → **LLM → Virtual API Keys** (Keys). Each key shows its budget meter. Same data as `GET /api/budgets/status`.
 
-Saving in the UI writes `/api/config` and drops comments in the mounted file (the ConfigMap is the committed source; a UI save does not persist unless you copy the result back out).
+The config file is mounted read-only from the ConfigMap. A UI Save that writes `/api/config` will fail; change keys by editing `k8s/01-config.yaml` and re-applying.
 
 ## 15. Cleanup
 

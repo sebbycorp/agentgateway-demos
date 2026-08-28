@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A collection of self-contained **AgentGateway** demos and workshops. AgentGateway (https://agentgateway.dev) is an open-source proxy for LLM and MCP traffic. Each numbered top-level directory is an independent demo with its own scripts, config, and readme — there is no shared build system, package manifest, or test runner across the repo. Work inside one demo directory at a time.
 
-## Two deployment modes
+## Deployment modes
 
-Demos use one of two ways to run AgentGateway. Identify which a demo uses before editing.
+Demos use one of these ways to run AgentGateway. Identify which a demo uses before editing.
 
 1. **Kubernetes** (`01`, `03`, `04`, `05`, `06`, `07`, `09`, `17-codex-kind`) — A local `kind` cluster + Helm install of the AgentGateway control plane, configured via Gateway API resources. The LLM/MCP provider is a custom `AgentgatewayBackend` CRD (`agentgateway.dev/v1alpha1`); traffic is routed to it with a standard `HTTPRoute` whose `backendRefs` point at the backend with `group: agentgateway.dev, kind: AgentgatewayBackend`. API keys are stored in Kubernetes `Secret`s.
 
@@ -68,6 +68,8 @@ kubectl port-forward -n agentgateway-system svc/agentgateway-proxy 8080:80 &
 ./test.sh
 ./cleanup.sh                        # tears down the kind cluster
 ```
+
+`17-k8s-api-key-scoped-token-budgets` is apply-only (no `deploy.sh`). Follow that folder's README: `kubectl apply -f k8s/00-namespace.yaml` … then port-forward `svc/agentgateway` in namespace `agw-token-budgets` (`:4000` LLM, `:15000` admin).
 
 ## Secrets
 
