@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+config:
+  adminAddr: 0.0.0.0:15000
+gateways:
+  llm:
+    port: 4000
+llm:
+  gateways:
+  - llm
+  policies:
+    authorization:
+      rules:
+      - deny: 'request.headers["user-agent"].contains("curl")'
+  models:
+  - name: openai/gpt-4.1-nano
+    provider: openAI
+    params:
+      model: gpt-4.1-nano
+      apiKey: "$OPENAI_API_KEY"
