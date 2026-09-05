@@ -1,6 +1,6 @@
 # 18 — Block curl with CEL HTTP authorization (standalone v1.5.0)
 
-A CEL `deny` rule on the standalone LLM listener. Default `curl` is blocked because its User-Agent contains `curl`. A browser-like User-Agent is allowed through to OpenAI.
+A CEL `deny` rule on the standalone LLM listener. Default `curl` is blocked because its User-Agent contains `curl`. A browser-like User-Agent is allowed through to OpenAI. This is a teaching demo for CEL HTTP authz — User-Agent matching is not authentication.
 
 This folder is **standalone Docker**. The Kubernetes snippet at the bottom is only an appendix — it uses a different schema.
 
@@ -10,6 +10,7 @@ Docs: [HTTP authorization](https://agentgateway.dev/docs/standalone/latest/confi
 
 - Docker
 - A real `OPENAI_API_KEY` (needed for the allow-path curls in steps 4–5)
+- `python3` only if you run step 5 or `./test.sh`
 
 ```sh
 cd 18-standalone-cel-block-curl
@@ -35,11 +36,16 @@ docker run -d --name agw-cel-block-curl \
 
 Same thing: `./run.sh`.
 
-Wait until the admin port answers, then open <http://localhost:15000/ui/>.
+Wait until the admin port answers (the container is `-d`; give it a couple of seconds), then open <http://localhost:15000/ui/>.
 
 ```sh
-curl -sf --max-time 2 http://127.0.0.1:15000/ >/dev/null && echo ready
+for i in $(seq 1 20); do
+  curl -sf --max-time 2 http://127.0.0.1:15000/ >/dev/null && echo ready && break
+  sleep 0.5
+done
 ```
+
+`./run.sh` does this wait for you.
 
 If the container exits immediately, `docker logs agw-cel-block-curl` — a missing `OPENAI_API_KEY` is the usual cause (`environment variable not found`).
 

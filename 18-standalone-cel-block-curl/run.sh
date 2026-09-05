@@ -19,6 +19,7 @@ fi
   exit 1
 }
 command -v docker >/dev/null 2>&1 || { echo "docker is required." >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
 [ -f config.yaml ] || { echo "config.yaml not found in $DIR" >&2; exit 1; }
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
