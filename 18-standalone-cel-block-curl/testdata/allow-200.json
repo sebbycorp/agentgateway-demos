@@ -1,0 +1,10 @@
+{
+  "http": 200,
+  "model": "gpt-4.1-nano-2025-04-14",
+  "content": "Hi there, friend!",
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 5,
+    "total_tokens": 19
+  }
+}

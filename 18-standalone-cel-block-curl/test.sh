@@ -31,8 +31,8 @@ echo "HTTP ${DENY_CODE}  $(cat "$DENY_BODY")"
 grep -q 'authorization failed' "$DENY_BODY" || fail "expected body 'authorization failed'"
 pass "default curl blocked"
 
-echo "==> 2. curl -A Mozilla/5.0 must be 200 from OpenAI"
-ALLOW_CODE="$(curl -sS --max-time 60 -A 'Mozilla/5.0' -o "$ALLOW_BODY" -w '%{http_code}' \
+echo "==> 2. curl -A 'Mozilla/5.0 (demo)' must be 200 from OpenAI"
+ALLOW_CODE="$(curl -sS --max-time 60 -A 'Mozilla/5.0 (demo)' -o "$ALLOW_BODY" -w '%{http_code}' \
   -H 'Content-Type: application/json' \
   -d "$BODY" \
   "${LLM_URL}/v1/chat/completions")"

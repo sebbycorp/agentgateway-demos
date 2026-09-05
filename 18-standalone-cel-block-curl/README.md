@@ -6,6 +6,15 @@ This folder is **standalone Docker**. The Kubernetes snippet at the bottom is on
 
 Docs: [HTTP authorization](https://agentgateway.dev/docs/standalone/latest/configuration/security/http-authz)
 
+The deny rule lives in `config.yaml` as standalone `llm.policies.authorization.rules` (not a Kubernetes CRD):
+
+```yaml
+      rules:
+      - deny: 'request.headers["user-agent"].contains("curl")'
+```
+
+Live v1.5.0 output is in [`testdata/verified-output.md`](./testdata/verified-output.md). The 403 and 200 blocks are also pasted in steps 3–4 so you do not have to open that file.
+
 ## 1. Prerequisites
 
 - Docker
@@ -65,7 +74,12 @@ If the container exits immediately, `docker logs agw-cel-block-curl` — a missi
 
 ## 3. Block default curl — expect 403
 
-Default `curl` sends a User-Agent like `curl/8.5.0`. The deny rule matches.
+Default `curl` sends a User-Agent like `curl/8.5.0`. The `deny` rule in `config.yaml` matches:
+
+```yaml
+      rules:
+      - deny: 'request.headers["user-agent"].contains("curl")'
+```
 
 ```sh
 curl -sS -w '\nHTTP %{http_code}\n' http://127.0.0.1:4000/v1/chat/completions \
@@ -73,18 +87,49 @@ curl -sS -w '\nHTTP %{http_code}\n' http://127.0.0.1:4000/v1/chat/completions \
   -d '{"model":"openai/gpt-4.1-nano","messages":[{"role":"user","content":"Say hi."}],"max_tokens":16}'
 ```
 
-Expected: HTTP **403**, body `authorization failed`.
+### Expected output (live, standalone v1.5.0)
+
+Same as [`testdata/verified-output.md`](./testdata/verified-output.md) §1:
+
+```http
+HTTP/1.1 403 Forbidden
+content-type: text/plain
+
+authorization failed
+```
 
 ## 4. Allow a non-curl User-Agent — expect 200
 
 ```sh
-curl -sS -A 'Mozilla/5.0' -w '\nHTTP %{http_code}\n' \
+curl -sS -A 'Mozilla/5.0 (demo)' -w '\nHTTP %{http_code}\n' \
   http://127.0.0.1:4000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"openai/gpt-4.1-nano","messages":[{"role":"user","content":"Say hi."}],"max_tokens":16}'
 ```
 
-Expected: HTTP **200** from OpenAI (`choices[0].message.content` present).
+### Expected output (live, standalone v1.5.0)
+
+Same as [`testdata/verified-output.md`](./testdata/verified-output.md) §2:
+
+```http
+HTTP/1.1 200 OK
+content-type: application/json
+```
+
+```json
+{
+  "http": 200,
+  "model": "gpt-4.1-nano-2025-04-14",
+  "content": "Hi there, friend!",
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 5,
+    "total_tokens": 19
+  }
+}
+```
+
+The completion text can vary. Status must stay **200**; a default-curl call must stay **403**.
 
 ## 5. Same allow with Python urllib
 
@@ -121,21 +166,19 @@ Same thing: `./cleanup.sh`.
 
 ## What the config does
 
-The working rule is standalone `llm.policies.authorization.rules`:
+The working rule is standalone `llm.policies.authorization.rules` in `config.yaml`:
 
 ```yaml
-policies:
-  authorization:
-    rules:
-    - deny: 'request.headers["user-agent"].contains("curl")'
+      rules:
+      - deny: 'request.headers["user-agent"].contains("curl")'
 ```
 
-Verified on standalone **v1.5.0**:
+Verified live on standalone **v1.5.0** (`agw-cel-demo`) — full capture: [`testdata/verified-output.md`](./testdata/verified-output.md).
 
 | Client | User-Agent | Result |
 |--------|------------|--------|
 | default `curl` | `curl/…` | HTTP 403, `authorization failed` |
-| `curl -A 'Mozilla/5.0'` | `Mozilla/5.0` | HTTP 200 from OpenAI |
+| `curl -A 'Mozilla/5.0 (demo)'` | `Mozilla/5.0 (demo)` | HTTP 200 from OpenAI |
 | Python `urllib` | `Python-urllib/3.x` | HTTP 200 |
 
 A CEL expression that cannot be evaluated is treated as `false`. A failed `deny` does **not** block the request (fail-open). See the [HTTP authorization docs](https://agentgateway.dev/docs/standalone/latest/configuration/security/http-authz).
@@ -158,7 +201,9 @@ This folder does not include Kind or manifests.
 
 | File | Role |
 |------|------|
-| `config.yaml` | Exact standalone v1.5.0 config (the `rules: - deny:` form) |
+| `config.yaml` | Exact standalone v1.5.0 config (`rules: - deny:` form above) |
+| `testdata/verified-output.md` | Live 403 + 200 capture from standalone v1.5.0 |
+| `testdata/deny-403.txt` / `allow-200.json` | Stubs of that capture |
 | `run.sh` | Tiny `docker run` with a bind-mounted config |
 | `test.sh` | The three checks from steps 3–5 |
 | `cleanup.sh` | `docker rm -f` |
