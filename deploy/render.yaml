@@ -1,0 +1,34 @@
+# AgentGateway standalone — Render Blueprint
+# Official OSS image, empty /config auto-gen, public gateway :4000.
+# https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
+#
+# Canonical copy for this pack. A duplicate lives at /render.yaml so the
+# Deploy-to-Render button (repo-root default) works in this monorepo.
+# Keep the two files in sync.
+
+services:
+  - type: web
+    name: agentgateway
+    runtime: image
+    plan: starter
+    numInstances: 1
+    autoDeploy: false
+    autoDeployTrigger: off
+    image:
+      url: cr.agentgateway.dev/agentgateway:v1.5.0
+    healthCheckPath: /ui/
+    disk:
+      name: agw-config
+      mountPath: /config
+      sizeGB: 1
+    envVars:
+      # Render routes public HTTP to $PORT (default 10000). The generated
+      # gateway listens on 4000 — pin PORT so they match.
+      - key: PORT
+        value: "4000"
+      # Render prompts for these on first Blueprint create.
+      # sync: false is not allowed inside envVarGroups (Render docs).
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

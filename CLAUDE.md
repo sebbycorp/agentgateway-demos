@@ -16,6 +16,8 @@ Demos use one of these ways to run AgentGateway. Identify which a demo uses befo
 
 3. **Standalone image in-cluster** (`17-k8s-api-key-scoped-token-budgets`) — Kind-friendly `kubectl apply -f` manifests only (no `setup.sh` / `deploy.sh` / `run.sh`). Runs `cr.agentgateway.dev/agentgateway:v1.5.0` as a Deployment because API-key-scoped budgets (`llm.policies.apiKey.keys[].budgets`) are standalone-only in v1.5.0 and are not an `AgentgatewayPolicy` CRD.
 
+4. **PaaS one-click** (`deploy/`) — Render / Railway / Fly configs for the standalone OSS Docker image (`cr.agentgateway.dev/agentgateway:v1.5.0`). Empty `/config` auto-gen; public port 4000.
+
 ## Per-demo conventions
 
 K8s demos share a consistent script set — match it when adding a demo (`17-k8s-api-key-scoped-token-budgets` is the exception: apply-only YAML + how-to README, no helper scripts):

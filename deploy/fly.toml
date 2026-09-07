@@ -1,0 +1,34 @@
+# AgentGateway standalone — Fly.io
+# Official OSS image, empty /config auto-gen, public gateway :4000.
+# https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
+#
+# `fly launch` writes a unique `app = "..."` at the top of this file.
+# Do not commit a real app name.
+
+primary_region = "iad"
+
+[build]
+  image = "cr.agentgateway.dev/agentgateway:v1.5.0"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "15s"
+  method = "GET"
+  timeout = "5s"
+  path = "/ui/"
+
+[mounts]
+  source = "agw_config"
+  destination = "/config"
+  initial_size = "1gb"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

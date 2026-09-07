@@ -4,6 +4,7 @@ Self-contained [AgentGateway](https://agentgateway.dev) demos. Each numbered dir
 
 | Dir | Mode | What it shows |
 |-----|------|----------------|
+| [`deploy/`](./deploy) | Standalone PaaS | One-click [Render](https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos) / Railway / Fly.io (`v1.5.0` image) |
 | [`00-standalone-latest`](./00-standalone-latest) | Standalone Docker | Cost / analytics dashboard + SQLite |
 | [`02-standalone-docker`](./02-standalone-docker) | Standalone Docker | Minimal LLM proxy config |
 | [`04-vitural-keys`](./04-vitural-keys) | Kubernetes | Virtual keys via Redis / Envoy rate limits |
