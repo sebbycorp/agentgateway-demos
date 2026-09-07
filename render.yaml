@@ -1,8 +1,9 @@
-# Duplicate of deploy/render.yaml so the Deploy-to-Render button works.
-# Render's button looks for render.yaml at the repo root by default.
-# Edit both files together. Canonical comments live in deploy/render.yaml.
+# Duplicate of 34-render-deploy-agw/render.yaml so the default Deploy-to-Render
+# button (no `path` query) still works. Canonical how-to Blueprint Path:
+#   34-render-deploy-agw/render.yaml
+# Prefer: https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos&path=34-render-deploy-agw/render.yaml
+# Keep this file in sync with 34-render-deploy-agw/render.yaml and deploy/render.yaml.
 # https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
-
 services:
   - type: web
     name: agentgateway
