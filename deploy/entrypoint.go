@@ -37,6 +37,21 @@ ui:
       htpasswd:
         file: /config/.htpasswd
       realm: agentgateway
+# This image includes node + npx. Attach stdio MCP to the default gateway
+# (Render only publishes :4000 — do not add a separate mcp port):
+# mcp:
+#   gateways: [default]
+#   targets:
+#   - name: server-everything
+#     stdio:
+#       cmd: npx
+#       args: ["-y", "@modelcontextprotocol/server-everything"]
+#   - name: github
+#     stdio:
+#       cmd: npx
+#       args: ["-y", "@modelcontextprotocol/server-github"]
+# GitHub MCP reads GITHUB_PERSONAL_ACCESS_TOKEN from the process env.
+# Set provider keys in the PaaS dashboard (OPENAI_API_KEY, …). Never commit them.
 `
 
 type paths struct {
