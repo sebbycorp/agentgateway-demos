@@ -6,14 +6,15 @@
 services:
   - type: web
     name: agentgateway
-    runtime: image
+    runtime: docker
     plan: starter
     numInstances: 1
     autoDeploy: false
     autoDeployTrigger: off
-    image:
-      url: cr.agentgateway.dev/agentgateway:v1.5.0
-    healthCheckPath: /ui/
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: ./deploy
+    # /ui/ is basic-auth protected (401 without creds). Omitting
+    # healthCheckPath uses Render's TCP listen check on $PORT.
     disk:
       name: agw-config
       mountPath: /config
@@ -21,6 +22,10 @@ services:
     envVars:
       - key: PORT
         value: "4000"
+      - key: UI_PASSWORD
+        sync: false
+      - key: UI_USER
+        value: admin
       - key: OPENAI_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY

@@ -1,14 +1,15 @@
 # AgentGateway standalone — Fly.io
-# Official OSS image via Dockerfile, empty /config auto-gen, public :4000.
+# Builds Dockerfile (entrypoint + official v1.5.0). Public :4000.
 # https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
 #
 # `fly launch` writes a unique `app = "..."` at the top of this file.
 # Do not commit a real app name.
+# Required secret: fly secrets set UI_PASSWORD=...
 
 primary_region = "iad"
 
-# Thin Dockerfile FROM the official v1.5.0 image, running as root so the
-# /config volume is writable (published image USER is 65532).
+# Multi-stage Dockerfile: static entrypoint + official v1.5.0, USER 0 so
+# the /config volume is writable (published image USER is 65532).
 [build]
   dockerfile = "Dockerfile"
 
@@ -19,12 +20,16 @@ primary_region = "iad"
   auto_start_machines = true
   min_machines_running = 0
 
-[[http_service.checks]]
-  grace_period = "30s"
-  interval = "15s"
-  method = "GET"
-  timeout = "5s"
-  path = "/ui/"
+# /ui/ returns 401 without basic auth. Fly HTTP checks treat that as
+# unhealthy, so do not GET /ui/. Implicit http_service TCP plus this
+# machine check confirm :4000 is listening.
+[checks]
+  [checks.gateway]
+    type = "tcp"
+    port = 4000
+    grace_period = "30s"
+    interval = "15s"
+    timeout = "5s"
 
 [mounts]
   source = "agw_config"
