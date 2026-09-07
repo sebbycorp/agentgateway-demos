@@ -2,6 +2,7 @@
 # builds deploy/Dockerfile (official image) instead of Railpack-scanning
 # the numbered demo folders. Prefer deploy/railway.toml when the service
 # root directory is `deploy/`. See deploy/README.md.
+# Dashboard vars still required: PORT=4000 and RAILWAY_RUN_UID=0.
 
 [build]
 builder = "DOCKERFILE"

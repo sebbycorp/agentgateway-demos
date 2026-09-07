@@ -1,5 +1,5 @@
 # AgentGateway standalone — Fly.io
-# Official OSS image, empty /config auto-gen, public gateway :4000.
+# Official OSS image via Dockerfile, empty /config auto-gen, public :4000.
 # https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
 #
 # `fly launch` writes a unique `app = "..."` at the top of this file.
