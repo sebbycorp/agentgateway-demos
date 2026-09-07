@@ -1,6 +1,6 @@
 # 34 — Standalone agentgateway on Render
 
-LiteLLM popularized the “stand up a proxy, get an OpenAI-shaped URL” story. agentgateway is the same idea with a different center of gravity: one gateway for **LLM and MCP**, plus a UI you can operate after the box is live.
+agentgateway is a single gateway for **LLM and MCP** traffic, with a UI you can operate after the box is live.
 
 This folder is the Render-only walkthrough. You get a public **HTTPS** URL. Render terminates TLS on `:443` and forwards to the container’s `PORT=4000`. Do not publish `:4000` yourself, and do not call the lab over `http://`.
 
