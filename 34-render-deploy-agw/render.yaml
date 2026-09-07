@@ -1,0 +1,45 @@
+# AgentGateway standalone — Render Blueprint (demo 34)
+# Builds deploy/Dockerfile (entrypoint + official v1.5.0). Do not use
+# runtime: image — that skips the Dockerfile and leaves /ui/ unauthenticated.
+# https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
+#
+# Paths are relative to the repo root (Render Blueprint spec).
+# For Deploy-to-Render from this folder, set Blueprint Path to
+# 34-render-deploy-agw/render.yaml (or use root/deploy copies kept in sync).
+
+services:
+  - type: web
+    name: agentgateway
+    runtime: docker
+    plan: starter
+    numInstances: 1
+    autoDeploy: false
+    autoDeployTrigger: off
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: ./deploy
+    # /ui/ is basic-auth protected (401 without creds). TCP-style default
+    # (omit healthCheckPath) treats a listening :4000 as healthy.
+    disk:
+      name: agw-config
+      mountPath: /config
+      sizeGB: 1
+    envVars:
+      # Render routes public HTTP to $PORT (default 10000). The generated
+      # gateway listens on 4000 — pin PORT so they match.
+      - key: PORT
+        value: "4000"
+      # Required. Render prompts on first Blueprint create.
+      # sync: false is not allowed inside envVarGroups (Render docs).
+      - key: UI_PASSWORD
+        sync: false
+      # Optional; entrypoint defaults to admin when unset.
+      - key: UI_USER
+        value: admin
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Optional. Used by @modelcontextprotocol/server-github when you add
+      # that stdio target. Leave unset if unused.
+      - key: GITHUB_PERSONAL_ACCESS_TOKEN
+        sync: false
