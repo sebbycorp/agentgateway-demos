@@ -7,8 +7,10 @@
 
 primary_region = "iad"
 
+# Thin Dockerfile FROM the official v1.5.0 image, running as root so the
+# /config volume is writable (published image USER is 65532).
 [build]
-  image = "cr.agentgateway.dev/agentgateway:v1.5.0"
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 4000

@@ -9,8 +9,9 @@
 # Volumes are not expressible here. After the service exists:
 #   railway volume add --mount-path /config
 # or Dashboard → service → Volume → mount path `/config`.
-# Set RAILWAY_RUN_UID=0 if the volume is not writable.
-# Set PORT=4000 so Railway's proxy targets the generated gateway.
+# Required dashboard variables (not expressible here):
+#   PORT=4000
+#   RAILWAY_RUN_UID=0
 
 [build]
 builder = "DOCKERFILE"
