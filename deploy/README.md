@@ -2,7 +2,7 @@
 
 Deploy a thin wrapper around the official OSS image — [`cr.agentgateway.dev/agentgateway:v1.5.0`](https://agentgateway.dev/docs/standalone/latest/setup/install/docker/) — to Render, Railway, or Fly.io.
 
-The published image has **no shell** (`ENTRYPOINT=/app/agentgateway`). This pack **builds** [`Dockerfile`](./Dockerfile): a static Go entrypoint writes `/config/.htpasswd` and a seed `config.yaml` (official auto-gen shape plus `ui.policies.basicAuth`), then `exec`s the gateway. Do **not** run the bare official image on a public URL — empty `/config` auto-gen serves `/ui/` with **no auth**.
+The published image has **no shell** and **no Node** (`ENTRYPOINT=/app/agentgateway`). This pack **builds** [`Dockerfile`](./Dockerfile): a static Go entrypoint writes `/config/.htpasswd` and a seed `config.yaml` (official auto-gen shape plus `ui.policies.basicAuth`), then `exec`s the gateway binary copied from the official image. The runtime also includes **Node + `npx`** so you can attach stdio MCP servers. Do **not** run the bare official image on a public URL — empty `/config` auto-gen serves `/ui/` with **no auth**.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos)
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
@@ -26,14 +26,35 @@ Set these in the platform dashboard (or the Render Blueprint prompt). Never comm
 |----------|----------|---------|
 | `UI_PASSWORD` | **Required** | Entrypoint writes `/config/.htpasswd` every start. Process **exits 1** if unset. Generate in the dashboard (`sync: false` on Render). |
 | `UI_USER` | Optional | Basic-auth username. Default `admin`. |
-| `OPENAI_API_KEY` | For OpenAI models | Substituted as `$OPENAI_API_KEY` when you add a model |
+| `OPENAI_API_KEY` | For OpenAI models | Substituted as `$OPENAI_API_KEY` when you add a model. Also used if an MCP-backed agent calls OpenAI. |
 | `ANTHROPIC_API_KEY` | Optional | Same pattern for Anthropic |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | Optional | Process env for `@modelcontextprotocol/server-github` after you add that stdio target |
 | `PORT` | **Required on Render and Railway** — must be `4000` | Those platforms proxy to `$PORT` (Render default `10000`, Railway often `8080`). The generated gateway **does not** read `$PORT`; it always listens on 4000. |
 | `RAILWAY_RUN_UID` | **Required on Railway** — must be `0` | Official image USER is `65532`. Railway volumes are root-owned; without this the process cannot write `/config`. |
 
 Add any other provider key the UI or `config.yaml` references the same way (`$GEMINI_API_KEY`, …). See [`.env.example`](./.env.example).
 
-The first boot has **no models**. Open `/ui/` (after the login prompt), add a provider/model (or edit `/config/config.yaml` on the volume), then call `/v1/chat/completions`.
+The first boot has **no models** and **no MCP targets**. Open `/ui/` (after the login prompt), add a provider/model (or edit `/config/config.yaml` on the volume), then call `/v1/chat/completions`.
+
+### Stdio MCP (Node / `npx`)
+
+The image has `node` and `npx` on `PATH`. Add stdio targets in `/config/config.yaml` (or the UI). On **Render** only `:4000` is public — attach MCP to the existing `default` gateway and omit a separate `mcp` port:
+
+```yaml
+mcp:
+  gateways: [default]
+  targets:
+  - name: server-everything
+    stdio:
+      cmd: npx
+      args: ["-y", "@modelcontextprotocol/server-everything"]
+  - name: github
+    stdio:
+      cmd: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+```
+
+Set `GITHUB_PERSONAL_ACCESS_TOKEN` in the platform dashboard if you enable the GitHub target. Never commit real tokens. MCP is then on `https://<your-host>/mcp` (same host as `/ui/`).
 
 ## Persistence
 
@@ -65,7 +86,7 @@ Platform health checks must **not** `GET /ui/` (401 ≠ healthy). This pack uses
 
 1. Click **Deploy to Render** above, or open  
    `https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos`
-2. Set `UI_PASSWORD` (required). Paste `OPENAI_API_KEY` (and optionally `ANTHROPIC_API_KEY`) when prompted.
+2. Set `UI_PASSWORD` (required). Paste `OPENAI_API_KEY` (and optionally `ANTHROPIC_API_KEY` / `GITHUB_PERSONAL_ACCESS_TOKEN`) when prompted.
 3. Deploy. Open `https://<service>.onrender.com/ui/` and sign in with `UI_USER` / `UI_PASSWORD`.
 
 The button reads **`render.yaml` at the repo root**. That file is a duplicate of [`render.yaml`](./render.yaml) here. If you create a Blueprint from the Dashboard instead, set **Blueprint Path** to `deploy/render.yaml` (or `render.yaml`).
@@ -92,6 +113,7 @@ Manual path (no Blueprint): **New → Web Service → Dockerfile** in this repo 
    - `RAILWAY_RUN_UID=0` (required; volumes are root-owned)
    - `OPENAI_API_KEY=…`
    - optionally `ANTHROPIC_API_KEY`
+   - optionally `GITHUB_PERSONAL_ACCESS_TOKEN` (stdio GitHub MCP)
 4. **Volume** → mount path `/config` (CLI: `railway volume add --mount-path /config`).
 5. **Networking** → generate a public domain (target port **4000** if asked).
 6. Open `https://<your-app>.up.railway.app/ui/` and sign in.
@@ -116,6 +138,7 @@ fly apps create                 # pick a unique name
 fly secrets set UI_PASSWORD=... -a <name>
 fly secrets set OPENAI_API_KEY=sk-... -a <name>
 # optional: fly secrets set ANTHROPIC_API_KEY=... -a <name>
+# optional: fly secrets set GITHUB_PERSONAL_ACCESS_TOKEN=... -a <name>
 # optional: fly secrets set UI_USER=admin -a <name>
 fly deploy -a <name> -c fly.toml
 ```
@@ -155,6 +178,13 @@ curl -sI -u admin:change-me http://localhost:4000/ui/   # 200
 ```
 
 You should see `config.yaml`, `.htpasswd`, and `data.db` appear under `/tmp/agw-config`. A run without `UI_PASSWORD` exits immediately with `entrypoint: UI_PASSWORD is required…`.
+
+To confirm Node/`npx` (needed for stdio MCP) without starting the gateway:
+
+```sh
+docker run --rm --entrypoint node agw-paas -v
+docker run --rm --entrypoint npx agw-paas --version
+```
 
 To exercise the entrypoint without Docker:
 

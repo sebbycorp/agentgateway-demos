@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestSha1HtpasswdLineMatchesApacheVector(t *testing.T) {
@@ -76,6 +78,19 @@ func TestCredentialsCustomUser(t *testing.T) {
 	}
 	if user != "ops" {
 		t.Fatalf("user = %q, want ops", user)
+	}
+}
+
+func TestSeedConfigParsesWithoutLiveMCPTargets(t *testing.T) {
+	if !hasUIBasicAuth([]byte(seedConfig)) {
+		t.Fatal("seedConfig missing basicAuth")
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(seedConfig), &doc); err != nil {
+		t.Fatalf("seedConfig is not valid YAML: %v", err)
+	}
+	if _, ok := doc["mcp"]; ok {
+		t.Fatal("seedConfig should document MCP in comments only; do not start stdio targets on first boot")
 	}
 }
 

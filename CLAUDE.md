@@ -16,7 +16,7 @@ Demos use one of these ways to run AgentGateway. Identify which a demo uses befo
 
 3. **Standalone image in-cluster** (`17-k8s-api-key-scoped-token-budgets`) — Kind-friendly `kubectl apply -f` manifests only (no `setup.sh` / `deploy.sh` / `run.sh`). Runs `cr.agentgateway.dev/agentgateway:v1.5.0` as a Deployment because API-key-scoped budgets (`llm.policies.apiKey.keys[].budgets`) are standalone-only in v1.5.0 and are not an `AgentgatewayPolicy` CRD.
 
-4. **PaaS one-click** (`deploy/`) — Render / Railway / Fly configs that **build** `deploy/Dockerfile`: a static Go entrypoint (`UI_PASSWORD` required) writes file-based htpasswd + seed `ui.policies.basicAuth` (`mode: strict`), then execs `cr.agentgateway.dev/agentgateway:v1.5.0`. Do not pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with no auth. Public port 4000.
+4. **PaaS one-click** (`deploy/`) — Render / Railway / Fly configs that **build** `deploy/Dockerfile`: a static Go entrypoint (`UI_PASSWORD` required) writes file-based htpasswd + seed `ui.policies.basicAuth` (`mode: strict`), then execs the official `v1.5.0` binary. The image also includes Node/`npx` for stdio MCP. Do not pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with no auth. Public port 4000.
 
 ## Per-demo conventions
 
