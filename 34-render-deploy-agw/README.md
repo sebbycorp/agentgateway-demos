@@ -6,7 +6,18 @@ This folder is the Render-only walkthrough. You get a public **HTTPS** URL. Rend
 
 The screenshots are from the live service [`agentgateway-standalone`](https://agentgateway-standalone.onrender.com) (Starter), not a mock.
 
-The image this service builds is the repo’s [`deploy/Dockerfile`](../deploy/Dockerfile) (entrypoint + official `v1.5.0`). This folder includes the full Blueprint at [`render.yaml`](./render.yaml). Paths inside it are relative to the **repo root** (`./deploy/Dockerfile`). Set **Blueprint Path** to `34-render-deploy-agw/render.yaml`, or use the root/`deploy/` copies kept in sync for the one-click button.
+The image this service builds is the repo’s [`deploy/Dockerfile`](../deploy/Dockerfile) (entrypoint + official `v1.5.0`).
+
+**Canonical Blueprint:** [`render.yaml`](./render.yaml) in this folder.
+
+| How you create it | What to set |
+|-------------------|-------------|
+| Deploy-to-Render button | `path=34-render-deploy-agw/render.yaml` (Render’s query param is `path`, not `blueprintPath`) |
+| Dashboard → New Blueprint | **Blueprint Path** = `34-render-deploy-agw/render.yaml` |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos&path=34-render-deploy-agw/render.yaml)
+
+`dockerfilePath` / `dockerContext` inside the YAML stay relative to the **repo root** (`./deploy/Dockerfile`), even though the Blueprint file lives under `34-render-deploy-agw/`. Root [`render.yaml`](../render.yaml) remains a duplicate for the default button (no `path`).
 
 ## Architecture
 
@@ -113,7 +124,13 @@ Set these in the Render **Environment** tab. Never commit real values. See [`.en
 
 ### 1. Create the Render web service
 
-**Button / Blueprint** — use [`render.yaml`](./render.yaml) in this folder (dashboard **Blueprint Path**: `34-render-deploy-agw/render.yaml`). Root [`render.yaml`](../render.yaml) / [`deploy/render.yaml`](../deploy/render.yaml) stay available for the Deploy-to-Render button.
+**Button / Blueprint** — prefer this folder’s Blueprint:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos&path=34-render-deploy-agw/render.yaml)
+
+- One-click URL uses `path=34-render-deploy-agw/render.yaml` (required when the file is not at repo root).
+- Dashboard: **Blueprint Path** = `34-render-deploy-agw/render.yaml`.
+- File: [`render.yaml`](./render.yaml). Root / `deploy/` copies stay in sync for callers that still expect `/render.yaml`.
 
 **Manual** — New → Web Service → this repo, Docker, `./deploy/Dockerfile`, context `./deploy`. Do **not** pick **Existing Image** → `cr.agentgateway.dev/agentgateway:v1.5.0`. Empty `/config` auto-gen serves `/ui/` with **no auth**.
 
@@ -322,4 +339,4 @@ A 401 on `/ui/` without credentials, a 200 with them, a 401 on `/v1/models` with
 - **OIDC** — [Secure the UI](https://agentgateway.dev/docs/standalone/latest/documentation/setup/ui/secure-ui/).
 - **Budgets** — deeper standalone key budgets live in [`16-api-key-scoped-token-budgets`](../16-api-key-scoped-token-budgets).
 
-The container this lab builds is [`deploy/Dockerfile`](../deploy/Dockerfile) via the repo-root Blueprint. This folder is the Render how-to.
+The container this lab builds is [`deploy/Dockerfile`](../deploy/Dockerfile) via Blueprint Path `34-render-deploy-agw/render.yaml`. This folder is the Render how-to.
