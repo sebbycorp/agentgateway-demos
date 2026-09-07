@@ -83,8 +83,8 @@ Manual path (no Blueprint): **New → Web Service → Dockerfile** in this repo 
 ### Option A — this repo (required for a locked UI)
 
 1. [New project](https://railway.com/new) → **GitHub** → `sebbycorp/agentgateway-demos`.
-2. Set the service **root directory** to `deploy` (uses [`Dockerfile`](./Dockerfile) + [`railway.toml`](./railway.toml)).  
-   If the root stays the repo root, Railway uses [`/railway.toml`](../railway.toml) (`dockerfilePath = deploy/Dockerfile`).
+2. Set the service **root directory** to `deploy` (uses [`Dockerfile`](./Dockerfile) + [`railway.toml`](./railway.toml), build context `deploy/`).  
+   If the root stays the repo root, Railway uses [`/railway.toml`](../railway.toml) and the **repo-root** [`Dockerfile`](../Dockerfile) (`COPY deploy/entrypoint.go …`). Do not point `dockerfilePath` at `deploy/Dockerfile` with a repo-root context — that `COPY` will not find `go.mod`.
 3. Variables:
    - `UI_PASSWORD=…` (required)
    - `UI_USER=admin` (optional)
@@ -96,7 +96,7 @@ Manual path (no Blueprint): **New → Web Service → Dockerfile** in this repo 
 5. **Networking** → generate a public domain (target port **4000** if asked).
 6. Open `https://<your-app>.up.railway.app/ui/` and sign in.
 
-`railway.toml` cannot declare volumes or `UI_PASSWORD`. New Railway services also no longer pick up Config as Code automatically (legacy `railway.toml` hard-cutoff 2026-12-01) — still **build this Dockerfile**, do not point Railway at the official image.
+`railway.toml` cannot declare volumes or `UI_PASSWORD`. New Railway services also no longer pick up Config as Code automatically (legacy `railway.toml` hard-cutoff 2026-12-01) — still **build a Dockerfile from this pack**, do not point Railway at the official image.
 
 ### Option B — do not use the official image alone
 

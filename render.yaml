@@ -13,6 +13,8 @@ services:
     autoDeployTrigger: off
     dockerfilePath: ./deploy/Dockerfile
     dockerContext: ./deploy
+    # /ui/ is basic-auth protected (401 without creds). Omitting
+    # healthCheckPath uses Render's TCP listen check on $PORT.
     disk:
       name: agw-config
       mountPath: /config

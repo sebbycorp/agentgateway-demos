@@ -1,12 +1,13 @@
 # Thin repo-root Railway config so a GitHub deploy of this monorepo
-# builds deploy/Dockerfile (entrypoint + official v1.5.0) instead of
+# builds the repo-root Dockerfile (COPY deploy/entrypoint.go …) instead of
 # Railpack-scanning the numbered demo folders. Prefer deploy/railway.toml
-# when the service root directory is `deploy/`. See deploy/README.md.
+# when the service root directory is `deploy/` (that path uses
+# deploy/Dockerfile with context = deploy/). See deploy/README.md.
 # Dashboard vars still required: UI_PASSWORD, PORT=4000, RAILWAY_RUN_UID=0.
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "deploy/Dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 # /ui/ is basic-auth protected. Do not HTTP-probe it (401 ≠ healthy).

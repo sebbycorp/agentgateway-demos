@@ -46,6 +46,21 @@ func TestCredentialsDefaultUser(t *testing.T) {
 	}
 }
 
+func TestCredentialsTrimsPasswordNewlines(t *testing.T) {
+	_, pass, err := credentialsFromEnv(func(k string) string {
+		if k == "UI_PASSWORD" {
+			return "s3cret\n"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pass != "s3cret" {
+		t.Fatalf("password = %q, want trimmed s3cret", pass)
+	}
+}
+
 func TestCredentialsCustomUser(t *testing.T) {
 	user, _, err := credentialsFromEnv(func(k string) string {
 		switch k {
@@ -85,7 +100,7 @@ func TestPrepareWritesHtpasswdAndSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(cfg), "ui.policies.basicAuth") && !hasUIBasicAuth(cfg) {
+	if !hasUIBasicAuth(cfg) {
 		t.Fatalf("seed config missing basicAuth:\n%s", cfg)
 	}
 	if !strings.Contains(string(cfg), "file: /config/.htpasswd") {

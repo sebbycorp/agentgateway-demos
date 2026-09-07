@@ -66,7 +66,7 @@ func credentialsFromEnv(getenv func(string) string) (string, string, error) {
 	if strings.ContainsAny(user, ":\n\r") {
 		return "", "", fmt.Errorf("UI_USER must not contain ':' or newlines")
 	}
-	password := getenv("UI_PASSWORD")
+	password := strings.TrimRight(getenv("UI_PASSWORD"), "\r\n")
 	if password == "" {
 		return "", "", fmt.Errorf("UI_PASSWORD is required to protect the UI; set it in the platform dashboard")
 	}
@@ -88,7 +88,7 @@ func mapOrCreate(parent map[string]any, key string) map[string]any {
 }
 
 func hasAuthPolicy(policies map[string]any) bool {
-	for _, key := range []string{"basicAuth", "oidc", "jwtAuth", "apiKey"} {
+	for _, key := range []string{"basicAuth", "oidc", "jwtAuth", "apiKey", "extAuthz"} {
 		if _, ok := policies[key]; ok {
 			return true
 		}
