@@ -26,7 +26,7 @@ Set these in the platform dashboard (or the Render Blueprint prompt). Never comm
 |----------|----------|---------|
 | `UI_PASSWORD` | **Required** | Entrypoint writes `/config/.htpasswd` every start. Process **exits 1** if unset. Generate in the dashboard (`sync: false` on Render). |
 | `UI_USER` | Optional | Basic-auth username. Default `admin`. |
-| `OPENAI_API_KEY` | For OpenAI models | Substituted as `$OPENAI_API_KEY` when you add a model. Also used if an MCP-backed agent calls OpenAI. |
+| `OPENAI_API_KEY` | For OpenAI models | Substituted as `$OPENAI_API_KEY` when you add a model |
 | `ANTHROPIC_API_KEY` | Optional | Same pattern for Anthropic |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | Optional | Process env for `@modelcontextprotocol/server-github` after you add that stdio target |
 | `PORT` | **Required on Render and Railway** — must be `4000` | Those platforms proxy to `$PORT` (Render default `10000`, Railway often `8080`). The generated gateway **does not** read `$PORT`; it always listens on 4000. |
