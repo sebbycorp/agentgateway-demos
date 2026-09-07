@@ -1,11 +1,18 @@
 # AgentGateway standalone — Render Blueprint (demo 34)
+# Canonical Blueprint Path for this how-to:
+#   34-render-deploy-agw/render.yaml
+#
+# Deploy-to-Render button (use `path`, not blueprintPath):
+#   https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos&path=34-render-deploy-agw/render.yaml
+#
+# Dashboard: New Blueprint → Blueprint Path = 34-render-deploy-agw/render.yaml
+#
 # Builds deploy/Dockerfile (entrypoint + official v1.5.0). Do not use
 # runtime: image — that skips the Dockerfile and leaves /ui/ unauthenticated.
 # https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
 #
-# Paths are relative to the repo root (Render Blueprint spec).
-# For Deploy-to-Render from this folder, set Blueprint Path to
-# 34-render-deploy-agw/render.yaml (or use root/deploy copies kept in sync).
+# All dockerfilePath / dockerContext values are relative to the **repo root**
+# (Render Blueprint spec), even when this file lives in a subdirectory.
 
 services:
   - type: web
