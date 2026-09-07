@@ -1,0 +1,23 @@
+# AgentGateway standalone — Railway service config
+# Use this file when the Railway service root directory is `deploy/`.
+# For a repo-root service, see /railway.toml (dockerfilePath = deploy/Dockerfile).
+#
+# Railway Config as Code (railway.toml) is legacy for new services
+# (hard cutoff 2026-12-01). Preferred path: dashboard → Docker Image
+# `cr.agentgateway.dev/agentgateway:v1.5.0` (no build). See README.md.
+#
+# Volumes are not expressible here. After the service exists:
+#   railway volume add --mount-path /config
+# or Dashboard → service → Volume → mount path `/config`.
+# Required dashboard variables (not expressible here):
+#   PORT=4000
+#   RAILWAY_RUN_UID=0
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/ui/"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

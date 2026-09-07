@@ -1,0 +1,27 @@
+# Duplicate of deploy/render.yaml so the Deploy-to-Render button works.
+# Render's button looks for render.yaml at the repo root by default.
+# Edit both files together. Canonical comments live in deploy/render.yaml.
+# https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
+
+services:
+  - type: web
+    name: agentgateway
+    runtime: image
+    plan: starter
+    numInstances: 1
+    autoDeploy: false
+    autoDeployTrigger: off
+    image:
+      url: cr.agentgateway.dev/agentgateway:v1.5.0
+    healthCheckPath: /ui/
+    disk:
+      name: agw-config
+      mountPath: /config
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

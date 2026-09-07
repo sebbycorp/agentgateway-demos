@@ -1,0 +1,14 @@
+# Thin repo-root Railway config so a GitHub deploy of this monorepo
+# builds deploy/Dockerfile (official image) instead of Railpack-scanning
+# the numbered demo folders. Prefer deploy/railway.toml when the service
+# root directory is `deploy/`. See deploy/README.md.
+# Dashboard vars still required: PORT=4000 and RAILWAY_RUN_UID=0.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "deploy/Dockerfile"
+
+[deploy]
+healthcheckPath = "/ui/"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
