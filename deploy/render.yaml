@@ -1,13 +1,10 @@
-# AgentGateway standalone — Render Blueprint
-# Builds deploy/Dockerfile (entrypoint + official v1.5.0). Do not use
-# runtime: image — that skips the Dockerfile and leaves /ui/ unauthenticated.
+# Duplicate of 34-render-deploy-agw/render.yaml (image pack copy).
+# Canonical how-to Blueprint Path: 34-render-deploy-agw/render.yaml
+# Deploy button: path=34-render-deploy-agw/render.yaml
+# Keep in sync with 34-render-deploy-agw/render.yaml and /render.yaml.
 # https://agentgateway.dev/docs/standalone/latest/setup/install/docker/
 #
-# Canonical copy for this pack. A duplicate lives at /render.yaml so the
-# Deploy-to-Render button (repo-root default) works in this monorepo.
-# Keep the two files in sync.
 # Paths are relative to the repo root (Render Blueprint spec).
-
 services:
   - type: web
     name: agentgateway
