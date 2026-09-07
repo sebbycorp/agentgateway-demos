@@ -3,13 +3,16 @@
 # For a repo-root service, see /railway.toml (dockerfilePath = deploy/Dockerfile).
 #
 # Railway Config as Code (railway.toml) is legacy for new services
-# (hard cutoff 2026-12-01). Preferred path: dashboard → Docker Image
-# `cr.agentgateway.dev/agentgateway:v1.5.0` (no build). See README.md.
+# (hard cutoff 2026-12-01). Preferred path: GitHub repo + this Dockerfile
+# (not the bare official image — that has no entrypoint and serves open /ui/).
+# See README.md.
 #
 # Volumes are not expressible here. After the service exists:
 #   railway volume add --mount-path /config
 # or Dashboard → service → Volume → mount path `/config`.
 # Required dashboard variables (not expressible here):
+#   UI_PASSWORD   (required; process exits 1 if missing)
+#   UI_USER       (optional; default admin)
 #   PORT=4000
 #   RAILWAY_RUN_UID=0
 
@@ -18,6 +21,5 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-healthcheckPath = "/ui/"
-healthcheckTimeout = 120
+# /ui/ is basic-auth protected. Do not HTTP-probe it (401 ≠ healthy).
 restartPolicyType = "ON_FAILURE"

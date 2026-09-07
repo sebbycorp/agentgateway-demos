@@ -16,7 +16,7 @@ Demos use one of these ways to run AgentGateway. Identify which a demo uses befo
 
 3. **Standalone image in-cluster** (`17-k8s-api-key-scoped-token-budgets`) — Kind-friendly `kubectl apply -f` manifests only (no `setup.sh` / `deploy.sh` / `run.sh`). Runs `cr.agentgateway.dev/agentgateway:v1.5.0` as a Deployment because API-key-scoped budgets (`llm.policies.apiKey.keys[].budgets`) are standalone-only in v1.5.0 and are not an `AgentgatewayPolicy` CRD.
 
-4. **PaaS one-click** (`deploy/`) — Render / Railway / Fly configs for the standalone OSS Docker image (`cr.agentgateway.dev/agentgateway:v1.5.0`). Empty `/config` auto-gen; public port 4000.
+4. **PaaS one-click** (`deploy/`) — Render / Railway / Fly configs that **build** `deploy/Dockerfile`: a static Go entrypoint (`UI_PASSWORD` required) writes file-based htpasswd + seed `ui.policies.basicAuth` (`mode: strict`), then execs `cr.agentgateway.dev/agentgateway:v1.5.0`. Do not pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with no auth. Public port 4000.
 
 ## Per-demo conventions
 
@@ -48,6 +48,7 @@ Each deploy script pins its own versions and **its own cluster name** (clusters 
 | 17-codex-kind | `agw-codex` | v1.4.1 (OSS Codex + Entra JWT; kind twin of `14-codex`) |
 | 17-k8s-api-key-scoped-token-budgets | `agw-token-budgets` (standalone image; apply-only YAML) | v1.5.0 |
 | 18-standalone-cel-block-curl | (standalone Docker, no kind cluster) | v1.5.0 |
+| deploy (PaaS one-click) | (standalone Docker on Render/Railway/Fly; no kind) | v1.5.0 |
 
 Demo `07-bedrock-llm` is split into three subfolders — `standalone/` (binary), `oss/` (K8s, cluster `agw-bedrock`), and `enterprise/` (K8s, cluster `agw-bedrock-ent`, Enterprise v2026.6.3 + Solo UI 0.5.0) — all fronting **Amazon Bedrock** (Claude, `us-east-2`). One `AGENTGATEWAY_LICENSE_KEY` + AWS creds live in a shared gitignored `07-bedrock-llm/.env` (populated by `07-bedrock-llm/provision-aws.sh`). A single `AUTH_MODE={creds|apikey}` toggles between AWS SigV4 credentials and an AWS Bedrock long-term API key; the `AgentgatewayBackend` (`spec.ai.provider.bedrock`) is otherwise identical across all three.
 
