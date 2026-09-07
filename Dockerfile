@@ -12,9 +12,6 @@ FROM cr.agentgateway.dev/agentgateway:v1.5.0 AS agw
 FROM node:22-bookworm-slim AS node
 
 FROM debian:trixie-slim
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates \
- && rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local /usr/local
 COPY --from=agw /app/agentgateway /app/agentgateway
 COPY --from=build /entrypoint /entrypoint
