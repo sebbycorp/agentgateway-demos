@@ -20,7 +20,6 @@ services:
     runtime: docker
     plan: starter
     numInstances: 1
-    autoDeploy: false
     autoDeployTrigger: off
     dockerfilePath: ./deploy/Dockerfile
     dockerContext: ./deploy
