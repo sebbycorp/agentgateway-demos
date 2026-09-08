@@ -87,15 +87,18 @@ func TestGatewayUIRequiresBasicAuth(t *testing.T) {
 	}
 
 	// LLM/API routes on the same port are not covered by ui.policies.
-	// With no models, this is a 4xx from routing — not a 401.
+	// Strict virtual keys return 401 "no API Key found" — not WWW-Authenticate: Basic.
 	llm, err := http.Post(base+"/v1/chat/completions", "application/json", strings.NewReader(`{}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = io.Copy(io.Discard, llm.Body)
+	llmBody, _ := io.ReadAll(llm.Body)
 	llm.Body.Close()
-	if llm.StatusCode == http.StatusUnauthorized {
-		t.Fatalf("LLM route should not require UI basic auth, got 401\nlogs:\n%s", stderr)
+	if strings.Contains(strings.ToLower(llm.Header.Get("Www-Authenticate")), "basic") {
+		t.Fatalf("LLM route should not require UI basic auth\nheaders: %v\nbody: %s\nlogs:\n%s", llm.Header, llmBody, stderr)
+	}
+	if strings.Contains(strings.ToLower(string(llmBody)), "basic authentication") {
+		t.Fatalf("LLM route should not require UI basic auth\nbody: %s\nlogs:\n%s", llmBody, stderr)
 	}
 }
 

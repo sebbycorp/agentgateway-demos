@@ -19,9 +19,10 @@ const (
 	agentgatewayBin  = "/app/agentgateway"
 )
 
-// Seed matches official empty-/config auto-gen plus ui.policies.basicAuth.
+// Seed is the Render lab shape (same as 34-render-deploy-agw/config.example.yaml):
+// UI basicAuth, OpenAI wildcard, virtual keys, GitHub remote MCP.
 // File-based htpasswd only: inline bcrypt hashes contain $ and the gateway
-// env-expands $VARS in config.yaml.
+// env-expands $VARS in config.yaml ($OPENAI_API_KEY, $GITHUB_PERSONAL_ACCESS_TOKEN).
 const seedConfig = `# yaml-language-server: $schema=https://agentgateway.dev/schema/config
 config:
   database:
@@ -37,21 +38,57 @@ ui:
       htpasswd:
         file: /config/.htpasswd
       realm: agentgateway
-# This image includes node + npx. Attach stdio MCP to the default gateway
-# (Render only publishes :4000 — do not add a separate mcp port):
-# mcp:
-#   gateways: [default]
-#   targets:
+llm:
+  gateways: [default]
+  policies:
+    apiKey:
+      mode: strict
+      keys:
+      - key: sk-lab-admin-...
+        metadata:
+          name: admin
+      - key: sk-lab-demo-...
+        metadata:
+          name: demo
+        allowedModels:
+        - gpt-4.1-nano
+        - gpt-4.1
+        - gpt-4o
+      - key: sk-lab-limited-...
+        metadata:
+          name: limited
+        allowedModels:
+        - gpt-4.1-nano
+        budgets:
+        - name: tokens
+          limit:
+            unit: Tokens
+            amount: 1000
+          window:
+            rolling: 1h
+          onBudgetExceeded: Block
+  models:
+  - name: '*'
+    provider: openAI
+    params:
+      apiKey: $OPENAI_API_KEY
+mcp:
+  gateways: [default]
+  targets:
+  - name: github
+    mcp:
+      host: https://api.githubcopilot.com/mcp/
+    policies:
+      backendAuth:
+        key:
+          value: $GITHUB_PERSONAL_ACCESS_TOKEN
+# Stdio MCP is optional. Attach to the default gateway — Render only
+# publishes :4000, so do not add a separate mcp port:
 #   - name: server-everything
 #     stdio:
 #       cmd: npx
 #       args: ["-y", "@modelcontextprotocol/server-everything"]
-#   - name: github
-#     stdio:
-#       cmd: npx
-#       args: ["-y", "@modelcontextprotocol/server-github"]
-# GitHub MCP reads GITHUB_PERSONAL_ACCESS_TOKEN from the process env.
-# Set provider keys in the PaaS dashboard (OPENAI_API_KEY, …). Never commit them.
+# Set provider keys in the PaaS dashboard. Never commit them.
 `
 
 type paths struct {
@@ -128,6 +165,54 @@ func hasUIBasicAuth(raw []byte) bool {
 	return ok
 }
 
+func missingSection(doc map[string]any, key string) bool {
+	v, ok := doc[key]
+	return !ok || v == nil
+}
+
+func labSectionsFromSeed() (any, any, error) {
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(seedConfig), &doc); err != nil {
+		return nil, nil, fmt.Errorf("parse seed config: %w", err)
+	}
+	return doc["llm"], doc["mcp"], nil
+}
+
+// ensureLabConfig fills in llm/mcp from the seed when a disk already has the
+// old UI-only seed. It does not overwrite sections the operator already set.
+func ensureLabConfig(raw []byte) ([]byte, bool, error) {
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, false, fmt.Errorf("parse %s: %w", "config.yaml", err)
+	}
+	if doc == nil {
+		return []byte(seedConfig), true, nil
+	}
+
+	needLLM := missingSection(doc, "llm")
+	needMCP := missingSection(doc, "mcp")
+	if !needLLM && !needMCP {
+		return raw, false, nil
+	}
+
+	llm, mcp, err := labSectionsFromSeed()
+	if err != nil {
+		return nil, false, err
+	}
+	if needLLM {
+		doc["llm"] = llm
+	}
+	if needMCP {
+		doc["mcp"] = mcp
+	}
+
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		return nil, false, err
+	}
+	return out, true, nil
+}
+
 func ensureProtectedUI(raw []byte) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -185,6 +270,7 @@ func prepare(p paths, getenv func(string) string) error {
 		if err := os.WriteFile(p.configFile, []byte(seedConfig), 0o644); err != nil {
 			return fmt.Errorf("write seed config: %w", err)
 		}
+		fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (llm + mcp + ui basicAuth)\n", p.configFile)
 		return nil
 	}
 
@@ -192,10 +278,15 @@ func prepare(p paths, getenv func(string) string) error {
 	if err != nil {
 		return err
 	}
-	if changed {
-		if err := os.WriteFile(p.configFile, updated, 0o644); err != nil {
+	lab, labChanged, err := ensureLabConfig(updated)
+	if err != nil {
+		return err
+	}
+	if changed || labChanged {
+		if err := os.WriteFile(p.configFile, lab, 0o644); err != nil {
 			return fmt.Errorf("update config: %w", err)
 		}
+		fmt.Fprintf(os.Stderr, "entrypoint: updated %s (uiAuth=%v lab=%v)\n", p.configFile, changed, labChanged)
 	}
 	return nil
 }

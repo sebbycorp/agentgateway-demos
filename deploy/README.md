@@ -1,6 +1,6 @@
 # Render image pack: standalone agentgateway
 
-Build [`Dockerfile`](./Dockerfile) on Render: a static Go entrypoint writes `/config/.htpasswd` and a seed `config.yaml` (`ui.policies.basicAuth` `mode: strict`), then `exec`s the official `v1.5.0` binary. The runtime includes **Node + `npx`** for stdio MCP. Do **not** pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with **no auth**.
+Build [`Dockerfile`](./Dockerfile) on Render: a static Go entrypoint writes `/config/.htpasswd` and a seed `config.yaml` (UI `basicAuth` plus the lab OpenAI model, virtual keys, and GitHub MCP), then `exec`s the official `v1.5.0` binary. The runtime includes **Node + `npx`** for stdio MCP. Do **not** pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with **no auth**.
 
 How-to (architecture, screenshots, virtual keys, HTTPS curls): **[`34-render-deploy-agw`](../34-render-deploy-agw)**.
 
@@ -28,7 +28,7 @@ Set these in the Render Environment tab (or the Blueprint prompt). Never commit 
 | `ANTHROPIC_API_KEY` | Optional | Same pattern. |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | For GitHub MCP | Process env / backend auth. |
 
-See [`.env.example`](./.env.example). First boot has no models. Open `/ui/`, add a provider, then call `/v1`.
+See [`.env.example`](./.env.example). First boot writes the lab config: OpenAI wildcard (`$OPENAI_API_KEY`), three placeholder virtual keys, and GitHub remote MCP (`$GITHUB_PERSONAL_ACCESS_TOKEN`). Set those env vars in the dashboard; do not add the same objects again in the UI unless you are customizing.
 
 Stdio MCP stays on the same `default` gateway (`https://<service>.onrender.com/mcp`):
 
