@@ -157,11 +157,32 @@ func TestPrepareWritesHtpasswdAndSeed(t *testing.T) {
 	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
 		t.Fatalf("seed config should wire OpenAI from env:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "https://api.githubcopilot.com/mcp/") {
-		t.Fatalf("seed config should include GitHub MCP:\n%s", cfg)
+	if strings.Contains(string(cfg), "api.githubcopilot.com") {
+		t.Fatalf("seed config should omit GitHub MCP when GITHUB_PERSONAL_ACCESS_TOKEN is unset:\n%s", cfg)
 	}
 	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
 		t.Fatalf("seed config should include lab virtual keys:\n%s", cfg)
+	}
+}
+
+func TestPrepareSeedsGitHubMCPWhenTokenSet(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	if err := prepare(p, mapGetenv(map[string]string{
+		"UI_PASSWORD":                   "s3cret",
+		"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_lab",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "https://api.githubcopilot.com/mcp/") {
+		t.Fatalf("seed config should include GitHub MCP when token is set:\n%s", cfg)
+	}
+	if !strings.Contains(string(cfg), "$GITHUB_PERSONAL_ACCESS_TOKEN") {
+		t.Fatalf("seed config should wire GitHub MCP from env:\n%s", cfg)
 	}
 }
 
@@ -222,8 +243,8 @@ llm:
 	if !strings.Contains(string(cfg), "gpt-4o-mini") {
 		t.Fatalf("model was wiped during lock:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "api.githubcopilot.com") {
-		t.Fatalf("missing lab MCP was not merged:\n%s", cfg)
+	if strings.Contains(string(cfg), "api.githubcopilot.com") {
+		t.Fatalf("GitHub MCP should not merge without GITHUB_PERSONAL_ACCESS_TOKEN:\n%s", cfg)
 	}
 }
 
@@ -258,8 +279,8 @@ ui:
 	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
 		t.Fatalf("UI-only config was not filled with lab llm:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "api.githubcopilot.com") {
-		t.Fatalf("UI-only config was not filled with lab mcp:\n%s", cfg)
+	if strings.Contains(string(cfg), "api.githubcopilot.com") {
+		t.Fatalf("UI-only config should not gain GitHub MCP without a token:\n%s", cfg)
 	}
 }
 
@@ -331,11 +352,48 @@ ui:
 	if !strings.Contains(string(cfg), "sk-lab-limited-...") {
 		t.Fatalf("empty seed was not filled with virtual keys:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "api.githubcopilot.com") {
-		t.Fatalf("empty seed was not filled with mcp:\n%s", cfg)
+	if strings.Contains(string(cfg), "api.githubcopilot.com") {
+		t.Fatalf("empty seed should not gain GitHub MCP without a token:\n%s", cfg)
 	}
 	if !hasUIBasicAuth(cfg) {
 		t.Fatalf("merge dropped basicAuth:\n%s", cfg)
+	}
+}
+
+func TestPrepareMergesGitHubMCPWhenTokenAddedLater(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	oldSeed := []byte(`# leftover UI-only seed
+config:
+  database:
+    url: sqlite:///config/data.db
+gateways:
+  default:
+    port: 4000
+ui:
+  gateways: [default]
+  policies:
+    basicAuth:
+      mode: strict
+      htpasswd:
+        file: /config/.htpasswd
+      realm: agentgateway
+`)
+	if err := os.WriteFile(p.configFile, oldSeed, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(p, mapGetenv(map[string]string{
+		"UI_PASSWORD":                   "s3cret",
+		"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_lab",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "api.githubcopilot.com") {
+		t.Fatalf("missing mcp was not merged after token was set:\n%s", cfg)
 	}
 }
 

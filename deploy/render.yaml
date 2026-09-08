@@ -39,7 +39,6 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      # Optional. Used by @modelcontextprotocol/server-github when you add
-      # that stdio target. Leave unset if unused.
-      - key: GITHUB_PERSONAL_ACCESS_TOKEN
-        sync: false
+      # GITHUB_PERSONAL_ACCESS_TOKEN is optional. Do not declare it with
+      # sync: false — Render would prompt as required on Blueprint create.
+      # Add it later in the Environment tab to seed GitHub remote MCP.

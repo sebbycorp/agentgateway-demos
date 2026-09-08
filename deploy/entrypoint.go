@@ -20,7 +20,8 @@ const (
 )
 
 // Seed is the Render lab shape (same as 34-render-deploy-agw/config.example.yaml):
-// UI basicAuth, OpenAI wildcard, virtual keys, GitHub remote MCP.
+// UI basicAuth, OpenAI wildcard, virtual keys. GitHub remote MCP is included
+// only when GITHUB_PERSONAL_ACCESS_TOKEN is set.
 // File-based htpasswd only: inline bcrypt hashes contain $ and the gateway
 // env-expands $VARS in config.yaml ($OPENAI_API_KEY, $GITHUB_PERSONAL_ACCESS_TOKEN).
 const seedConfig = `# yaml-language-server: $schema=https://agentgateway.dev/schema/config
@@ -170,6 +171,10 @@ func missingSection(doc map[string]any, key string) bool {
 	return !ok || v == nil
 }
 
+func includeGitHubMCP(getenv func(string) string) bool {
+	return strings.TrimSpace(getenv("GITHUB_PERSONAL_ACCESS_TOKEN")) != ""
+}
+
 func labSectionsFromSeed() (any, any, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal([]byte(seedConfig), &doc); err != nil {
@@ -178,19 +183,40 @@ func labSectionsFromSeed() (any, any, error) {
 	return doc["llm"], doc["mcp"], nil
 }
 
+func seedConfigBytes(includeMCP bool) ([]byte, error) {
+	if includeMCP {
+		return []byte(seedConfig), nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(seedConfig), &doc); err != nil {
+		return nil, fmt.Errorf("parse seed config: %w", err)
+	}
+	delete(doc, "mcp")
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ensureLabConfig fills in llm/mcp from the seed when a disk already has the
 // old UI-only seed. It does not overwrite sections the operator already set.
-func ensureLabConfig(raw []byte) ([]byte, bool, error) {
+// GitHub MCP is merged only when GITHUB_PERSONAL_ACCESS_TOKEN is set.
+func ensureLabConfig(raw []byte, includeMCP bool) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, false, fmt.Errorf("parse %s: %w", "config.yaml", err)
 	}
 	if doc == nil {
-		return []byte(seedConfig), true, nil
+		seed, err := seedConfigBytes(includeMCP)
+		if err != nil {
+			return nil, false, err
+		}
+		return seed, true, nil
 	}
 
 	needLLM := missingSection(doc, "llm")
-	needMCP := missingSection(doc, "mcp")
+	needMCP := includeMCP && missingSection(doc, "mcp")
 	if !needLLM && !needMCP {
 		return raw, false, nil
 	}
@@ -213,16 +239,24 @@ func ensureLabConfig(raw []byte) ([]byte, bool, error) {
 	return out, true, nil
 }
 
-func ensureProtectedUI(raw []byte) ([]byte, bool, error) {
+func ensureProtectedUI(raw []byte, includeMCP bool) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, false, fmt.Errorf("parse %s: %w", "config.yaml", err)
 	}
 	if doc == nil {
-		return []byte(seedConfig), true, nil
+		seed, err := seedConfigBytes(includeMCP)
+		if err != nil {
+			return nil, false, err
+		}
+		return seed, true, nil
 	}
 	if _, ok := asMap(doc["gateways"]); !ok {
-		return []byte(seedConfig), true, nil
+		seed, err := seedConfigBytes(includeMCP)
+		if err != nil {
+			return nil, false, err
+		}
+		return seed, true, nil
 	}
 
 	ui := mapOrCreate(doc, "ui")
@@ -262,23 +296,33 @@ func prepare(p paths, getenv func(string) string) error {
 		return fmt.Errorf("write htpasswd: %w", err)
 	}
 
+	includeMCP := includeGitHubMCP(getenv)
+
 	raw, err := os.ReadFile(p.configFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("read config: %w", err)
 		}
-		if err := os.WriteFile(p.configFile, []byte(seedConfig), 0o644); err != nil {
+		seed, err := seedConfigBytes(includeMCP)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(p.configFile, seed, 0o644); err != nil {
 			return fmt.Errorf("write seed config: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (llm + mcp + ui basicAuth)\n", p.configFile)
+		if includeMCP {
+			fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (llm + mcp + ui basicAuth)\n", p.configFile)
+		} else {
+			fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (llm + ui basicAuth; mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN)\n", p.configFile)
+		}
 		return nil
 	}
 
-	updated, changed, err := ensureProtectedUI(raw)
+	updated, changed, err := ensureProtectedUI(raw, includeMCP)
 	if err != nil {
 		return err
 	}
-	lab, labChanged, err := ensureLabConfig(updated)
+	lab, labChanged, err := ensureLabConfig(updated, includeMCP)
 	if err != nil {
 		return err
 	}

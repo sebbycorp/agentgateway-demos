@@ -56,7 +56,7 @@ flowchart LR
 |-------------|----------------|------|
 | `/ui/` | Operators | HTTP basic (`UI_USER` / `UI_PASSWORD`) |
 | `/v1/*` | Apps, playground, `curl` | `llm.policies.apiKey` **strict** — Bearer virtual key |
-| `/mcp` | MCP clients | GitHub PAT on the upstream target |
+| `/mcp` | MCP clients | Optional. GitHub PAT on the upstream target when seeded |
 
 `ui.policies` does **not** cover `/v1/*`. Do not send the UI password as an LLM Bearer token.
 
@@ -70,7 +70,7 @@ flowchart LR
 | Disk | **`agw-config`** → **`/config`**, 1 GB |
 | UI | `/ui/` basic auth via `UI_USER` + `UI_PASSWORD` |
 | LLM | OpenAI wildcard `*` on `/v1/*` |
-| MCP | GitHub remote Copilot MCP on `/mcp` (Streamable HTTP) |
+| MCP | Optional GitHub remote Copilot MCP on `/mcp` (Streamable HTTP) |
 | Admin | `:15000` on `127.0.0.1` — not on the internet |
 
 Virtual API keys (`llm.policies.apiKey` `mode: strict`):
@@ -118,7 +118,7 @@ Set these in the Render **Environment** tab. Never commit real values. See [`.en
 | `UI_USER` | No | Basic-auth username. Default `admin`. |
 | `UI_PASSWORD` | **Yes** | Entrypoint writes `/config/.htpasswd` every start. Process exits 1 if unset. |
 | `OPENAI_API_KEY` | For OpenAI | Expanded as `$OPENAI_API_KEY` on the model. |
-| `GITHUB_PERSONAL_ACCESS_TOKEN` | For GitHub MCP | Bearer the gateway sends to `api.githubcopilot.com`. |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | No | Optional. Not prompted on Blueprint create. Set later to seed GitHub remote MCP (`$GITHUB_PERSONAL_ACCESS_TOKEN` on the target). |
 
 ## How to
 
@@ -138,7 +138,7 @@ Pushes to `main` auto-deploy when `deploy/` changes (`autoDeployTrigger: commit`
 
 ### 2. Set the env vars
 
-Render prompts for `sync: false` keys on first Blueprint create. Pin `PORT=4000`. Generate `UI_PASSWORD` in the dashboard. Paste provider tokens there, not into git.
+Render prompts for `sync: false` keys on first Blueprint create (`UI_PASSWORD`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). Pin `PORT=4000`. Generate `UI_PASSWORD` in the dashboard. Paste provider tokens there, not into git. Skip GitHub MCP: do not add `GITHUB_PERSONAL_ACCESS_TOKEN` until you want that target.
 
 ### 3. Disk
 
@@ -146,9 +146,9 @@ Blueprint already declares **`agw-config`** → **`/config`**, 1 GB. Disks are
 
 ### 4. Deploy
 
-First boot writes `.htpasswd` + the lab `config.yaml` (UI basicAuth, OpenAI wildcard, virtual keys, GitHub MCP). The gateway then watches `/config/config.yaml`. In Render logs you want:
+First boot writes `.htpasswd` + the lab `config.yaml` (UI basicAuth, OpenAI wildcard, virtual keys; GitHub MCP only if `GITHUB_PERSONAL_ACCESS_TOKEN` is set). The gateway then watches `/config/config.yaml`. In Render logs you want:
 
-- `entrypoint: seeded /config/config.yaml (llm + mcp + ui basicAuth)` (first boot) or `entrypoint: updated /config/config.yaml (uiAuth=… lab=true)` (old UI-only disk)
+- `entrypoint: seeded /config/config.yaml (llm + ui basicAuth; mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN)` (first boot without a GitHub PAT), `entrypoint: seeded /config/config.yaml (llm + mcp + ui basicAuth)` (first boot with a PAT), or `entrypoint: updated /config/config.yaml (uiAuth=… lab=true)` (old UI-only disk)
 - `state_manager Watching config file: /config/config.yaml`
 - `app serving UI at http://localhost:4000/ui`
 - `proxy::gateway started bind bind="bind/4000"`
@@ -194,9 +194,9 @@ curl -sS "$HOST/v1/chat/completions" \
 
 A 200 with token usage shows up under **LLM → Logs**.
 
-### 9. Confirm GitHub MCP
+### 9. Confirm GitHub MCP (optional)
 
-The seed already attaches GitHub remote Copilot MCP to the `default` gateway (no second public port):
+Skip this if you did not set `GITHUB_PERSONAL_ACCESS_TOKEN`. The seed attaches GitHub remote Copilot MCP only when that env var is present (no second public port). Add the token in the Environment tab later and restart: if the disk still has no `mcp` section, the entrypoint merges it.
 
 ```yaml
 mcp:
@@ -211,7 +211,7 @@ mcp:
           value: $GITHUB_PERSONAL_ACCESS_TOKEN
 ```
 
-Set `GITHUB_PERSONAL_ACCESS_TOKEN` in the Environment tab. **MCP → Servers** should show `github`, Streamable HTTP, **ready**. Clients use `https://<your-service>.onrender.com/mcp`. Only use **Add server** for extra targets.
+**MCP → Servers** should show `github`, Streamable HTTP, **ready**. Clients use `https://<your-service>.onrender.com/mcp`. Only use **Add server** for extra targets.
 
 stdio MCP (`npx -y @modelcontextprotocol/server-everything`) is optional. The image on `main` already has Node/`npx` ([#19](https://github.com/sebbycorp/agentgateway-demos/pull/19)); still one public port — attach stdio targets to `default`.
 
@@ -229,7 +229,7 @@ Live Render service and the agentgateway UI after OpenAI + GitHub MCP. Environme
 
 ![Render Deploys](docs/images/02-overview.png)
 
-**3. Environment** — `PORT`, `UI_USER`, `UI_PASSWORD`, `OPENAI_API_KEY`, `GITHUB_PERSONAL_ACCESS_TOKEN`. Values hidden.
+**3. Environment** — `PORT`, `UI_USER`, `UI_PASSWORD`, `OPENAI_API_KEY`. Optional `GITHUB_PERSONAL_ACCESS_TOKEN`. Values hidden.
 
 ![Render Environment](docs/images/03-environment.png)
 
@@ -319,7 +319,7 @@ curl -sS "$HOST/v1/chat/completions" \
   -d '{"model":"gpt-4.1-nano","messages":[{"role":"user","content":"Reply with one word: pong"}]}'
 # limited is gpt-4.1-nano + token budget — expect 429 budget_exceeded after the window fills
 
-# MCP — GitHub remote (POST)
+# MCP — GitHub remote (POST). Only if GITHUB_PERSONAL_ACCESS_TOKEN is set.
 curl -sS "$HOST/mcp" \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
@@ -328,7 +328,7 @@ curl -sS "$HOST/mcp" \
 # look for serverInfo.name: github-mcp-server
 ```
 
-A 401 on `/ui/` without credentials, a 200 with them, a 401 on `/v1/models` without a Bearer key, and an MCP `initialize` that names `github-mcp-server` is the smoke test.
+A 401 on `/ui/` without credentials, a 200 with them, and a 401 on `/v1/models` without a Bearer key is the smoke test. If you set a GitHub PAT, an MCP `initialize` that names `github-mcp-server` is the extra check.
 
 ## What’s next
 

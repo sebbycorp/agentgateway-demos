@@ -59,6 +59,7 @@ llm:
     params:
       apiKey: $OPENAI_API_KEY
 
+# Optional. Seeded only when GITHUB_PERSONAL_ACCESS_TOKEN is set.
 mcp:
   gateways: [default]
   targets:
