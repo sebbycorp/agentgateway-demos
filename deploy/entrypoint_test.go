@@ -157,6 +157,9 @@ func TestPrepareWritesHtpasswdAndSeed(t *testing.T) {
 	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
 		t.Fatalf("seed config should omit OpenAI model when OPENAI_API_KEY is unset:\n%s", cfg)
 	}
+	if !llmHasEmptyModels(cfg) {
+		t.Fatalf("seed config must keep llm.models (empty list) so the schema is valid:\n%s", cfg)
+	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("seed config should omit GitHub MCP when GITHUB_PERSONAL_ACCESS_TOKEN is unset:\n%s", cfg)
 	}
@@ -264,8 +267,53 @@ llm:
 	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
 		t.Fatalf("unset $OPENAI_API_KEY model should be stripped so the gateway can start:\n%s", cfg)
 	}
+	if !llmHasEmptyModels(cfg) {
+		t.Fatalf("stripping the last model must leave llm.models: []:\n%s", cfg)
+	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("GitHub MCP should not merge without GITHUB_PERSONAL_ACCESS_TOKEN:\n%s", cfg)
+	}
+}
+
+func TestPrepareRestoresEmptyModelsWhenFieldMissing(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	existing := []byte(`gateways:
+  default:
+    port: 4000
+ui:
+  gateways: [default]
+  policies:
+    basicAuth:
+      mode: strict
+      htpasswd:
+        file: /config/.htpasswd
+      realm: agentgateway
+llm:
+  gateways: [default]
+  policies:
+    apiKey:
+      mode: strict
+      keys:
+      - key: sk-lab-admin-...
+        metadata:
+          name: admin
+`)
+	if err := os.WriteFile(p.configFile, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(p, mapGetenv(map[string]string{"UI_PASSWORD": "s3cret"})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !llmHasEmptyModels(cfg) {
+		t.Fatalf("llm without models must be repaired to models: []:\n%s", cfg)
+	}
+	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
+		t.Fatalf("virtual keys were dropped while repairing models:\n%s", cfg)
 	}
 }
 
@@ -619,6 +667,19 @@ func TestPrepareRejectsMissingPassword(t *testing.T) {
 	if !strings.Contains(err.Error(), "UI_PASSWORD") {
 		t.Fatalf("error %q should mention UI_PASSWORD", err)
 	}
+}
+
+func llmHasEmptyModels(raw []byte) bool {
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return false
+	}
+	llm, ok := asMap(doc["llm"])
+	if !ok {
+		return false
+	}
+	models, ok := llm["models"].([]any)
+	return ok && len(models) == 0
 }
 
 func testPaths(dir string) paths {

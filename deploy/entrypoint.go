@@ -196,12 +196,14 @@ func labSectionsFromSeed() (any, any, error) {
 	return doc["llm"], doc["mcp"], nil
 }
 
-func stripLLMModels(llm any) any {
+func llmWithoutProviderModels(llm any) any {
 	m, ok := asMap(llm)
 	if !ok {
 		return llm
 	}
-	delete(m, "models")
+	// llm.models is required by the schema. An empty list is valid; omitting
+	// the field makes agentgateway exit: "llm: missing field `models`".
+	m["models"] = []any{}
 	return m
 }
 
@@ -214,7 +216,7 @@ func seedConfigBytes(opts seedOpts) ([]byte, error) {
 		return nil, fmt.Errorf("parse seed config: %w", err)
 	}
 	if !opts.includeLLM {
-		doc["llm"] = stripLLMModels(doc["llm"])
+		doc["llm"] = llmWithoutProviderModels(doc["llm"])
 	}
 	if !opts.includeMCP {
 		delete(doc, "mcp")
@@ -323,21 +325,23 @@ func sanitizeUnsetProviderRefs(raw []byte, getenv func(string) string) ([]byte, 
 	changed := false
 
 	if llm, ok := asMap(doc["llm"]); ok {
-		if models, ok := llm["models"].([]any); ok {
+		models, hasModels := llm["models"].([]any)
+		if !hasModels {
+			llm["models"] = []any{}
+			changed = true
+		} else {
 			kept := make([]any, 0, len(models))
+			stripped := false
 			for _, model := range models {
 				if modelUsesUnsetKey(model, getenv) {
-					changed = true
+					stripped = true
 					continue
 				}
 				kept = append(kept, model)
 			}
-			if changed {
-				if len(kept) == 0 {
-					delete(llm, "models")
-				} else {
-					llm["models"] = kept
-				}
+			if stripped {
+				llm["models"] = kept
+				changed = true
 			}
 		}
 	}
@@ -403,7 +407,7 @@ func ensureLabConfig(raw []byte, opts seedOpts) ([]byte, bool, error) {
 	}
 	if needLLM {
 		if !opts.includeLLM {
-			llm = stripLLMModels(llm)
+			llm = llmWithoutProviderModels(llm)
 		}
 		doc["llm"] = llm
 	} else if needModels {
