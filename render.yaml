@@ -29,9 +29,6 @@ services:
         sync: false
       - key: UI_USER
         value: admin
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      # GITHUB_PERSONAL_ACCESS_TOKEN is optional. Add it in the Environment
-      # tab to seed GitHub remote MCP. sync: false would prompt as required.
+      # Provider keys are optional. Add OPENAI_API_KEY / ANTHROPIC_API_KEY /
+      # GITHUB_PERSONAL_ACCESS_TOKEN in the Environment tab. sync: false
+      # would prompt as required, and a missing $VAR crashes the gateway.

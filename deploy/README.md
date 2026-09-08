@@ -1,6 +1,6 @@
 # Render image pack: standalone agentgateway
 
-Build [`Dockerfile`](./Dockerfile) on Render: a static Go entrypoint writes `/config/.htpasswd` and a seed `config.yaml` (UI `basicAuth` plus the lab OpenAI model, virtual keys, and optional GitHub MCP), then `exec`s the official `v1.5.0` binary. The runtime includes **Node + `npx`** for stdio MCP. Do **not** pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with **no auth**.
+Build [`Dockerfile`](./Dockerfile) on Render: a static Go entrypoint writes `/config/.htpasswd` and a seed `config.yaml` (UI `basicAuth`, virtual keys, optional OpenAI, optional GitHub MCP), then `exec`s the official `v1.5.0` binary. The runtime includes **Node + `npx`** for stdio MCP. Do **not** pull the bare official image (`runtime: image`) — empty `/config` auto-gen serves `/ui/` with **no auth**.
 
 How-to (architecture, screenshots, virtual keys, HTTPS curls): **[`34-render-deploy-agw`](../34-render-deploy-agw)**.
 
@@ -24,11 +24,11 @@ Set these in the Render Environment tab (or the Blueprint prompt). Never commit 
 | `UI_PASSWORD` | **Yes** | Entrypoint writes `/config/.htpasswd` every start. Exits 1 if unset. |
 | `UI_USER` | No | Basic-auth username. Default `admin`. |
 | `PORT` | **Yes** | Must be `4000`. Render proxies `$PORT` (default `10000`); the gateway always listens on 4000. |
-| `OPENAI_API_KEY` | For OpenAI | Expanded as `$OPENAI_API_KEY` when you add a model. |
-| `ANTHROPIC_API_KEY` | Optional | Same pattern. |
+| `OPENAI_API_KEY` | No | Optional. Not in the Blueprint prompt. Set it to seed the OpenAI wildcard. |
+| `ANTHROPIC_API_KEY` | No | Optional. Not seeded. |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | No | Optional. Not in the Blueprint prompt. Set it to seed GitHub remote MCP. |
 
-See [`.env.example`](./.env.example). First boot writes the lab config: OpenAI wildcard (`$OPENAI_API_KEY`) and three placeholder virtual keys. GitHub remote MCP (`$GITHUB_PERSONAL_ACCESS_TOKEN`) is added only when that env var is set. Set provider keys in the dashboard; do not add the same objects again in the UI unless you are customizing.
+See [`.env.example`](./.env.example). First boot writes UI basicAuth and three placeholder virtual keys. OpenAI (`$OPENAI_API_KEY`) and GitHub MCP (`$GITHUB_PERSONAL_ACCESS_TOKEN`) are added only when those env vars are set — agentgateway exits if a `$VAR` in `config.yaml` is missing. Set provider keys in the dashboard; do not add the same objects again in the UI unless you are customizing.
 
 Stdio MCP stays on the same `default` gateway (`https://<service>.onrender.com/mcp`):
 

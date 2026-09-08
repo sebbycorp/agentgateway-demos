@@ -44,10 +44,8 @@ services:
       # Optional; entrypoint defaults to admin when unset.
       - key: UI_USER
         value: admin
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      # GITHUB_PERSONAL_ACCESS_TOKEN is optional. Do not declare it with
-      # sync: false — Render would prompt as required on Blueprint create.
-      # Add it later in the Environment tab to seed GitHub remote MCP.
+      # Provider keys are optional. Do not declare OPENAI_API_KEY,
+      # ANTHROPIC_API_KEY, or GITHUB_PERSONAL_ACCESS_TOKEN with sync: false —
+      # Render would prompt as required on Blueprint create, and the
+      # gateway exits if config.yaml expands a $VAR that is unset.
+      # Add them later in the Environment tab to seed OpenAI / GitHub MCP.

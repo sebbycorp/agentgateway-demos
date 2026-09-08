@@ -53,6 +53,8 @@ llm:
           window:
             rolling: 1h
           onBudgetExceeded: Block
+  # Optional. Seeded only when OPENAI_API_KEY is set. A missing $VAR
+  # makes agentgateway exit on boot.
   models:
   - name: '*'
     provider: openAI

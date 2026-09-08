@@ -69,7 +69,7 @@ flowchart LR
 | Dashboard | https://dashboard.render.com/web/srv-daf2208n74is73fvr090 |
 | Disk | **`agw-config`** → **`/config`**, 1 GB |
 | UI | `/ui/` basic auth via `UI_USER` + `UI_PASSWORD` |
-| LLM | OpenAI wildcard `*` on `/v1/*` |
+| LLM | Optional OpenAI wildcard `*` on `/v1/*` |
 | MCP | Optional GitHub remote Copilot MCP on `/mcp` (Streamable HTTP) |
 | Admin | `:15000` on `127.0.0.1` — not on the internet |
 
@@ -117,7 +117,8 @@ Set these in the Render **Environment** tab. Never commit real values. See [`.en
 | `PORT` | **Yes** | Must be `4000`. Render proxies `$PORT` (default `10000`); the gateway listens on 4000. |
 | `UI_USER` | No | Basic-auth username. Default `admin`. |
 | `UI_PASSWORD` | **Yes** | Entrypoint writes `/config/.htpasswd` every start. Process exits 1 if unset. |
-| `OPENAI_API_KEY` | For OpenAI | Expanded as `$OPENAI_API_KEY` on the model. |
+| `OPENAI_API_KEY` | No | Optional. Not prompted on Blueprint create. Set later to seed the OpenAI wildcard (`$OPENAI_API_KEY` on the model). |
+| `ANTHROPIC_API_KEY` | No | Optional. Not seeded. Add a model in the UI if you use Anthropic. |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | No | Optional. Not prompted on Blueprint create. Set later to seed GitHub remote MCP (`$GITHUB_PERSONAL_ACCESS_TOKEN` on the target). |
 
 ## How to
@@ -138,7 +139,7 @@ Pushes to `main` auto-deploy when `deploy/` changes (`autoDeployTrigger: commit`
 
 ### 2. Set the env vars
 
-Render prompts for `sync: false` keys on first Blueprint create (`UI_PASSWORD`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). Pin `PORT=4000`. Generate `UI_PASSWORD` in the dashboard. Paste provider tokens there, not into git. Skip GitHub MCP: do not add `GITHUB_PERSONAL_ACCESS_TOKEN` until you want that target.
+Render prompts only for `UI_PASSWORD` on first Blueprint create. Pin `PORT=4000`. Generate `UI_PASSWORD` in the dashboard. Provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_PERSONAL_ACCESS_TOKEN`) are optional — add them later in the Environment tab. The gateway exits if `config.yaml` expands a `$VAR` that is unset, so the entrypoint does not write those placeholders until the env var exists.
 
 ### 3. Disk
 
@@ -146,9 +147,9 @@ Blueprint already declares **`agw-config`** → **`/config`**, 1 GB. Disks are
 
 ### 4. Deploy
 
-First boot writes `.htpasswd` + the lab `config.yaml` (UI basicAuth, OpenAI wildcard, virtual keys; GitHub MCP only if `GITHUB_PERSONAL_ACCESS_TOKEN` is set). The gateway then watches `/config/config.yaml`. In Render logs you want:
+First boot writes `.htpasswd` + the lab `config.yaml` (UI basicAuth and virtual keys; OpenAI wildcard only if `OPENAI_API_KEY` is set; GitHub MCP only if `GITHUB_PERSONAL_ACCESS_TOKEN` is set). The gateway then watches `/config/config.yaml`. In Render logs you want:
 
-- `entrypoint: seeded /config/config.yaml (llm + ui basicAuth; mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN)` (first boot without a GitHub PAT), `entrypoint: seeded /config/config.yaml (llm + mcp + ui basicAuth)` (first boot with a PAT), or `entrypoint: updated /config/config.yaml (uiAuth=… lab=true)` (old UI-only disk)
+- `entrypoint: seeded /config/config.yaml (ui basicAuth; llm models skipped, no OPENAI_API_KEY; mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN)` (first boot with only `UI_PASSWORD`), or `entrypoint: updated /config/config.yaml (uiAuth=… lab=… sanitize=…)` (old disk; `sanitize=true` strips leftover `$OPENAI_API_KEY` so a missing provider key cannot crash the process)
 - `state_manager Watching config file: /config/config.yaml`
 - `app serving UI at http://localhost:4000/ui`
 - `proxy::gateway started bind bind="bind/4000"`
@@ -165,11 +166,11 @@ A `http.status=401` on `/ui/` with `basic authentication failure: no basic authe
 https://<your-service>.onrender.com/ui/
 ```
 
-Browser basic-auth prompt: `UI_USER` / `UI_PASSWORD`. Gateway Overview should show LLM, MCP, and Traffic on gateway **default**.
+Browser basic-auth prompt: `UI_USER` / `UI_PASSWORD`. Gateway Overview should show Traffic on gateway **default**. LLM and MCP counts depend on which optional keys you set.
 
-### 6. Confirm OpenAI
+### 6. Confirm OpenAI (optional)
 
-The seed already has incoming name `*`, provider OpenAI, API key `$OPENAI_API_KEY`. Set `OPENAI_API_KEY` in the Environment tab (Render restarts the service). **LLM → Models** should show the wildcard; outgoing model stays “Incoming model.” Only use **Add model** if you want a second provider.
+Skip this if you did not set `OPENAI_API_KEY`. When that env var is present, the seed has incoming name `*`, provider OpenAI, API key `$OPENAI_API_KEY`. Add the key later in the Environment tab (Render restarts the service); if the disk still has no `llm.models`, the entrypoint merges the wildcard. **LLM → Models** should show the wildcard; outgoing model stays “Incoming model.” Only use **Add model** if you want a second provider.
 
 ### 7. Confirm virtual keys
 
@@ -229,7 +230,7 @@ Live Render service and the agentgateway UI after OpenAI + GitHub MCP. Environme
 
 ![Render Deploys](docs/images/02-overview.png)
 
-**3. Environment** — `PORT`, `UI_USER`, `UI_PASSWORD`, `OPENAI_API_KEY`. Optional `GITHUB_PERSONAL_ACCESS_TOKEN`. Values hidden.
+**3. Environment** — `PORT`, `UI_USER`, `UI_PASSWORD`. Optional `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_PERSONAL_ACCESS_TOKEN`. Values hidden.
 
 ![Render Environment](docs/images/03-environment.png)
 

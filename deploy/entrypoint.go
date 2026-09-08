@@ -20,8 +20,9 @@ const (
 )
 
 // Seed is the Render lab shape (same as 34-render-deploy-agw/config.example.yaml):
-// UI basicAuth, OpenAI wildcard, virtual keys. GitHub remote MCP is included
-// only when GITHUB_PERSONAL_ACCESS_TOKEN is set.
+// UI basicAuth and virtual keys always. OpenAI models and GitHub MCP are
+// included only when their env vars are set — agentgateway exits if a $VAR
+// in config.yaml is missing from the process environment.
 // File-based htpasswd only: inline bcrypt hashes contain $ and the gateway
 // env-expands $VARS in config.yaml ($OPENAI_API_KEY, $GITHUB_PERSONAL_ACCESS_TOKEN).
 const seedConfig = `# yaml-language-server: $schema=https://agentgateway.dev/schema/config
@@ -171,8 +172,20 @@ func missingSection(doc map[string]any, key string) bool {
 	return !ok || v == nil
 }
 
-func includeGitHubMCP(getenv func(string) string) bool {
-	return strings.TrimSpace(getenv("GITHUB_PERSONAL_ACCESS_TOKEN")) != ""
+type seedOpts struct {
+	includeLLM bool
+	includeMCP bool
+}
+
+func envPresent(getenv func(string) string, key string) bool {
+	return strings.TrimSpace(getenv(key)) != ""
+}
+
+func optsFromEnv(getenv func(string) string) seedOpts {
+	return seedOpts{
+		includeLLM: envPresent(getenv, "OPENAI_API_KEY"),
+		includeMCP: envPresent(getenv, "GITHUB_PERSONAL_ACCESS_TOKEN"),
+	}
 }
 
 func labSectionsFromSeed() (any, any, error) {
@@ -183,15 +196,29 @@ func labSectionsFromSeed() (any, any, error) {
 	return doc["llm"], doc["mcp"], nil
 }
 
-func seedConfigBytes(includeMCP bool) ([]byte, error) {
-	if includeMCP {
+func stripLLMModels(llm any) any {
+	m, ok := asMap(llm)
+	if !ok {
+		return llm
+	}
+	delete(m, "models")
+	return m
+}
+
+func seedConfigBytes(opts seedOpts) ([]byte, error) {
+	if opts.includeLLM && opts.includeMCP {
 		return []byte(seedConfig), nil
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal([]byte(seedConfig), &doc); err != nil {
 		return nil, fmt.Errorf("parse seed config: %w", err)
 	}
-	delete(doc, "mcp")
+	if !opts.includeLLM {
+		doc["llm"] = stripLLMModels(doc["llm"])
+	}
+	if !opts.includeMCP {
+		delete(doc, "mcp")
+	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
 		return nil, err
@@ -199,16 +226,164 @@ func seedConfigBytes(includeMCP bool) ([]byte, error) {
 	return out, nil
 }
 
-// ensureLabConfig fills in llm/mcp from the seed when a disk already has the
-// old UI-only seed. It does not overwrite sections the operator already set.
-// GitHub MCP is merged only when GITHUB_PERSONAL_ACCESS_TOKEN is set.
-func ensureLabConfig(raw []byte, includeMCP bool) ([]byte, bool, error) {
+func llmModelsEmpty(doc map[string]any) bool {
+	llm, ok := asMap(doc["llm"])
+	if !ok {
+		return true
+	}
+	models, ok := llm["models"].([]any)
+	return !ok || len(models) == 0
+}
+
+func envRefName(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "${") && strings.HasSuffix(s, "}") && len(s) > 3 {
+		return s[2 : len(s)-1], true
+	}
+	if strings.HasPrefix(s, "$") && len(s) > 1 && !strings.ContainsAny(s[1:], " ${}") {
+		return s[1:], true
+	}
+	return "", false
+}
+
+func isUnsetEnvRef(s string, getenv func(string) string) bool {
+	name, ok := envRefName(s)
+	if !ok {
+		return false
+	}
+	return !envPresent(getenv, name)
+}
+
+func unsetStringOrValue(v any, getenv func(string) string) bool {
+	switch t := v.(type) {
+	case string:
+		return isUnsetEnvRef(t, getenv)
+	case map[string]any:
+		if s, ok := t["value"].(string); ok {
+			return isUnsetEnvRef(s, getenv)
+		}
+	}
+	return false
+}
+
+func modelUsesUnsetKey(model any, getenv func(string) string) bool {
+	m, ok := asMap(model)
+	if !ok {
+		return false
+	}
+	if params, ok := asMap(m["params"]); ok && unsetStringOrValue(params["apiKey"], getenv) {
+		return true
+	}
+	if unsetStringOrValue(m["auth"], getenv) {
+		return true
+	}
+	if auth, ok := asMap(m["auth"]); ok {
+		if unsetStringOrValue(auth["key"], getenv) {
+			return true
+		}
+		if key, ok := asMap(auth["key"]); ok && unsetStringOrValue(key["value"], getenv) {
+			return true
+		}
+	}
+	return false
+}
+
+func targetUsesUnsetKey(target any, getenv func(string) string) bool {
+	t, ok := asMap(target)
+	if !ok {
+		return false
+	}
+	policies, ok := asMap(t["policies"])
+	if !ok {
+		return false
+	}
+	backendAuth, ok := asMap(policies["backendAuth"])
+	if !ok {
+		return false
+	}
+	if unsetStringOrValue(backendAuth["key"], getenv) {
+		return true
+	}
+	if key, ok := asMap(backendAuth["key"]); ok && unsetStringOrValue(key["value"], getenv) {
+		return true
+	}
+	return false
+}
+
+// sanitizeUnsetProviderRefs drops llm models and mcp targets that expand a
+// $VAR the process does not have. agentgateway treats a missing env var as fatal.
+func sanitizeUnsetProviderRefs(raw []byte, getenv func(string) string) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, false, fmt.Errorf("parse %s: %w", "config.yaml", err)
 	}
 	if doc == nil {
-		seed, err := seedConfigBytes(includeMCP)
+		return raw, false, nil
+	}
+	changed := false
+
+	if llm, ok := asMap(doc["llm"]); ok {
+		if models, ok := llm["models"].([]any); ok {
+			kept := make([]any, 0, len(models))
+			for _, model := range models {
+				if modelUsesUnsetKey(model, getenv) {
+					changed = true
+					continue
+				}
+				kept = append(kept, model)
+			}
+			if changed {
+				if len(kept) == 0 {
+					delete(llm, "models")
+				} else {
+					llm["models"] = kept
+				}
+			}
+		}
+	}
+
+	if mcp, ok := asMap(doc["mcp"]); ok {
+		if targets, ok := mcp["targets"].([]any); ok {
+			kept := make([]any, 0, len(targets))
+			mcpChanged := false
+			for _, target := range targets {
+				if targetUsesUnsetKey(target, getenv) {
+					mcpChanged = true
+					continue
+				}
+				kept = append(kept, target)
+			}
+			if mcpChanged {
+				changed = true
+				if len(kept) == 0 {
+					delete(doc, "mcp")
+				} else {
+					mcp["targets"] = kept
+				}
+			}
+		}
+	}
+
+	if !changed {
+		return raw, false, nil
+	}
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		return nil, false, err
+	}
+	return out, true, nil
+}
+
+// ensureLabConfig fills in llm/mcp from the seed when a disk already has the
+// old UI-only seed. It does not overwrite sections the operator already set.
+// OpenAI models and GitHub MCP are merged only when their env vars are set.
+func ensureLabConfig(raw []byte, opts seedOpts) ([]byte, bool, error) {
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, false, fmt.Errorf("parse %s: %w", "config.yaml", err)
+	}
+	if doc == nil {
+		seed, err := seedConfigBytes(opts)
 		if err != nil {
 			return nil, false, err
 		}
@@ -216,8 +391,9 @@ func ensureLabConfig(raw []byte, includeMCP bool) ([]byte, bool, error) {
 	}
 
 	needLLM := missingSection(doc, "llm")
-	needMCP := includeMCP && missingSection(doc, "mcp")
-	if !needLLM && !needMCP {
+	needModels := opts.includeLLM && llmModelsEmpty(doc)
+	needMCP := opts.includeMCP && missingSection(doc, "mcp")
+	if !needLLM && !needModels && !needMCP {
 		return raw, false, nil
 	}
 
@@ -226,7 +402,15 @@ func ensureLabConfig(raw []byte, includeMCP bool) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	if needLLM {
+		if !opts.includeLLM {
+			llm = stripLLMModels(llm)
+		}
 		doc["llm"] = llm
+	} else if needModels {
+		if seedLLM, ok := asMap(llm); ok {
+			existing := mapOrCreate(doc, "llm")
+			existing["models"] = seedLLM["models"]
+		}
 	}
 	if needMCP {
 		doc["mcp"] = mcp
@@ -239,20 +423,20 @@ func ensureLabConfig(raw []byte, includeMCP bool) ([]byte, bool, error) {
 	return out, true, nil
 }
 
-func ensureProtectedUI(raw []byte, includeMCP bool) ([]byte, bool, error) {
+func ensureProtectedUI(raw []byte, opts seedOpts) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, false, fmt.Errorf("parse %s: %w", "config.yaml", err)
 	}
 	if doc == nil {
-		seed, err := seedConfigBytes(includeMCP)
+		seed, err := seedConfigBytes(opts)
 		if err != nil {
 			return nil, false, err
 		}
 		return seed, true, nil
 	}
 	if _, ok := asMap(doc["gateways"]); !ok {
-		seed, err := seedConfigBytes(includeMCP)
+		seed, err := seedConfigBytes(opts)
 		if err != nil {
 			return nil, false, err
 		}
@@ -296,43 +480,58 @@ func prepare(p paths, getenv func(string) string) error {
 		return fmt.Errorf("write htpasswd: %w", err)
 	}
 
-	includeMCP := includeGitHubMCP(getenv)
+	opts := optsFromEnv(getenv)
 
 	raw, err := os.ReadFile(p.configFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("read config: %w", err)
 		}
-		seed, err := seedConfigBytes(includeMCP)
+		seed, err := seedConfigBytes(opts)
 		if err != nil {
 			return err
 		}
 		if err := os.WriteFile(p.configFile, seed, 0o644); err != nil {
 			return fmt.Errorf("write seed config: %w", err)
 		}
-		if includeMCP {
-			fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (llm + mcp + ui basicAuth)\n", p.configFile)
-		} else {
-			fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (llm + ui basicAuth; mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN)\n", p.configFile)
-		}
+		fmt.Fprintf(os.Stderr, "entrypoint: seeded %s (%s)\n", p.configFile, seedSummary(opts))
 		return nil
 	}
 
-	updated, changed, err := ensureProtectedUI(raw, includeMCP)
+	updated, changed, err := ensureProtectedUI(raw, opts)
 	if err != nil {
 		return err
 	}
-	lab, labChanged, err := ensureLabConfig(updated, includeMCP)
+	lab, labChanged, err := ensureLabConfig(updated, opts)
 	if err != nil {
 		return err
 	}
-	if changed || labChanged {
-		if err := os.WriteFile(p.configFile, lab, 0o644); err != nil {
+	sanitized, sanChanged, err := sanitizeUnsetProviderRefs(lab, getenv)
+	if err != nil {
+		return err
+	}
+	if changed || labChanged || sanChanged {
+		if err := os.WriteFile(p.configFile, sanitized, 0o644); err != nil {
 			return fmt.Errorf("update config: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "entrypoint: updated %s (uiAuth=%v lab=%v)\n", p.configFile, changed, labChanged)
+		fmt.Fprintf(os.Stderr, "entrypoint: updated %s (uiAuth=%v lab=%v sanitize=%v)\n", p.configFile, changed, labChanged, sanChanged)
 	}
 	return nil
+}
+
+func seedSummary(opts seedOpts) string {
+	parts := []string{"ui basicAuth"}
+	if opts.includeLLM {
+		parts = append(parts, "llm")
+	} else {
+		parts = append(parts, "llm models skipped, no OPENAI_API_KEY")
+	}
+	if opts.includeMCP {
+		parts = append(parts, "mcp")
+	} else {
+		parts = append(parts, "mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN")
+	}
+	return strings.Join(parts, "; ")
 }
 
 func main() {

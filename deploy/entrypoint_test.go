@@ -154,14 +154,35 @@ func TestPrepareWritesHtpasswdAndSeed(t *testing.T) {
 	if !strings.Contains(string(cfg), "mode: strict") {
 		t.Fatalf("seed config should set mode strict:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
-		t.Fatalf("seed config should wire OpenAI from env:\n%s", cfg)
+	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
+		t.Fatalf("seed config should omit OpenAI model when OPENAI_API_KEY is unset:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("seed config should omit GitHub MCP when GITHUB_PERSONAL_ACCESS_TOKEN is unset:\n%s", cfg)
 	}
 	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
 		t.Fatalf("seed config should include lab virtual keys:\n%s", cfg)
+	}
+}
+
+func TestPrepareSeedsOpenAIWhenKeySet(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	if err := prepare(p, mapGetenv(map[string]string{
+		"UI_PASSWORD":    "s3cret",
+		"OPENAI_API_KEY": "sk-test",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
+		t.Fatalf("seed config should wire OpenAI from env when key is set:\n%s", cfg)
+	}
+	if strings.Contains(string(cfg), "api.githubcopilot.com") {
+		t.Fatalf("GitHub MCP should stay omitted without a PAT:\n%s", cfg)
 	}
 }
 
@@ -240,11 +261,45 @@ llm:
 	if !hasUIBasicAuth(cfg) {
 		t.Fatalf("open auto-gen was not locked:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "gpt-4o-mini") {
-		t.Fatalf("model was wiped during lock:\n%s", cfg)
+	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
+		t.Fatalf("unset $OPENAI_API_KEY model should be stripped so the gateway can start:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("GitHub MCP should not merge without GITHUB_PERSONAL_ACCESS_TOKEN:\n%s", cfg)
+	}
+}
+
+func TestPrepareKeepsOpenAIModelWhenKeySet(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	open := []byte(`gateways:
+  default:
+    port: 4000
+ui:
+  gateways:
+  - default
+llm:
+  models:
+  - name: gpt-4o-mini
+    provider: openAI
+    params:
+      apiKey: $OPENAI_API_KEY
+`)
+	if err := os.WriteFile(p.configFile, open, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(p, mapGetenv(map[string]string{
+		"UI_PASSWORD":    "s3cret",
+		"OPENAI_API_KEY": "sk-test",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "gpt-4o-mini") {
+		t.Fatalf("existing OpenAI model was wiped even though the key is set:\n%s", cfg)
 	}
 }
 
@@ -276,8 +331,11 @@ ui:
 	if !strings.Contains(string(cfg), "custom-realm") {
 		t.Fatalf("existing basicAuth realm was rewritten:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
-		t.Fatalf("UI-only config was not filled with lab llm:\n%s", cfg)
+	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
+		t.Fatalf("UI-only config was not filled with lab virtual keys:\n%s", cfg)
+	}
+	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
+		t.Fatalf("UI-only config should not gain OpenAI model without OPENAI_API_KEY:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("UI-only config should not gain GitHub MCP without a token:\n%s", cfg)
@@ -346,8 +404,8 @@ ui:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
-		t.Fatalf("empty seed was not filled with llm:\n%s", cfg)
+	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
+		t.Fatalf("empty seed should not gain OpenAI model without OPENAI_API_KEY:\n%s", cfg)
 	}
 	if !strings.Contains(string(cfg), "sk-lab-limited-...") {
 		t.Fatalf("empty seed was not filled with virtual keys:\n%s", cfg)
@@ -435,14 +493,120 @@ mcp:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(cfg), "gpt-4o-mini") {
-		t.Fatalf("existing model was overwritten:\n%s", cfg)
+	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
+		t.Fatalf("existing env-ref model should be stripped without OPENAI_API_KEY:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("existing mcp was overwritten with lab github:\n%s", cfg)
 	}
 	if !strings.Contains(string(cfg), "https://example.com/mcp") {
 		t.Fatalf("custom mcp target was dropped:\n%s", cfg)
+	}
+}
+
+func TestPrepareMergesOpenAIWhenKeyAddedLater(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	oldSeed := []byte(`gateways:
+  default:
+    port: 4000
+ui:
+  gateways: [default]
+  policies:
+    basicAuth:
+      mode: strict
+      htpasswd:
+        file: /config/.htpasswd
+      realm: agentgateway
+`)
+	if err := os.WriteFile(p.configFile, oldSeed, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(p, mapGetenv(map[string]string{
+		"UI_PASSWORD":    "s3cret",
+		"OPENAI_API_KEY": "sk-test",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "apiKey: $OPENAI_API_KEY") {
+		t.Fatalf("missing OpenAI model was not merged after key was set:\n%s", cfg)
+	}
+}
+
+func TestPrepareStripsAnthropicEnvRefWithoutKey(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	existing := []byte(`gateways:
+  default:
+    port: 4000
+ui:
+  gateways: [default]
+  policies:
+    basicAuth:
+      mode: strict
+      htpasswd:
+        file: /config/.htpasswd
+      realm: agentgateway
+llm:
+  gateways: [default]
+  models:
+  - name: claude
+    provider: anthropic
+    params:
+      apiKey: $ANTHROPIC_API_KEY
+`)
+	if err := os.WriteFile(p.configFile, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(p, mapGetenv(map[string]string{"UI_PASSWORD": "s3cret"})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(cfg), "$ANTHROPIC_API_KEY") {
+		t.Fatalf("unset $ANTHROPIC_API_KEY model should be stripped:\n%s", cfg)
+	}
+}
+
+func TestPrepareKeepsLiteralProviderKey(t *testing.T) {
+	dir := t.TempDir()
+	p := testPaths(dir)
+	existing := []byte(`gateways:
+  default:
+    port: 4000
+ui:
+  gateways: [default]
+  policies:
+    basicAuth:
+      mode: strict
+      htpasswd:
+        file: /config/.htpasswd
+      realm: agentgateway
+llm:
+  models:
+  - name: local
+    provider: openAI
+    params:
+      apiKey: sk-already-in-config
+`)
+	if err := os.WriteFile(p.configFile, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(p, mapGetenv(map[string]string{"UI_PASSWORD": "s3cret"})); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p.configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "sk-already-in-config") {
+		t.Fatalf("literal provider key was stripped:\n%s", cfg)
 	}
 }
 
