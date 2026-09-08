@@ -154,17 +154,14 @@ func TestPrepareWritesHtpasswdAndSeed(t *testing.T) {
 	if !strings.Contains(string(cfg), "mode: strict") {
 		t.Fatalf("seed config should set mode strict:\n%s", cfg)
 	}
-	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
-		t.Fatalf("seed config should omit OpenAI model when OPENAI_API_KEY is unset:\n%s", cfg)
-	}
-	if !llmHasEmptyModels(cfg) {
-		t.Fatalf("seed config must keep llm.models (empty list) so the schema is valid:\n%s", cfg)
+	if hasLLMSection(cfg) {
+		t.Fatalf("seed config should omit llm when OPENAI_API_KEY is unset:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("seed config should omit GitHub MCP when GITHUB_PERSONAL_ACCESS_TOKEN is unset:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
-		t.Fatalf("seed config should include lab virtual keys:\n%s", cfg)
+	if strings.Contains(string(cfg), "sk-lab-admin-...") {
+		t.Fatalf("virtual keys belong with the OpenAI seed, not a keyless boot:\n%s", cfg)
 	}
 }
 
@@ -264,18 +261,15 @@ llm:
 	if !hasUIBasicAuth(cfg) {
 		t.Fatalf("open auto-gen was not locked:\n%s", cfg)
 	}
-	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
-		t.Fatalf("unset $OPENAI_API_KEY model should be stripped so the gateway can start:\n%s", cfg)
-	}
-	if !llmHasEmptyModels(cfg) {
-		t.Fatalf("stripping the last model must leave llm.models: []:\n%s", cfg)
+	if strings.Contains(string(cfg), "$OPENAI_API_KEY") || hasLLMSection(cfg) {
+		t.Fatalf("unset $OPENAI_API_KEY model should drop the llm section:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("GitHub MCP should not merge without GITHUB_PERSONAL_ACCESS_TOKEN:\n%s", cfg)
 	}
 }
 
-func TestPrepareRestoresEmptyModelsWhenFieldMissing(t *testing.T) {
+func TestPrepareDropsLLMWhenModelsMissing(t *testing.T) {
 	dir := t.TempDir()
 	p := testPaths(dir)
 	existing := []byte(`gateways:
@@ -309,11 +303,8 @@ llm:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !llmHasEmptyModels(cfg) {
-		t.Fatalf("llm without models must be repaired to models: []:\n%s", cfg)
-	}
-	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
-		t.Fatalf("virtual keys were dropped while repairing models:\n%s", cfg)
+	if hasLLMSection(cfg) {
+		t.Fatalf("llm without models must be dropped:\n%s", cfg)
 	}
 }
 
@@ -379,11 +370,8 @@ ui:
 	if !strings.Contains(string(cfg), "custom-realm") {
 		t.Fatalf("existing basicAuth realm was rewritten:\n%s", cfg)
 	}
-	if !strings.Contains(string(cfg), "sk-lab-admin-...") {
-		t.Fatalf("UI-only config was not filled with lab virtual keys:\n%s", cfg)
-	}
-	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
-		t.Fatalf("UI-only config should not gain OpenAI model without OPENAI_API_KEY:\n%s", cfg)
+	if hasLLMSection(cfg) {
+		t.Fatalf("UI-only config should not gain llm without OPENAI_API_KEY:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("UI-only config should not gain GitHub MCP without a token:\n%s", cfg)
@@ -452,11 +440,8 @@ ui:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
-		t.Fatalf("empty seed should not gain OpenAI model without OPENAI_API_KEY:\n%s", cfg)
-	}
-	if !strings.Contains(string(cfg), "sk-lab-limited-...") {
-		t.Fatalf("empty seed was not filled with virtual keys:\n%s", cfg)
+	if hasLLMSection(cfg) {
+		t.Fatalf("empty seed should not gain llm without OPENAI_API_KEY:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("empty seed should not gain GitHub MCP without a token:\n%s", cfg)
@@ -541,8 +526,8 @@ mcp:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(cfg), "$OPENAI_API_KEY") {
-		t.Fatalf("existing env-ref model should be stripped without OPENAI_API_KEY:\n%s", cfg)
+	if hasLLMSection(cfg) {
+		t.Fatalf("existing env-ref model should drop llm without OPENAI_API_KEY:\n%s", cfg)
 	}
 	if strings.Contains(string(cfg), "api.githubcopilot.com") {
 		t.Fatalf("existing mcp was overwritten with lab github:\n%s", cfg)
@@ -617,8 +602,8 @@ llm:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(cfg), "$ANTHROPIC_API_KEY") {
-		t.Fatalf("unset $ANTHROPIC_API_KEY model should be stripped:\n%s", cfg)
+	if strings.Contains(string(cfg), "$ANTHROPIC_API_KEY") || hasLLMSection(cfg) {
+		t.Fatalf("unset $ANTHROPIC_API_KEY model should drop llm:\n%s", cfg)
 	}
 }
 
@@ -669,17 +654,13 @@ func TestPrepareRejectsMissingPassword(t *testing.T) {
 	}
 }
 
-func llmHasEmptyModels(raw []byte) bool {
+func hasLLMSection(raw []byte) bool {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return false
 	}
-	llm, ok := asMap(doc["llm"])
-	if !ok {
-		return false
-	}
-	models, ok := llm["models"].([]any)
-	return ok && len(models) == 0
+	_, ok := asMap(doc["llm"])
+	return ok
 }
 
 func testPaths(dir string) paths {

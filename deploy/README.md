@@ -28,7 +28,7 @@ Set these in the Render Environment tab (or the Blueprint prompt). Never commit 
 | `ANTHROPIC_API_KEY` | No | Optional. Not seeded. |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | No | Optional. Not in the Blueprint prompt. Set it to seed GitHub remote MCP. |
 
-See [`.env.example`](./.env.example). First boot writes UI basicAuth and three placeholder virtual keys. OpenAI (`$OPENAI_API_KEY`) and GitHub MCP (`$GITHUB_PERSONAL_ACCESS_TOKEN`) are added only when those env vars are set — agentgateway exits if a `$VAR` in `config.yaml` is missing. Set provider keys in the dashboard; do not add the same objects again in the UI unless you are customizing.
+See [`.env.example`](./.env.example). First boot writes UI basicAuth. OpenAI (`llm`) and GitHub MCP are added only when those env vars are set — agentgateway exits if a `$VAR` in `config.yaml` is missing, and `llm.models` is required whenever `llm` is present. Set provider keys in the dashboard; do not add the same objects again in the UI unless you are customizing.
 
 Stdio MCP stays on the same `default` gateway (`https://<service>.onrender.com/mcp`):
 

@@ -147,9 +147,9 @@ Blueprint already declares **`agw-config`** → **`/config`**, 1 GB. Disks are
 
 ### 4. Deploy
 
-First boot writes `.htpasswd` + the lab `config.yaml` (UI basicAuth and virtual keys; OpenAI wildcard only if `OPENAI_API_KEY` is set; GitHub MCP only if `GITHUB_PERSONAL_ACCESS_TOKEN` is set). The gateway then watches `/config/config.yaml`. In Render logs you want:
+First boot writes `.htpasswd` + a UI-only `config.yaml`. OpenAI (`llm`) and GitHub MCP are added only when those env vars are set. The gateway then watches `/config/config.yaml`. In Render logs you want:
 
-- `entrypoint: seeded /config/config.yaml (ui basicAuth; llm models skipped, no OPENAI_API_KEY; mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN)` (first boot with only `UI_PASSWORD`), or `entrypoint: updated /config/config.yaml (uiAuth=… lab=… sanitize=…)` (old disk; `sanitize=true` strips leftover `$OPENAI_API_KEY` so a missing provider key cannot crash the process)
+- `entrypoint: seeded /config/config.yaml (ui basicAuth)` (first boot with only `UI_PASSWORD`), or `entrypoint: updated /config/config.yaml (uiAuth=… lab=… sanitize=…)` (old disk — `sanitize=true` drops leftover `$OPENAI_API_KEY` / empty `llm` so a missing provider key cannot crash the process)
 - `state_manager Watching config file: /config/config.yaml`
 - `app serving UI at http://localhost:4000/ui`
 - `proxy::gateway started bind bind="bind/4000"`
@@ -174,7 +174,7 @@ Skip this if you did not set `OPENAI_API_KEY`. When that env var is present, the
 
 ### 7. Confirm virtual keys
 
-The seed is already **LLM → Virtual API Keys**, strict mode, three lab keys: `admin` (any), `demo` (selected models), `limited` (`gpt-4.1-nano` + token budget). Use placeholders in docs; paste real secrets only in the dashboard / disk.
+When `OPENAI_API_KEY` is set, the seed is already **LLM → Virtual API Keys**, strict mode, three lab keys: `admin` (any), `demo` (selected models), `limited` (`gpt-4.1-nano` + token budget). Use placeholders in docs; paste real secrets only in the dashboard / disk. Without a provider key there is no `llm` section — add models in the UI later if you want.
 
 ### 8. Call chat completions (HTTPS + Bearer)
 

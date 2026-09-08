@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
 #
 # Example shape for the Render lab — placeholders only.
-# The entrypoint seeds this onto the agw-config disk as /config/config.yaml
-# on first boot (and merges llm/mcp if an older UI-only seed is already there).
+# First boot always writes config / gateways / ui. llm is added only when
+# OPENAI_API_KEY is set; mcp only when GITHUB_PERSONAL_ACCESS_TOKEN is set.
 # Do not commit real UI passwords, provider keys, or virtual API keys.
 #
 # Render publishes HTTPS :443 → container :4000. Admin :15000 stays loopback.

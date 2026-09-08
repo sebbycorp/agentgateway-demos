@@ -19,12 +19,12 @@ const (
 	agentgatewayBin  = "/app/agentgateway"
 )
 
-// Seed is the Render lab shape (same as 34-render-deploy-agw/config.example.yaml):
-// UI basicAuth and virtual keys always. OpenAI models and GitHub MCP are
-// included only when their env vars are set — agentgateway exits if a $VAR
-// in config.yaml is missing from the process environment.
+// Seed is the Render lab shape (same as 34-render-deploy-agw/config.example.yaml).
+// First boot always writes UI basicAuth. llm and mcp are added only when their
+// env vars are set — agentgateway exits if config.yaml expands a missing $VAR,
+// and llm.models is required whenever llm is present.
 // File-based htpasswd only: inline bcrypt hashes contain $ and the gateway
-// env-expands $VARS in config.yaml ($OPENAI_API_KEY, $GITHUB_PERSONAL_ACCESS_TOKEN).
+// env-expands $VARS ($OPENAI_API_KEY, $GITHUB_PERSONAL_ACCESS_TOKEN).
 const seedConfig = `# yaml-language-server: $schema=https://agentgateway.dev/schema/config
 config:
   database:
@@ -196,17 +196,6 @@ func labSectionsFromSeed() (any, any, error) {
 	return doc["llm"], doc["mcp"], nil
 }
 
-func llmWithoutProviderModels(llm any) any {
-	m, ok := asMap(llm)
-	if !ok {
-		return llm
-	}
-	// llm.models is required by the schema. An empty list is valid; omitting
-	// the field makes agentgateway exit: "llm: missing field `models`".
-	m["models"] = []any{}
-	return m
-}
-
 func seedConfigBytes(opts seedOpts) ([]byte, error) {
 	if opts.includeLLM && opts.includeMCP {
 		return []byte(seedConfig), nil
@@ -216,7 +205,7 @@ func seedConfigBytes(opts seedOpts) ([]byte, error) {
 		return nil, fmt.Errorf("parse seed config: %w", err)
 	}
 	if !opts.includeLLM {
-		doc["llm"] = llmWithoutProviderModels(doc["llm"])
+		delete(doc, "llm")
 	}
 	if !opts.includeMCP {
 		delete(doc, "mcp")
@@ -228,13 +217,13 @@ func seedConfigBytes(opts seedOpts) ([]byte, error) {
 	return out, nil
 }
 
-func llmModelsEmpty(doc map[string]any) bool {
+func llmModels(doc map[string]any) []any {
 	llm, ok := asMap(doc["llm"])
 	if !ok {
-		return true
+		return nil
 	}
-	models, ok := llm["models"].([]any)
-	return !ok || len(models) == 0
+	models, _ := llm["models"].([]any)
+	return models
 }
 
 func envRefName(s string) (string, bool) {
@@ -313,7 +302,8 @@ func targetUsesUnsetKey(target any, getenv func(string) string) bool {
 }
 
 // sanitizeUnsetProviderRefs drops llm models and mcp targets that expand a
-// $VAR the process does not have. agentgateway treats a missing env var as fatal.
+// $VAR the process does not have. If that leaves llm with no models, drop
+// the whole llm section — the schema requires llm.models whenever llm exists.
 func sanitizeUnsetProviderRefs(raw []byte, getenv func(string) string) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -324,47 +314,43 @@ func sanitizeUnsetProviderRefs(raw []byte, getenv func(string) string) ([]byte, 
 	}
 	changed := false
 
-	if llm, ok := asMap(doc["llm"]); ok {
-		models, hasModels := llm["models"].([]any)
-		if !hasModels {
-			llm["models"] = []any{}
+	if _, ok := asMap(doc["llm"]); ok {
+		kept := make([]any, 0)
+		stripped := false
+		for _, model := range llmModels(doc) {
+			if modelUsesUnsetKey(model, getenv) {
+				stripped = true
+				continue
+			}
+			kept = append(kept, model)
+		}
+		if len(kept) == 0 {
+			delete(doc, "llm")
 			changed = true
-		} else {
-			kept := make([]any, 0, len(models))
-			stripped := false
-			for _, model := range models {
-				if modelUsesUnsetKey(model, getenv) {
-					stripped = true
-					continue
-				}
-				kept = append(kept, model)
-			}
-			if stripped {
-				llm["models"] = kept
-				changed = true
-			}
+		} else if stripped {
+			llm, _ := asMap(doc["llm"])
+			llm["models"] = kept
+			changed = true
 		}
 	}
 
 	if mcp, ok := asMap(doc["mcp"]); ok {
-		if targets, ok := mcp["targets"].([]any); ok {
-			kept := make([]any, 0, len(targets))
-			mcpChanged := false
-			for _, target := range targets {
-				if targetUsesUnsetKey(target, getenv) {
-					mcpChanged = true
-					continue
-				}
-				kept = append(kept, target)
+		targets, _ := mcp["targets"].([]any)
+		kept := make([]any, 0, len(targets))
+		mcpChanged := false
+		for _, target := range targets {
+			if targetUsesUnsetKey(target, getenv) {
+				mcpChanged = true
+				continue
 			}
-			if mcpChanged {
-				changed = true
-				if len(kept) == 0 {
-					delete(doc, "mcp")
-				} else {
-					mcp["targets"] = kept
-				}
-			}
+			kept = append(kept, target)
+		}
+		if len(kept) == 0 {
+			delete(doc, "mcp")
+			changed = changed || mcpChanged || len(targets) == 0
+		} else if mcpChanged {
+			mcp["targets"] = kept
+			changed = true
 		}
 	}
 
@@ -378,9 +364,9 @@ func sanitizeUnsetProviderRefs(raw []byte, getenv func(string) string) ([]byte, 
 	return out, true, nil
 }
 
-// ensureLabConfig fills in llm/mcp from the seed when a disk already has the
-// old UI-only seed. It does not overwrite sections the operator already set.
-// OpenAI models and GitHub MCP are merged only when their env vars are set.
+// ensureLabConfig adds llm/mcp from the seed only when the matching env var is
+// set and the disk does not already have that section. It does not overwrite
+// models or MCP the operator set in the UI.
 func ensureLabConfig(raw []byte, opts seedOpts) ([]byte, bool, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -394,10 +380,9 @@ func ensureLabConfig(raw []byte, opts seedOpts) ([]byte, bool, error) {
 		return seed, true, nil
 	}
 
-	needLLM := missingSection(doc, "llm")
-	needModels := opts.includeLLM && llmModelsEmpty(doc)
+	needLLM := opts.includeLLM && (missingSection(doc, "llm") || len(llmModels(doc)) == 0)
 	needMCP := opts.includeMCP && missingSection(doc, "mcp")
-	if !needLLM && !needModels && !needMCP {
+	if !needLLM && !needMCP {
 		return raw, false, nil
 	}
 
@@ -406,12 +391,9 @@ func ensureLabConfig(raw []byte, opts seedOpts) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	if needLLM {
-		if !opts.includeLLM {
-			llm = llmWithoutProviderModels(llm)
-		}
-		doc["llm"] = llm
-	} else if needModels {
-		if seedLLM, ok := asMap(llm); ok {
+		if missingSection(doc, "llm") {
+			doc["llm"] = llm
+		} else if seedLLM, ok := asMap(llm); ok {
 			existing := mapOrCreate(doc, "llm")
 			existing["models"] = seedLLM["models"]
 		}
@@ -527,15 +509,11 @@ func seedSummary(opts seedOpts) string {
 	parts := []string{"ui basicAuth"}
 	if opts.includeLLM {
 		parts = append(parts, "llm")
-	} else {
-		parts = append(parts, "llm models skipped, no OPENAI_API_KEY")
 	}
 	if opts.includeMCP {
 		parts = append(parts, "mcp")
-	} else {
-		parts = append(parts, "mcp skipped, no GITHUB_PERSONAL_ACCESS_TOKEN")
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, " + ")
 }
 
 func main() {
