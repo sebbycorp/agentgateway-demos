@@ -4,7 +4,7 @@ agentgateway is a single gateway for **LLM and MCP** traffic, with a UI you can 
 
 This folder is the Render-only walkthrough. You get a public **HTTPS** URL. Render terminates TLS on `:443` and forwards to the container’s `PORT=4000`. Do not publish `:4000` yourself, and do not call the lab over `http://`.
 
-The screenshots are from the live service [`agentgateway-standalone`](https://agentgateway-standalone.onrender.com) (Starter), not a mock.
+The screenshots are from the live service [`agentgateway-standalone`](https://agentgateway-standalone.onrender.com) (0.5c-512mb), not a mock.
 
 The image this service builds is the repo’s [`deploy/Dockerfile`](../deploy/Dockerfile) (entrypoint + official `v1.5.0`).
 
@@ -64,7 +64,7 @@ flowchart LR
 
 | Fact | Value |
 |------|--------|
-| Service | `agentgateway-standalone` (Web Service, Docker, **Starter**) |
+| Service | `agentgateway-standalone` (Web Service, Docker, **0.5c-512mb**) |
 | URL | https://agentgateway-standalone.onrender.com — **HTTPS only** |
 | Dashboard | https://dashboard.render.com/web/srv-daf2208n74is73fvr090 |
 | Disk | **`agw-config`** → **`/config`**, 1 GB |
@@ -143,7 +143,7 @@ Render prompts only for `UI_PASSWORD` on first Blueprint create. Pin `PORT=4000`
 
 ### 3. Disk
 
-Blueprint already declares **`agw-config`** → **`/config`**, 1 GB. Disks are not available on Render Free — Starter is the floor. Without the volume, config and analytics reset on every deploy.
+Blueprint already declares **`agw-config`** → **`/config`**, 1 GB. Disks are not available on Render Free — **0.5c-512mb** is the floor (Render still accepts `starter` as an alias). Without the volume, config and analytics reset on every deploy.
 
 ### 4. Deploy
 
@@ -226,7 +226,7 @@ Live Render service and the agentgateway UI after OpenAI + GitHub MCP. Environme
 
 ![Render Overview: agentgateway-standalone live](docs/images/01-services-list.png)
 
-**2. Deploys** — Web Service, Docker, Starter. HTTPS URL `https://agentgateway-standalone.onrender.com`. Latest deploy `2cfc26c` (Node/`npx` in the image, #19).
+**2. Deploys** — Web Service, Docker, 0.5c-512mb. HTTPS URL `https://agentgateway-standalone.onrender.com`. Latest deploy `2cfc26c` (Node/`npx` in the image, #19).
 
 ![Render Deploys](docs/images/02-overview.png)
 
@@ -277,7 +277,7 @@ Render publishes **HTTPS :443** to one container port. That port is `4000`. Ther
 | `:4000` on the public hostname | Do not use |
 | `:15000` | No — loopback only |
 
-Starter is enough for a demo. The disk is the persistence story.
+0.5c-512mb is enough for a demo. The disk is the persistence story.
 
 ## Security
 
