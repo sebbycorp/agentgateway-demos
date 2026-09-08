@@ -134,7 +134,7 @@ Set these in the Render **Environment** tab. Never commit real values. See [`.en
 
 **Manual** — New → Web Service → this repo, Docker, `./deploy/Dockerfile`, context `./deploy`. Do **not** pick **Existing Image** → `cr.agentgateway.dev/agentgateway:v1.5.0`. Empty `/config` auto-gen serves `/ui/` with **no auth**.
 
-`autoDeploy` is off so pushes to this demos repo do not redeploy every copy of the button.
+Pushes to `main` auto-deploy when `deploy/` changes (`autoDeployTrigger: commit` + `buildFilter`). Other demo folders do not rebuild the lab.
 
 ### 2. Set the env vars
 

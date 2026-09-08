@@ -6,7 +6,7 @@ How-to (architecture, screenshots, virtual keys, HTTPS curls): **[`34-render-dep
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sebbycorp/agentgateway-demos)
 
-The button reads **`render.yaml` at the repo root** (duplicate of [`render.yaml`](./render.yaml) here). Blueprint path from the dashboard: `render.yaml` or `deploy/render.yaml`. It **builds** this Dockerfile (`dockerfilePath: ./deploy/Dockerfile`, context `./deploy`). Disk is **`agw-config`** at **`/config`** (1 GB; not on Free). `autoDeploy` is off.
+The button reads **`render.yaml` at the repo root** (duplicate of [`render.yaml`](./render.yaml) here). Blueprint path from the dashboard: `render.yaml` or `deploy/render.yaml`. It **builds** this Dockerfile (`dockerfilePath: ./deploy/Dockerfile`, context `./deploy`). Disk is **`agw-config`** at **`/config`** (1 GB; not on Free). Auto-deploy is on for commits that touch `deploy/`.
 
 Public URL is **HTTPS** on Render’s `:443` → container `PORT=4000`. Do not publish admin `:15000` (loopback-only).
 

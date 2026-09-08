@@ -10,7 +10,10 @@ services:
     runtime: docker
     plan: starter
     numInstances: 1
-    autoDeployTrigger: off
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - deploy/**
     dockerfilePath: ./deploy/Dockerfile
     dockerContext: ./deploy
     # /ui/ is basic-auth protected (401 without creds). Omitting
