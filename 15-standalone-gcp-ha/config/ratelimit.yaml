@@ -1,0 +1,6 @@
+domain: agentgateway
+descriptors:
+- key: llm_caller
+  rate_limit:
+    unit: minute
+    requests_per_unit: 10

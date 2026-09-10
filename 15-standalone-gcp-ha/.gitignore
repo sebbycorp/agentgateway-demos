@@ -1,0 +1,22 @@
+# Local secrets — never commit license keys or filled env files
+.env
+*.auto.tfvars
+secrets*.tfvars
+secrets/
+*.key
+
+# Terraform local state and plugins (treat state as secret-bearing)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Generated at boot / apply time
+*.tfplan
+agw.env

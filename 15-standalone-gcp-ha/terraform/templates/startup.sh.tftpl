@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Instance startup: install Docker, pull Secret Manager values into root-only
+# files, sync GCS baseline, run ratelimit + agentgateway. Never echo secrets.
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y --no-install-recommends \
+  apt-transport-https ca-certificates curl gnupg jq
+
+if ! command -v docker >/dev/null 2>&1; then
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update -y
+  apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io
+fi
+
+systemctl enable --now docker
+
+# google-cloud-cli is on the Debian image via the guest environment; fall back to snap.
+if ! command -v gcloud >/dev/null 2>&1; then
+  apt-get install -y --no-install-recommends google-cloud-cli || true
+fi
+
+install -d -m 0755 /etc/agentgateway /etc/ratelimit
+install -d -m 0700 /etc/agentgateway/secrets
+
+METADATA=http://metadata.google.internal/computeMetadata/v1
+HDR=(-H "Metadata-Flavor: Google")
+INSTANCE_ID="$(curl -fsS "$${HDR[@]}" "$${METADATA}/instance/id")"
+ZONE_FULL="$(curl -fsS "$${HDR[@]}" "$${METADATA}/instance/zone")"
+ZONE="$${ZONE_FULL##*/}"
+PRIVATE_IP="$(curl -fsS "$${HDR[@]}" "$${METADATA}/instance/network-interfaces/0/ip")"
+
+pull_secret() {
+  local name="$1" dest="$2"
+  gcloud secrets versions access latest --secret="$name" --project="${project_id}" > "$dest"
+  chmod 0600 "$dest"
+}
+
+pull_secret "${license_secret}" /etc/agentgateway/secrets/license
+pull_secret "${session_secret}" /etc/agentgateway/secrets/session
+pull_secret "${database_url_secret}" /etc/agentgateway/secrets/database-url
+pull_secret "${idp_secret}" /etc/agentgateway/secrets/idp-client
+
+# Env file for the container. Root-only. Not logged.
+umask 077
+cat > /etc/agentgateway/agw.env <<EOF
+AGENTGATEWAY_LICENSE_KEY=$(cat /etc/agentgateway/secrets/license)
+SESSION_KEY=$(cat /etc/agentgateway/secrets/session)
+AGW_DATABASE_URL=$(cat /etc/agentgateway/secrets/database-url)
+IDP_ISSUER=${idp_issuer}
+IDP_JWKS_URL=${idp_jwks_url}
+IDP_UI_CLIENT_ID=${idp_ui_client_id}
+IDP_CLIENT_SECRET=$(cat /etc/agentgateway/secrets/idp-client)
+AGW_PUBLIC_URL=https://${hostname}
+AGW_NODE_ID=$INSTANCE_ID
+AGW_NODE_AZ=$ZONE
+AGW_NODE_IP=$PRIVATE_IP
+VERTEX_PROJECT=${vertex_project}
+VERTEX_REGION=${vertex_region}
+RATELIMIT_HOST=127.0.0.1:${ratelimit_port}
+EOF
+chmod 0600 /etc/agentgateway/agw.env
+
+sync_config() {
+  gsutil -q cp "gs://${config_bucket}/config.yaml" /etc/agentgateway/config.yaml
+  gsutil -q cp "gs://${config_bucket}/model-costs.json" /etc/agentgateway/model-costs.json
+  gsutil -q cp "gs://${config_bucket}/ratelimit.yaml" /etc/ratelimit/config.yaml
+}
+
+sync_config
+
+cat > /usr/local/sbin/agw-config-sync <<'SYNC'
+#!/usr/bin/env bash
+set -euo pipefail
+BUCKET="__BUCKET__"
+tmp="$(mktemp)"
+gsutil -q cp "gs://$${BUCKET}/config.yaml" "$tmp"
+if ! cmp -s "$tmp" /etc/agentgateway/config.yaml; then
+  mv "$tmp" /etc/agentgateway/config.yaml
+else
+  rm -f "$tmp"
+fi
+gsutil -q cp "gs://$${BUCKET}/model-costs.json" /etc/agentgateway/model-costs.json || true
+gsutil -q cp "gs://$${BUCKET}/ratelimit.yaml" /etc/ratelimit/config.yaml || true
+SYNC
+sed -i "s#__BUCKET__#${config_bucket}#g" /usr/local/sbin/agw-config-sync
+chmod 0755 /usr/local/sbin/agw-config-sync
+
+cat > /etc/cron.d/agw-config-sync <<'CRON'
+*/1 * * * * root /usr/local/sbin/agw-config-sync
+CRON
+
+# Envoy ratelimit talks to Memorystore; agentgateway talks to localhost.
+docker rm -f ratelimit >/dev/null 2>&1 || true
+docker run -d --name ratelimit --restart unless-stopped --network host \
+  -e REDIS_SOCKET_TYPE=tcp \
+  -e REDIS_URL="${redis_host}:${redis_port}" \
+  -e USE_STATSD=false \
+  -e RUNTIME_ROOT=/data \
+  -e RUNTIME_SUBDIRECTORY=config \
+  -e RUNTIME_WATCH_ROOT=false \
+  -v /etc/ratelimit:/data/config \
+  envoyproxy/ratelimit:e4c8a1d \
+  /bin/ratelimit
+
+docker pull "${image}"
+docker rm -f agw >/dev/null 2>&1 || true
+docker run -d --name agw --restart unless-stopped --network host \
+  --env-file /etc/agentgateway/agw.env \
+  -v /etc/agentgateway:/config \
+  "${image}" \
+  -f /config/config.yaml
