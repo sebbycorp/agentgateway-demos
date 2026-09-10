@@ -10,6 +10,9 @@ resource "google_sql_database_instance" "agw" {
   project          = var.project_id
 
   settings {
+    # POSTGRES_16 defaults to ENTERPRISE_PLUS when edition is unset, which
+    # rejects custom tiers. ENTERPRISE + db-custom-1-3840 is the lab SKU.
+    edition           = "ENTERPRISE"
     tier              = "db-custom-1-3840"
     availability_type = "ZONAL"
     disk_size         = 10

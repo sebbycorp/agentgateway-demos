@@ -19,19 +19,19 @@ variable "zones" {
 variable "hostname" {
   description = "Public hostname for the HTTPS load balancer and UI OIDC redirect."
   type        = string
-  default     = "agw-gcp-ha.maniak.academy"
+  default     = "agw-gcp-ha.maniak.io"
 }
 
 variable "dns_zone_name" {
   description = "Cloud DNS managed zone DNS name (trailing dot) that contains hostname."
   type        = string
-  default     = "maniak.academy."
+  default     = "maniak.io."
 }
 
 variable "dns_managed_zone" {
   description = "Cloud DNS managed zone resource name (not the DNS name)."
   type        = string
-  default     = "maniak-academy"
+  default     = "maniak"
 }
 
 variable "agentgateway_license_key" {
@@ -41,9 +41,15 @@ variable "agentgateway_license_key" {
 }
 
 variable "agentgateway_image" {
-  description = "Pinned Solo Enterprise container image. Bump the tag here; do not use :latest."
+  description = "Pinned Solo Enterprise container image (changelog 2026.8.2). Do not use :latest."
   type        = string
-  default     = "cr.agentgateway.dev/agentgateway:2026.9.0"
+  default     = "us-docker.pkg.dev/solo-public/enterprise-agentgateway/agentgateway-enterprise:2026.8.2"
+}
+
+variable "ratelimit_image" {
+  description = "Envoy ratelimit sidecar image. e4c8a1d 404s on Docker Hub; pin a published tag."
+  type        = string
+  default     = "envoyproxy/ratelimit:v1.4.0"
 }
 
 variable "data_port" {
@@ -56,6 +62,12 @@ variable "readiness_port" {
   description = "agentgateway readiness listener used for MIG auto-heal and LB health."
   type        = number
   default     = 15021
+}
+
+variable "readiness_path" {
+  description = "Readiness HTTP path on readiness_port (enterprise serves /healthz/ready)."
+  type        = string
+  default     = "/healthz/ready"
 }
 
 variable "admin_port" {

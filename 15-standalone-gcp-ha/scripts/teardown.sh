@@ -10,7 +10,7 @@ require_cmd gcloud
 PROJECT="$(lab_project)"
 REGION="$(lab_region)"
 
-export TF_VAR_agentgateway_license_key="${TF_VAR_agentgateway_license_key:-${AGENTGATEWAY_LICENSE_KEY:-placeholder-for-destroy-only}}"
+export TF_VAR_agentgateway_license_key="${TF_VAR_agentgateway_license_key:-${ENTERPRISE_AGENTGATEWAY_LICENSE_KEY:-${AGENTGATEWAY_LICENSE_KEY:-placeholder-for-destroy-only}}}"
 export TF_VAR_project_id="${TF_VAR_project_id:-$PROJECT}"
 export TF_VAR_region="${TF_VAR_region:-$REGION}"
 

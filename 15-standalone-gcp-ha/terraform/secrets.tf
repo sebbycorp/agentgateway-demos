@@ -1,6 +1,7 @@
-resource "random_password" "session" {
-  length  = 48
-  special = false
+# AES-256-GCM session key must be hex (openssl rand -hex 32). Alphanumeric
+# random_password is rejected as "Invalid character".
+resource "random_id" "session" {
+  byte_length = 32
 }
 
 resource "google_secret_manager_secret" "license" {
@@ -32,7 +33,7 @@ resource "google_secret_manager_secret" "session" {
 
 resource "google_secret_manager_secret_version" "session" {
   secret      = google_secret_manager_secret.session.id
-  secret_data = random_password.session.result
+  secret_data = random_id.session.hex
 }
 
 resource "google_secret_manager_secret" "idp_client" {
