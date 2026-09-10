@@ -7,7 +7,7 @@
 
 ## Goal
 
-Ship a Terraform lab + how-to guide (with screenshots) that runs **Solo Enterprise for agentgateway** as a **standalone container** on a **3-node GCE regional MIG**, modeled on the AWS HA cookbook at [mastertheagent.com/solo/agentgateway-standalone-aws-ha](https://mastertheagent.com/solo/agentgateway-standalone-aws-ha/) and Solo’s standalone docs ([install](https://docs.solo.io/agentgateway/standalone/latest/setup/install/), [GCP](https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/)).
+Ship a Terraform lab + how-to guide (with screenshots) that runs **Solo Enterprise for agentgateway** as a **standalone container** on a **3-node GCE regional MIG**, modeled on a three-node standalone HA fleet pattern and Solo’s standalone docs ([install](https://docs.solo.io/agentgateway/standalone/latest/setup/install/), [GCP](https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/)).
 
 Success means: `terraform apply` (plus thin scripts) brings up a fleet that proves routing, Google Identity auth, Vertex via ADC, MCP, fleet-wide rate limits, hybrid config storage, and the same class of HA drills as the AWS guide — without Kubernetes.
 
@@ -167,7 +167,6 @@ Screenshots (console): MIG instances by zone, LB backend health, Cloud SQL, Memo
 
 ## References
 
-- https://mastertheagent.com/solo/agentgateway-standalone-aws-ha/
 - https://docs.solo.io/agentgateway/standalone/latest/setup/install/
 - https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/
 - https://docs.solo.io/agentgateway/standalone/latest/integrations/
