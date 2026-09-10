@@ -7,9 +7,9 @@
 
 ## Goal
 
-Ship a Terraform lab + how-to guide (with screenshots) that runs **Solo Enterprise for agentgateway** as a **standalone container** on a **3-node GCE regional MIG**, modeled on a three-node standalone HA fleet pattern and Solo’s standalone docs ([install](https://docs.solo.io/agentgateway/standalone/latest/setup/install/), [GCP](https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/)).
+Ship a Terraform lab + how-to guide (with screenshots) that runs **Solo Enterprise for agentgateway** as a **standalone container** on a **3-node GCE regional MIG**, modeled on a three-node standalone HA fleet pattern and Solo’s standalone docs ([install](https://docs.solo.io/agentgateway/standalone/latest/setup/install/), [GCP](https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/), [storage](https://docs.solo.io/agentgateway/standalone/latest/setup/storage/), [database](https://docs.solo.io/agentgateway/standalone/latest/setup/database/), [rate limits](https://docs.solo.io/agentgateway/standalone/latest/configuration/resiliency/rate-limits/)).
 
-Success means: `terraform apply` (plus thin scripts) brings up a fleet that proves routing, Google Identity auth, Vertex via ADC, MCP, fleet-wide rate limits, hybrid config storage, and the same class of HA drills as the AWS guide — without Kubernetes.
+Success means: `terraform apply` (plus thin scripts) brings up a fleet that proves routing, Google Identity auth, Vertex via ADC, MCP, fleet-wide rate limits, hybrid config storage, and the same class of HA drills as a three-node standalone fleet — without Kubernetes.
 
 ## Non-goals (v1)
 
@@ -31,7 +31,7 @@ Success means: `terraform apply` (plus thin scripts) brings up a fleet that prov
 
 ## Architecture (AWS → GCP twin)
 
-| AWS HA guide | This lab |
+| Typical 3-node AWS HA pattern | This lab |
 | --- | --- |
 | 3 EC2 + ASG across AZs | 3 GCE VMs in a regional MIG (balanced across zones) |
 | systemd binary | Docker on each VM — enterprise image from Solo registry |
@@ -107,7 +107,7 @@ Exact resource types can flex during implementation as long as the twin mapping 
 
 ## Startup vs live config
 
-Mirror the AWS guide:
+Mirror the three-node standalone HA fleet pattern:
 
 - **Startup-only** (`config` block): listen addresses, session key, database URL, storage mode, logging/tracing basics — rolling MIG refresh to change
 - **Live reload:** gateways, routes, policies, llm, mcp, ui; GCS push → node sync → file watcher reload
@@ -135,7 +135,7 @@ Mirror the AWS guide:
 
 ## Scripts contract
 
-Same spirit as the AWS lab: preflight (no spend) → apply → verify → feature scripts with positive+negative cases → HA scripts → teardown that sweeps leftovers. Exit non-zero on assertion failure.
+Same spirit as a three-node standalone HA lab: preflight (no spend) → apply → verify → feature scripts with positive+negative cases → HA scripts → teardown that sweeps leftovers. Exit non-zero on assertion failure.
 
 ## How-to / screenshots
 
@@ -169,5 +169,8 @@ Screenshots (console): MIG instances by zone, LB backend health, Cloud SQL, Memo
 
 - https://docs.solo.io/agentgateway/standalone/latest/setup/install/
 - https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/
+- https://docs.solo.io/agentgateway/standalone/latest/setup/storage/
+- https://docs.solo.io/agentgateway/standalone/latest/setup/database/
+- https://docs.solo.io/agentgateway/standalone/latest/configuration/resiliency/rate-limits/
 - https://docs.solo.io/agentgateway/standalone/latest/integrations/
 - https://docs.solo.io/agentgateway/standalone/latest/documentation/
