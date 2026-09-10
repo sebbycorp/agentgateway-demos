@@ -18,7 +18,7 @@ resource "google_compute_region_health_check" "ready" {
 
   http_health_check {
     port         = var.readiness_port
-    request_path = "/readyz"
+    request_path = var.readiness_path
   }
 }
 

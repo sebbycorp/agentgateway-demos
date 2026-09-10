@@ -3,9 +3,11 @@
 # File baseline for the 3-node GCE fleet. No secrets inline.
 # Values come from the container environment (Secret Manager at boot).
 # Startup-only: the config block (except modelCatalog). Everything below reloads live.
+# AGW_NODE_ID is the GCE instance name (string). Quote it wherever YAML treats it as a string.
 # Docs: https://docs.solo.io/agentgateway/standalone/latest/setup/storage/
 #       https://docs.solo.io/agentgateway/standalone/latest/setup/database/
 #       https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/
+#       https://docs.solo.io/agentgateway/standalone/latest/configuration/security/apikey-authn/
 
 config:
   adminAddr: "127.0.0.1:15000"
@@ -59,7 +61,7 @@ routes:
         prefix: /
     requestHeaderModifier:
       set:
-        x-served-by: $AGW_NODE_ID
+        x-served-by: "$AGW_NODE_ID"
       remove:
       - x-internal-only
     localRateLimit:
@@ -107,8 +109,10 @@ llm:
       rules:
       - allow: 'has(jwt.sub)'
       - allow: 'has(apiKey.key)'
+    # 2026.8.2 requires keys (empty is valid; add virtual keys via admin API / GCS next).
     apiKey:
       mode: optional
+      keys: []
       location:
         header:
           name: x-api-key

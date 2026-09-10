@@ -41,9 +41,15 @@ variable "agentgateway_license_key" {
 }
 
 variable "agentgateway_image" {
-  description = "Pinned Solo Enterprise container image. Bump the tag here; do not use :latest."
+  description = "Pinned Solo Enterprise container image (changelog 2026.8.2). Do not use :latest."
   type        = string
-  default     = "cr.agentgateway.dev/agentgateway:2026.9.0"
+  default     = "us-docker.pkg.dev/solo-public/enterprise-agentgateway/agentgateway-enterprise:2026.8.2"
+}
+
+variable "ratelimit_image" {
+  description = "Envoy ratelimit sidecar image. e4c8a1d 404s on Docker Hub; pin a published tag."
+  type        = string
+  default     = "envoyproxy/ratelimit:v1.4.0"
 }
 
 variable "data_port" {
@@ -56,6 +62,12 @@ variable "readiness_port" {
   description = "agentgateway readiness listener used for MIG auto-heal and LB health."
   type        = number
   default     = 15021
+}
+
+variable "readiness_path" {
+  description = "Readiness HTTP path on readiness_port (enterprise serves /healthz/ready)."
+  type        = string
+  default     = "/healthz/ready"
 }
 
 variable "admin_port" {

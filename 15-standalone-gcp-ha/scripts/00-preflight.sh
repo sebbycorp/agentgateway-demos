@@ -21,7 +21,7 @@ fi
 if license_is_set; then
   ok "license env is set (value not printed)"
 else
-  die "set TF_VAR_agentgateway_license_key or AGENTGATEWAY_LICENSE_KEY (do not commit it)"
+  die "set TF_VAR_agentgateway_license_key or ENTERPRISE_AGENTGATEWAY_LICENSE_KEY (do not commit it)"
 fi
 
 echo ""

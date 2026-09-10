@@ -25,7 +25,7 @@ require_env() {
 }
 
 license_is_set() {
-  [[ -n "${TF_VAR_agentgateway_license_key:-${AGENTGATEWAY_LICENSE_KEY:-}}" ]]
+  [[ -n "${TF_VAR_agentgateway_license_key:-${ENTERPRISE_AGENTGATEWAY_LICENSE_KEY:-${AGENTGATEWAY_LICENSE_KEY:-}}}" ]]
 }
 
 lab_project() {

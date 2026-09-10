@@ -33,6 +33,7 @@ resource "google_compute_instance_template" "agw" {
       region              = var.region
       config_bucket       = google_storage_bucket.config.name
       image               = var.agentgateway_image
+      ratelimit_image     = var.ratelimit_image
       license_secret      = google_secret_manager_secret.license.secret_id
       session_secret      = google_secret_manager_secret.session.secret_id
       database_url_secret = google_secret_manager_secret.database_url.secret_id
@@ -80,7 +81,7 @@ resource "google_compute_health_check" "mig_ready" {
 
   http_health_check {
     port         = var.readiness_port
-    request_path = "/readyz"
+    request_path = var.readiness_path
   }
 }
 

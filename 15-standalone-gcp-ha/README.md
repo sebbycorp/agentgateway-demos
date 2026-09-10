@@ -4,7 +4,7 @@ Three private GCE VMs in a **regional managed instance group**, each running **S
 
 This is a three-node standalone HA fleet on GCP. There is no Kubernetes.
 
-Docs: [install](https://docs.solo.io/agentgateway/standalone/latest/setup/install/), [GCP / Vertex](https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/), [storage](https://docs.solo.io/agentgateway/standalone/latest/setup/storage/), [database](https://docs.solo.io/agentgateway/standalone/latest/setup/database/), [rate limits](https://docs.solo.io/agentgateway/standalone/latest/configuration/resiliency/rate-limits/).
+Docs: [install](https://docs.solo.io/agentgateway/standalone/latest/setup/install/), [license](https://docs.solo.io/agentgateway/standalone/latest/setup/license/), [GCP / Vertex](https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/), [storage](https://docs.solo.io/agentgateway/standalone/latest/setup/storage/), [database](https://docs.solo.io/agentgateway/standalone/latest/setup/database/), [API keys](https://docs.solo.io/agentgateway/standalone/latest/configuration/security/apikey-authn/), [rate limits](https://docs.solo.io/agentgateway/standalone/latest/configuration/resiliency/rate-limits/), [changelog](https://docs.solo.io/agentgateway/standalone/latest/reference/changelog/changelog/).
 
 ## Architecture (AWS twin → this lab)
 
@@ -27,9 +27,11 @@ Enterprise (`lt: ent`) is required. **Do not commit the license.** Repo users mu
 
 ```bash
 export TF_VAR_agentgateway_license_key  # set in your shell only
-# or
-export AGENTGATEWAY_LICENSE_KEY
+# or (Enterprise container env name)
+export ENTERPRISE_AGENTGATEWAY_LICENSE_KEY
 ```
+
+The proxy reads `ENTERPRISE_AGENTGATEWAY_LICENSE_KEY` ([licensing](https://docs.solo.io/agentgateway/standalone/latest/setup/license/)). Terraform still consumes `TF_VAR_agentgateway_license_key` and writes Secret Manager; startup copies that value into the container env.
 
 Terraform writes it to Secret Manager (`sensitive = true`). There is no Terraform output of the raw key. `.gitignore` blocks `.env`, `*.auto.tfvars`, `secrets*.tfvars`, and tfstate.
 
@@ -41,7 +43,9 @@ Terraform writes it to Secret Manager (`sensitive = true`). There is no Terrafor
 | Region | `us-central1` |
 | Hostname | `agw-gcp-ha.maniak.io` |
 | Cloud DNS zone | `maniak` (`maniak.io.`) |
-| Image | `cr.agentgateway.dev/agentgateway:2026.9.0` (from Solo GCP docs; bump `TF_VAR_agentgateway_image`) |
+| Image | `us-docker.pkg.dev/solo-public/enterprise-agentgateway/agentgateway-enterprise:2026.8.2` ([changelog](https://docs.solo.io/agentgateway/standalone/latest/reference/changelog/changelog/); bump `TF_VAR_agentgateway_image`) |
+| Ratelimit image | `envoyproxy/ratelimit:v1.4.0` (`TF_VAR_ratelimit_image`) |
+| Readiness | `15021` `/healthz/ready` |
 
 Do not use `:latest`. To bump the image, set `TF_VAR_agentgateway_image` and roll the MIG.
 
@@ -53,7 +57,7 @@ Do not use `:latest`. To bump the image, set `TF_VAR_agentgateway_image` and rol
 - Versioned GCS bucket + `config.yaml` / `model-costs.json` / `ratelimit.yaml`
 - Cloud SQL Postgres 16 `ENTERPRISE` + `db-custom-1-3840` (private IP via Private Service Access)
 - Memorystore Redis STANDARD_HA
-- Regional MIG size 3, Debian 12 + Docker startup, auto-heal on `/readyz`
+- Regional MIG size 3, Debian 12 + Docker startup, auto-heal on `/healthz/ready`
 - Regional HTTPS LB, Certificate Manager regional managed cert (DNS authorization + Cloud DNS CNAME), Cloud DNS A record
 - Identity Platform project config (email sign-in). Google IdP + UI confidential client: see appendix
 
@@ -72,7 +76,7 @@ Terraform enables `identitytoolkit.googleapis.com` during apply; enabling it fir
 ```bash
 cd 15-standalone-gcp-ha
 export LAB_GCP_PROJECT=maniak-io
-export TF_VAR_agentgateway_license_key   # your shell; never commit
+export TF_VAR_agentgateway_license_key   # or ENTERPRISE_AGENTGATEWAY_LICENSE_KEY; never commit
 ./scripts/00-preflight.sh    # no spend; does not print the license
 ./scripts/01-apply.sh
 ./scripts/02-verify.sh
@@ -85,13 +89,15 @@ Preflight prints a rough **few USD/hour** estimate. Tear down when done.
 
 ## Config cookbook
 
-Baseline is `config/config.yaml`. Env placeholders only (`$SESSION_KEY`, `$AGW_DATABASE_URL`, `$IDP_ISSUER`, `$RATELIMIT_HOST`, …).
+Baseline is `config/config.yaml`. Env placeholders only (`$SESSION_KEY`, `$AGW_DATABASE_URL`, `$IDP_ISSUER`, `$RATELIMIT_HOST`, …). `/whoami` is the HA probe (`directResponse`). `llm` / `mcp` / `ui` are included so later scripts have something to hit; expand virtual keys and UI OIDC after the fleet is up.
 
 - **Startup-only:** listen addresses, session key, database URL, storage mode
 - **Live reload:** gateways, routes, llm, mcp, ui — push to GCS, nodes sync within a minute
 - **Hybrid overlay:** admin API/UI writes to Cloud SQL; siblings converge
-
-`/whoami` is an in-process `directResponse` used by HA scripts.
+- **`SESSION_KEY`:** 32-byte hex (`random_id` byte_length=32 → `.hex`). Alphanumeric passwords fail with "Invalid character".
+- **`AGW_NODE_ID`:** GCE **instance name** (quoted string). Numeric instance id breaks YAML/header fields.
+- **`llm.policies.apiKey.keys`:** required on 2026.8.2 ([API key auth](https://docs.solo.io/agentgateway/standalone/latest/configuration/security/apikey-authn/), [config resources](https://docs.solo.io/agentgateway/standalone/latest/operations/config-resources/)). Baseline uses `keys: []`; add keys via admin API or GCS next — do not commit real keys.
+- **Config file perms:** enterprise container is non-root; startup `chmod 0644`s `config.yaml`, `model-costs.json`, and the ratelimit config after each GCS sync.
 
 ## Ops
 
