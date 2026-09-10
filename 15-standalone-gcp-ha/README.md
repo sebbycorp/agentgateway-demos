@@ -59,6 +59,16 @@ Do not use `:latest`. To bump the image, set `TF_VAR_agentgateway_image` and rol
 
 ## Apply (do not run in CI without a license env)
 
+User ADC credentials must send a quota/billing project. The providers set `user_project_override` and `billing_project` so Identity Toolkit (`google_identity_platform_config`) is not charged to the Cloud SDK OAuth client. Also pin ADC itself:
+
+```bash
+gcloud auth application-default login
+gcloud auth application-default set-quota-project maniak-io
+gcloud services enable identitytoolkit.googleapis.com --project=maniak-io
+```
+
+Terraform enables `identitytoolkit.googleapis.com` during apply; enabling it first avoids a 403 if ADC still lacks a quota project.
+
 ```bash
 cd 15-standalone-gcp-ha
 export LAB_GCP_PROJECT=maniak-io
@@ -99,7 +109,7 @@ Put console proof shots in `docs/screenshots/`. Never capture Secret Manager **v
 
 ## Appendix: Identity Platform console gap
 
-Terraform enables Identity Platform (`google_identity_platform_config`) and, if you pass `TF_VAR_idp_google_client_id` / `TF_VAR_idp_google_client_secret`, the Google IdP.
+Terraform enables Identity Platform (`google_identity_platform_config`) and, if you pass `TF_VAR_idp_google_client_id` / `TF_VAR_idp_google_client_secret`, the Google IdP. Identity Toolkit API (`identitytoolkit.googleapis.com`) must be enabled in the lab project. User ADC needs `gcloud auth application-default set-quota-project` for that project — a quota_project_id in the ADC file alone is not enough unless the provider sends `x-goog-user-project` (`user_project_override` + `billing_project`).
 
 The **UI confidential OAuth client** with redirect `https://agw-gcp-ha.maniak.io/oauth/callback` is created in Cloud Console → APIs & Services → Credentials → OAuth client (Web). Then set `TF_VAR_idp_ui_client_id` and the client secret via `TF_VAR_idp_google_client_secret` (or update the Secret Manager secret) and refresh the MIG.
 
