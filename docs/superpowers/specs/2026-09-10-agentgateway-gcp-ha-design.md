@@ -67,7 +67,7 @@ Success means: `terraform apply` (plus thin scripts) brings up a fleet that prov
 
 - **GCP project:** `maniak-io` (assumed; override via tfvars)
 - **Region:** `us-central1`
-- **Hostname:** `agw-gcp-ha.maniak.academy` (Cloud DNS + Google-managed cert)
+- **Hostname:** `agw-gcp-ha.maniak.io` (Cloud DNS zone `maniak` / `maniak.io.` + Google-managed cert)
 - **VMs:** private IPs only; Cloud NAT for egress; IAP for admin
 - **Image:** Solo Enterprise container (`cr.agentgateway.dev/...` — pin a specific tag in Terraform variables; document how to bump)
 
@@ -96,12 +96,12 @@ Also add this design under `docs/superpowers/specs/2026-09-10-agentgateway-gcp-h
 2. **MIG** — instance template (Docker + startup), regional MIG size 3, auto-healing on readiness failure
 3. **Load balancing** — regional external HTTPS, backend service to instance group, Google-managed cert for hostname
 4. **GCS** — versioned config bucket; IAM for VM SA read
-5. **Cloud SQL** — Postgres, private IP preferred; schema created by agentgateway on first start
+5. **Cloud SQL** — Postgres 16 `ENTERPRISE` + `db-custom-1-3840`, private IP preferred; schema created by agentgateway on first start
 6. **Memorystore** — Redis for rate-limit counters
 7. **Secret Manager** — license, session key, DB URL, IdP secrets; VM SA accessor
 8. **IAM** — VM SA: `secretmanager.secretAccessor`, GCS objectViewer, `aiplatform.user`, logging/monitoring write
-9. **Identity Platform** — OIDC app / API for JWT issuer + JWKS; UI confidential client; redirect `https://agw-gcp-ha.maniak.academy/oauth/callback`
-10. **DNS** — record for hostname under `maniak.academy` pointing at the LB
+9. **Identity Platform** — OIDC app / API for JWT issuer + JWKS; UI confidential client; redirect `https://agw-gcp-ha.maniak.io/oauth/callback`
+10. **DNS** — A record for hostname under `maniak.io.` pointing at the LB; Certificate Manager DNS-authorization CNAME in the same zone
 
 Exact resource types can flex during implementation as long as the twin mapping and security constraints hold.
 

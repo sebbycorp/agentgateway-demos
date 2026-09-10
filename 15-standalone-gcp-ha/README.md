@@ -39,7 +39,8 @@ Terraform writes it to Secret Manager (`sensitive = true`). There is no Terrafor
 | --- | --- |
 | Project | `maniak-io` |
 | Region | `us-central1` |
-| Hostname | `agw-gcp-ha.maniak.academy` |
+| Hostname | `agw-gcp-ha.maniak.io` |
+| Cloud DNS zone | `maniak` (`maniak.io.`) |
 | Image | `cr.agentgateway.dev/agentgateway:2026.9.0` (from Solo GCP docs; bump `TF_VAR_agentgateway_image`) |
 
 Do not use `:latest`. To bump the image, set `TF_VAR_agentgateway_image` and roll the MIG.
@@ -50,10 +51,10 @@ Do not use `:latest`. To bump the image, set `TF_VAR_agentgateway_image` and rol
 - VM service account: `secretmanager.secretAccessor`, `storage.objectViewer`, `aiplatform.user`, logging/monitoring write
 - Secret Manager: license, session key, database URL, IdP client secret
 - Versioned GCS bucket + `config.yaml` / `model-costs.json` / `ratelimit.yaml`
-- Cloud SQL Postgres 16 (private IP via Private Service Access)
+- Cloud SQL Postgres 16 `ENTERPRISE` + `db-custom-1-3840` (private IP via Private Service Access)
 - Memorystore Redis STANDARD_HA
 - Regional MIG size 3, Debian 12 + Docker startup, auto-heal on `/readyz`
-- Regional HTTPS LB, Certificate Manager cert, Cloud DNS A record
+- Regional HTTPS LB, Certificate Manager regional managed cert (DNS authorization + Cloud DNS CNAME), Cloud DNS A record
 - Identity Platform project config (email sign-in). Google IdP + UI confidential client: see appendix
 
 ## Apply (do not run in CI without a license env)
@@ -100,7 +101,7 @@ Put console proof shots in `docs/screenshots/`. Never capture Secret Manager **v
 
 Terraform enables Identity Platform (`google_identity_platform_config`) and, if you pass `TF_VAR_idp_google_client_id` / `TF_VAR_idp_google_client_secret`, the Google IdP.
 
-The **UI confidential OAuth client** with redirect `https://agw-gcp-ha.maniak.academy/oauth/callback` is created in Cloud Console → APIs & Services → Credentials → OAuth client (Web). Then set `TF_VAR_idp_ui_client_id` and the client secret via `TF_VAR_idp_google_client_secret` (or update the Secret Manager secret) and refresh the MIG.
+The **UI confidential OAuth client** with redirect `https://agw-gcp-ha.maniak.io/oauth/callback` is created in Cloud Console → APIs & Services → Credentials → OAuth client (Web). Then set `TF_VAR_idp_ui_client_id` and the client secret via `TF_VAR_idp_google_client_secret` (or update the Secret Manager secret) and refresh the MIG.
 
 JWT issuer used in config: `https://securetoken.google.com/<project>`. JWKS is Google’s published securetoken key set. Scripts accept `AGW_ID_TOKEN` from your shell and never print it.
 

@@ -13,7 +13,7 @@
 - Spec: `docs/superpowers/specs/2026-09-10-agentgateway-gcp-ha-design.md`
 - NEVER commit license; `TF_VAR_agentgateway_license_key` / `AGENTGATEWAY_LICENSE_KEY` → Secret Manager; `sensitive = true`; no outputs of raw key; gitignore secrets tfvars and `.env`
 - NEVER mention third-party cookbook hostnames; cite only `https://docs.solo.io/agentgateway/standalone/latest/`
-- project `maniak-io`; region `us-central1`; hostname `agw-gcp-ha.maniak.academy`
+- project `maniak-io`; region `us-central1`; hostname `agw-gcp-ha.maniak.io`; Cloud DNS zone `maniak` / `maniak.io.`
 - no public VM IPs; no public SSH; IAP+OS Login
 - pin concrete image tag; no `:latest`
 - out of v1: multi-region, WAF deep-dive, full Model Armor, dual IdP, K8s
@@ -120,7 +120,7 @@ docker run -d --name agw --network host \
 
 ### Task 6: identity.tf
 
-`google_identity_platform_config` + optional Google IdP. Redirect `https://agw-gcp-ha.maniak.academy/oauth/callback`. Console appendix for the confidential web client.
+`google_identity_platform_config` + optional Google IdP. Redirect `https://agw-gcp-ha.maniak.io/oauth/callback`. Console appendix for the confidential web client.
 
 - [x] **Step 1: Write identity + README appendix**
 - [x] **Step 2: Commit**

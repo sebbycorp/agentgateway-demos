@@ -58,10 +58,16 @@ resource "google_certificate_manager_certificate" "agw" {
   project  = var.project_id
 
   managed {
-    domains = [var.hostname]
+    domains            = [var.hostname]
+    dns_authorizations = [google_certificate_manager_dns_authorization.agw.id]
   }
 
-  depends_on = [google_project_service.apis]
+  # Regional managed certs require a same-region DNS authorization and a
+  # published challenge record before issuance can start.
+  depends_on = [
+    google_project_service.apis,
+    google_dns_record_set.cert_authorization,
+  ]
 }
 
 resource "google_compute_region_target_https_proxy" "agw" {

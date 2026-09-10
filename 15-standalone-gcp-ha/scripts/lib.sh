@@ -37,7 +37,7 @@ lab_region() {
 }
 
 lab_hostname() {
-  echo "${LAB_HOSTNAME:-${TF_VAR_hostname:-agw-gcp-ha.maniak.academy}}"
+  echo "${LAB_HOSTNAME:-${TF_VAR_hostname:-agw-gcp-ha.maniak.io}}"
 }
 
 lab_base_url() {

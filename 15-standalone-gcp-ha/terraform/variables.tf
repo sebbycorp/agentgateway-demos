@@ -19,19 +19,19 @@ variable "zones" {
 variable "hostname" {
   description = "Public hostname for the HTTPS load balancer and UI OIDC redirect."
   type        = string
-  default     = "agw-gcp-ha.maniak.academy"
+  default     = "agw-gcp-ha.maniak.io"
 }
 
 variable "dns_zone_name" {
   description = "Cloud DNS managed zone DNS name (trailing dot) that contains hostname."
   type        = string
-  default     = "maniak.academy."
+  default     = "maniak.io."
 }
 
 variable "dns_managed_zone" {
   description = "Cloud DNS managed zone resource name (not the DNS name)."
   type        = string
-  default     = "maniak-academy"
+  default     = "maniak"
 }
 
 variable "agentgateway_license_key" {
