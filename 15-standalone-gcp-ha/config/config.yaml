@@ -1,0 +1,187 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# File baseline for the 3-node GCE fleet. No secrets inline.
+# Values come from the container environment (Secret Manager at boot).
+# Startup-only: the config block (except modelCatalog). Everything below reloads live.
+# Docs: https://docs.solo.io/agentgateway/standalone/latest/setup/storage/
+#       https://docs.solo.io/agentgateway/standalone/latest/setup/database/
+#       https://docs.solo.io/agentgateway/standalone/latest/integrations/cloud-providers/gcp/
+
+config:
+  adminAddr: "127.0.0.1:15000"
+  readinessAddr: "0.0.0.0:15021"
+  session:
+    key: $SESSION_KEY
+  database:
+    url: $AGW_DATABASE_URL
+    maxConnections: 10
+  storage:
+    mode: hybrid
+  modelCatalog:
+  - file: /config/model-costs.json
+  logging:
+    format: json
+    level: info
+
+frontendPolicies:
+  accessLog:
+    add:
+      node: '"$AGW_NODE_ID"'
+      zone: '"$AGW_NODE_AZ"'
+
+gateways:
+  main:
+    port: 3000
+
+routes:
+- name: whoami
+  gateways: main
+  matches:
+  - path:
+      exact: /whoami
+  policies:
+    directResponse:
+      status: 200
+      body: '{"node":"$AGW_NODE_ID","zone":"$AGW_NODE_AZ","ip":"$AGW_NODE_IP"}'
+      headers:
+        content-type: '"application/json"'
+        x-agw-node: '"$AGW_NODE_ID"'
+        x-agw-zone: '"$AGW_NODE_AZ"'
+
+- name: echo-public
+  gateways: main
+  matches:
+  - path:
+      pathPrefix: /api/public
+  policies:
+    urlRewrite:
+      path:
+        prefix: /
+    requestHeaderModifier:
+      set:
+        x-served-by: $AGW_NODE_ID
+      remove:
+      - x-internal-only
+    localRateLimit:
+    - maxTokens: 60
+      tokensPerFill: 60
+      fillInterval: 60s
+      type: requests
+  backends:
+  - host: 127.0.0.1:8080
+
+- name: echo-private
+  gateways: main
+  matches:
+  - path:
+      pathPrefix: /api/private
+  policies:
+    jwtAuth:
+      mode: strict
+      issuer: $IDP_ISSUER
+      jwks:
+        url: $IDP_JWKS_URL
+      jwtValidationOptions:
+        requiredClaims:
+        - exp
+        - iss
+        - sub
+    authorization:
+      rules:
+      - allow: 'has(jwt.sub)'
+    urlRewrite:
+      path:
+        prefix: /
+  backends:
+  - host: 127.0.0.1:8080
+
+llm:
+  gateways: main
+  policies:
+    jwtAuth:
+      mode: permissive
+      issuer: $IDP_ISSUER
+      jwks:
+        url: $IDP_JWKS_URL
+    authorization:
+      rules:
+      - allow: 'has(jwt.sub)'
+      - allow: 'has(apiKey.key)'
+    apiKey:
+      mode: optional
+      location:
+        header:
+          name: x-api-key
+    remoteRateLimit:
+      host: $RATELIMIT_HOST
+      domain: agentgateway
+      failureMode: failOpen
+      descriptors:
+      - entries:
+        - key: llm_caller
+          value: 'jwt.sub'
+        type: requests
+    cors:
+      allowOrigins:
+      - $AGW_PUBLIC_URL
+      allowHeaders:
+      - "*"
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+  models:
+  - name: gemini-2.5-flash
+    provider: vertex
+    params:
+      model: google/gemini-2.5-flash
+      vertexProject: $VERTEX_PROJECT
+      vertexRegion: $VERTEX_REGION
+    auth:
+      gcp:
+        type: accessToken
+
+mcp:
+  gateways: main
+  statefulMode: stateful
+  prefixMode: always
+  targets:
+  - name: bin
+    mcp:
+      host: https://mcpbin.is.solo.io/remote/mcp
+  policies:
+    jwtAuth:
+      mode: permissive
+      issuer: $IDP_ISSUER
+      jwks:
+        url: $IDP_JWKS_URL
+    authorization:
+      rules:
+      - allow: 'has(jwt.sub)'
+    cors:
+      allowOrigins:
+      - "*"
+      allowHeaders:
+      - mcp-protocol-version
+      - content-type
+      - authorization
+      exposeHeaders:
+      - Mcp-Session-Id
+
+ui:
+  gateways: main
+  policies:
+    oidc:
+      issuer: $IDP_ISSUER
+      jwks:
+        url: $IDP_JWKS_URL
+      clientId: $IDP_UI_CLIENT_ID
+      clientSecret: $IDP_CLIENT_SECRET
+      redirectURI: $AGW_PUBLIC_URL/oauth/callback
+      scopes:
+      - openid
+      - email
+      - profile
+    authorization:
+      rules:
+      - allow: 'has(jwt.sub)'
